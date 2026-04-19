@@ -1,0 +1,92 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+    
+    function isAdmin() {
+      return isAuthenticated() && 
+        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' || 
+         (request.auth.token.email == "anand@one.mn" && request.auth.token.email_verified == true));
+    }
+
+    function isValidString(field, minLen, maxLen) {
+      return request.resource.data[field] is string && 
+             request.resource.data[field].size() >= minLen && 
+             request.resource.data[field].size() <= maxLen;
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+
+    // Publicly readable collections, Admin writable
+    match /blog/{id} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+    
+    match /classes/{id} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+    
+    match /retreats/{id} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+    
+    match /teachers/{id} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+    
+    match /gallery/{id} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+    
+    match /onlineContent/{id} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+    
+    match /mindfulness/{id} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+    
+    match /schedule/{id} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // Media library (admin CRUD + picker in admin UI)
+    match /media/{id} {
+      allow read, write: if isAdmin();
+    }
+
+    // User profiles
+    match /users/{userId} {
+      allow read: if isOwner(userId) || isAdmin();
+      allow create: if isAuthenticated() && request.auth.uid == userId;
+      allow update: if isOwner(userId) || isAdmin();
+    }
+
+    // Bookings
+    match /bookings/{id} {
+      allow read: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
+      allow update, delete: if isAdmin();
+    }
+  }
+}

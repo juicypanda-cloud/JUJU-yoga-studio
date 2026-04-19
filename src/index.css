@@ -1,0 +1,172 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;1,300;1,400;1,500&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --color-primary: #5C4B8A;
+  --color-secondary: #D3CDE9;
+  --color-accent: #1A1A1A;
+  /* Surfaces: pure white (was warm cream/sand) */
+  --color-brand-cream: #ffffff;
+  --color-brand-sand: #ffffff;
+  --color-brand-ink: #1A1A1A;
+  --color-brand-icon: #7A6ABD;
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-serif: "Cormorant Garamond", serif;
+}
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+  }
+  body {
+    @apply bg-white text-brand-ink font-sans antialiased;
+  }
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-serif font-medium tracking-tight;
+  }
+}
+
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+    --font-heading: var(--font-sans);
+    --font-sans: 'Inter', sans-serif;
+    --color-sidebar-ring: var(--sidebar-ring);
+    --color-sidebar-border: var(--sidebar-border);
+    --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+    --color-sidebar-accent: var(--sidebar-accent);
+    --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+    --color-sidebar-primary: var(--sidebar-primary);
+    --color-sidebar-foreground: var(--sidebar-foreground);
+    --color-sidebar: var(--sidebar);
+    --color-chart-5: var(--chart-5);
+    --color-chart-4: var(--chart-4);
+    --color-chart-3: var(--chart-3);
+    --color-chart-2: var(--chart-2);
+    --color-chart-1: var(--chart-1);
+    --color-ring: var(--ring);
+    --color-input: var(--input);
+    --color-border: var(--border);
+    --color-destructive: var(--destructive);
+    --color-accent-foreground: var(--accent-foreground);
+    --color-accent: var(--accent);
+    --color-muted-foreground: var(--muted-foreground);
+    --color-muted: var(--muted);
+    --color-secondary-foreground: var(--secondary-foreground);
+    --color-secondary: var(--secondary);
+    --color-primary-foreground: var(--primary-foreground);
+    --color-primary: var(--primary);
+    --color-popover-foreground: var(--popover-foreground);
+    --color-popover: var(--popover);
+    --color-card-foreground: var(--card-foreground);
+    --color-card: var(--card);
+    --color-foreground: var(--foreground);
+    --color-background: var(--background);
+    --radius-sm: calc(var(--radius) * 0.6);
+    --radius-md: calc(var(--radius) * 0.8);
+    --radius-lg: var(--radius);
+    --radius-xl: calc(var(--radius) * 1.4);
+    --radius-2xl: calc(var(--radius) * 1.8);
+    --radius-3xl: calc(var(--radius) * 2.2);
+    --radius-4xl: calc(var(--radius) * 2.6);
+}
+
+:root {
+    --background: oklch(1 0 0);
+    --foreground: oklch(0.145 0 0);
+    --card: oklch(1 0 0);
+    --card-foreground: oklch(0.145 0 0);
+    --popover: oklch(1 0 0);
+    --popover-foreground: oklch(0.145 0 0);
+    --primary: oklch(0.205 0 0);
+    --primary-foreground: oklch(0.985 0 0);
+    --secondary: oklch(0.97 0 0);
+    --secondary-foreground: oklch(0.205 0 0);
+    --muted: oklch(0.97 0 0);
+    --muted-foreground: oklch(0.556 0 0);
+    --accent: oklch(0.97 0 0);
+    --accent-foreground: oklch(0.205 0 0);
+    --destructive: oklch(0.577 0.245 27.325);
+    --border: oklch(0.922 0 0);
+    --input: oklch(0.922 0 0);
+    --ring: oklch(0.708 0 0);
+    --chart-1: oklch(0.87 0 0);
+    --chart-2: oklch(0.556 0 0);
+    --chart-3: oklch(0.439 0 0);
+    --chart-4: oklch(0.371 0 0);
+    --chart-5: oklch(0.269 0 0);
+    --radius: 0.625rem;
+    --sidebar: oklch(0.985 0 0);
+    --sidebar-foreground: oklch(0.145 0 0);
+    --sidebar-primary: oklch(0.205 0 0);
+    --sidebar-primary-foreground: oklch(0.985 0 0);
+    --sidebar-accent: oklch(0.97 0 0);
+    --sidebar-accent-foreground: oklch(0.205 0 0);
+    --sidebar-border: oklch(0.922 0 0);
+    --sidebar-ring: oklch(0.708 0 0);
+}
+
+/* Masonry Grid Styles */
+.my-masonry-grid {
+  display: flex;
+  margin-left: -24px;
+  width: auto;
+}
+.my-masonry-grid_column {
+  padding-left: 24px;
+  background-clip: padding-box;
+}
+.my-masonry-grid_column > div {
+  margin-bottom: 24px;
+}
+
+.blog-content h3 {
+  @apply text-2xl font-serif text-brand-ink mt-12 mb-4;
+}
+
+.blog-content p {
+  @apply mb-6;
+}
+
+.blog-content {
+  @apply text-lg;
+}
+
+/* Admin panel text defaults */
+.admin-panel,
+.admin-panel * {
+  color: #000 !important;
+}
+
+/* Keep contrast on dark/black surfaces */
+.admin-panel .bg-black,
+.admin-panel .bg-black *,
+.admin-panel .bg-brand-ink,
+.admin-panel .bg-brand-ink *,
+.admin-panel .text-white,
+.admin-panel button.bg-black,
+.admin-panel button.bg-black *,
+.admin-panel button.bg-brand-ink,
+.admin-panel button.bg-brand-ink * {
+  color: #fff !important;
+}
+
+/* Ensure icon strokes stay white on dark buttons */
+.admin-panel button.bg-black svg,
+.admin-panel button.bg-brand-ink svg,
+.admin-panel .bg-black button svg,
+.admin-panel .bg-brand-ink button svg {
+  color: #fff !important;
+  stroke: #fff !important;
+}
+
+/*
+ * Universal CTA: any solid brand-ink button/link uses purple (brand-icon) on hover.
+ * !important wins over per-page hover:bg-brand-ink/90 utilities.
+ */
+button.bg-brand-ink:hover:not(:disabled),
+a.bg-brand-ink:hover {
+  background-color: var(--color-brand-icon) !important;
+}

@@ -1,0 +1,165 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "Application user profile",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "displayName": { "type": "string" },
+        "photoURL": { "type": "string" },
+        "role": { "type": "string", "enum": ["admin", "teacher", "user"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "email", "role"]
+    },
+    "Media": {
+      "title": "Media",
+      "description": "Media library asset",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "url": { "type": "string" },
+        "name": { "type": "string" },
+        "type": { "type": "string", "enum": ["image", "video", "audio"] },
+        "size": { "type": "number" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["url", "name", "type"]
+    },
+    "Retreat": {
+      "title": "Retreat",
+      "description": "Yoga retreat",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "location": { "type": "string" },
+        "date": { "type": "string" },
+        "price": { "type": "number" },
+        "imageURL": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["title", "description", "location", "date"]
+    },
+    "Blog": {
+      "title": "Blog",
+      "description": "Blog post",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "excerpt": { "type": "string" },
+        "content": { "type": "string" },
+        "image": { "type": "string" },
+        "category": { "type": "string" },
+        "date": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["title", "content", "category"]
+    },
+    "Class": {
+      "title": "Class",
+      "description": "Yoga class type",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "duration": { "type": "number" },
+        "level": { "type": "string", "enum": ["Beginner", "Intermediate", "Advanced", "All Levels"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "level"]
+    },
+    "Schedule": {
+      "title": "Schedule",
+      "description": "Scheduled class instance",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "classId": { "type": "string" },
+        "teacherId": { "type": "string" },
+        "startTime": { "type": "string" },
+        "endTime": { "type": "string" },
+        "dayOfWeek": { "type": "string" },
+        "capacity": { "type": "number" },
+        "bookedCount": { "type": "number" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["classId", "teacherId", "startTime", "dayOfWeek"]
+    },
+    "OnlineContent": {
+      "title": "OnlineContent",
+      "description": "On-demand video or audio content",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "type": { "type": "string", "enum": ["video", "audio"] },
+        "mediaURL": { "type": "string" },
+        "thumbnailURL": { "type": "string" },
+        "teacherId": { "type": "string" },
+        "category": { "type": "string", "enum": ["Yoga", "Meditation"] },
+        "level": { "type": "string", "enum": ["Beginner", "Advanced", "All Levels"] },
+        "description": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["title", "type", "mediaURL", "category"]
+    },
+    "Teacher": {
+      "title": "Teacher",
+      "description": "Yoga teacher profile",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "bio": { "type": "string" },
+        "photoURL": { "type": "string" },
+        "specialties": { "type": "array", "items": { "type": "string" } },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "bio"]
+    },
+    "Gallery": {
+      "title": "Gallery",
+      "description": "Gallery image",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "imageURL": { "type": "string" },
+        "caption": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["imageURL"]
+    },
+    "Booking": {
+      "title": "Booking",
+      "description": "User booking record",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "scheduleId": { "type": "string" },
+        "type": { "type": "string", "enum": ["class", "retreat"] },
+        "status": { "type": "string", "enum": ["confirmed", "cancelled"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "scheduleId", "type", "status"]
+    }
+  },
+  "firestore": {
+    "/users/{uid}": { "schema": "User", "description": "User profiles" },
+    "/media/{mediaId}": { "schema": "Media", "description": "Media library assets" },
+    "/retreats/{retreatId}": { "schema": "Retreat", "description": "Yoga retreats" },
+    "/blog/{postId}": { "schema": "Blog", "description": "Blog posts" },
+    "/classes/{classId}": { "schema": "Class", "description": "Yoga class types" },
+    "/schedule/{scheduleId}": { "schema": "Schedule", "description": "Scheduled classes" },
+    "/onlineContent/{contentId}": { "schema": "OnlineContent", "description": "On-demand content" },
+    "/teachers/{teacherId}": { "schema": "Teacher", "description": "Teacher profiles" },
+    "/gallery/{galleryId}": { "schema": "Gallery", "description": "Gallery images" },
+    "/bookings/{bookingId}": { "schema": "Booking", "description": "User bookings" }
+  }
+}

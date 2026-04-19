@@ -1,0 +1,104 @@
+import React, { Suspense, lazy } from 'react';
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { AuthProvider } from './context/AuthContext';
+import { Layout } from './components/Layout';
+import { ScrollToTop } from './components/ScrollToTop';
+import { Toaster } from 'sonner';
+import { ErrorBoundary } from './components/ErrorBoundary';
+
+// Safe lazy load helper
+const safeLazy = (importFn: () => Promise<any>) => 
+  lazy(() => importFn().catch((err) => {
+    console.error('[App] Lazy load failed:', err);
+    return { default: () => (
+      <div className="min-h-screen flex items-center justify-center p-6 bg-white">
+        <div className="text-center">
+          <h2 className="text-xl font-serif text-brand-ink mb-4">Хуудсыг ачаалахад алдаа гарлаа</h2>
+          <button 
+            onClick={() => window.location.reload()}
+            className="px-6 py-2 bg-brand-ink text-white rounded-full text-xs font-black uppercase tracking-widest"
+          >
+            Дахин ачаалах
+          </button>
+        </div>
+      </div>
+    )};
+  }));
+
+// Lazy load pages
+const Home = safeLazy(() => import('./pages/Home').then(m => ({ default: m.Home })));
+const OnlineClasses = safeLazy(() => import('./pages/OnlineClasses').then(m => ({ default: m.OnlineClasses })));
+const Schedule = safeLazy(() => import('./pages/Schedule').then(m => ({ default: m.Schedule })));
+const Retreats = safeLazy(() => import('./pages/Retreats').then(m => ({ default: m.Retreats })));
+const Mindfulness = safeLazy(() => import('./pages/Mindfulness').then(m => ({ default: m.Mindfulness })));
+const Classes = safeLazy(() => import('./pages/Classes').then(m => ({ default: m.Classes })));
+const ClassDetail = safeLazy(() => import('./pages/ClassDetail').then(m => ({ default: m.ClassDetail })));
+const Teachers = safeLazy(() => import('./pages/Teachers').then(m => ({ default: m.Teachers })));
+const Gallery = safeLazy(() => import('./pages/Gallery').then(m => ({ default: m.Gallery })));
+const Pricing = safeLazy(() => import('./pages/Pricing').then(m => ({ default: m.Pricing })));
+const Checkout = safeLazy(() => import('./pages/Checkout').then(m => ({ default: m.Checkout })));
+const Profile = safeLazy(() => import('./pages/Profile').then(m => ({ default: m.Profile })));
+const Rules = safeLazy(() => import('./pages/Rules').then(m => ({ default: m.Rules })));
+const About = safeLazy(() => import('./pages/About').then(m => ({ default: m.About })));
+const Contact = safeLazy(() => import('./pages/Contact').then(m => ({ default: m.Contact })));
+const Blog = safeLazy(() => import('./pages/Blog').then(m => ({ default: m.Blog })));
+const BlogDetail = safeLazy(() => import('./pages/BlogDetail').then(m => ({ default: m.BlogDetail })));
+const RetreatDetail = safeLazy(() => import('./pages/RetreatDetail').then(m => ({ default: m.RetreatDetail })));
+const Login = safeLazy(() => import('./pages/Login').then(m => ({ default: m.Login })));
+const SignUp = safeLazy(() => import('./pages/SignUp').then(m => ({ default: m.SignUp })));
+const ForgotPassword = safeLazy(() => import('./pages/ForgotPassword').then(m => ({ default: m.ForgotPassword })));
+const AdminLayout = safeLazy(() => import('./admin/AdminLayout').then(m => ({ default: m.AdminLayout })));
+
+const LoadingScreen = () => (
+  <div className="min-h-screen flex items-center justify-center bg-white">
+    <div className="flex flex-col items-center gap-4">
+      <div className="w-12 h-12 border-4 border-brand-icon/20 border-t-brand-icon rounded-full animate-spin" />
+      <p className="text-[10px] font-black uppercase tracking-[0.2em] text-brand-ink/40">Уншиж байна...</p>
+    </div>
+  </div>
+);
+
+export default function App() {
+  console.log('[App] Rendering');
+  
+  return (
+    <ErrorBoundary>
+      <AuthProvider>
+        <Router>
+          <ScrollToTop />
+          <Layout>
+            <ErrorBoundary>
+              <Suspense fallback={<LoadingScreen />}>
+                <Routes>
+                  <Route path="/" element={<Home />} />
+                  <Route path="/retreats" element={<Retreats />} />
+                  <Route path="/retreats/:id" element={<RetreatDetail />} />
+                  <Route path="/classes" element={<Classes />} />
+                  <Route path="/classes/:id" element={<ClassDetail />} />
+                  <Route path="/schedule" element={<Schedule />} />
+                  <Route path="/online" element={<OnlineClasses />} />
+                  <Route path="/pricing" element={<Pricing />} />
+                  <Route path="/checkout" element={<Checkout />} />
+                  <Route path="/profile" element={<Profile />} />
+                  <Route path="/teachers" element={<Teachers />} />
+                  <Route path="/gallery" element={<Gallery />} />
+                  <Route path="/mindfulness" element={<Mindfulness />} />
+                  <Route path="/rules" element={<Rules />} />
+                  <Route path="/about" element={<About />} />
+                  <Route path="/contact" element={<Contact />} />
+                  <Route path="/blog" element={<Blog />} />
+                  <Route path="/blog/:id" element={<BlogDetail />} />
+                  <Route path="/login" element={<Login />} />
+                  <Route path="/signup" element={<SignUp />} />
+                  <Route path="/forgot-password" element={<ForgotPassword />} />
+                  <Route path="/admin/*" element={<AdminLayout />} />
+                </Routes>
+              </Suspense>
+            </ErrorBoundary>
+          </Layout>
+          <Toaster position="top-center" />
+        </Router>
+      </AuthProvider>
+    </ErrorBoundary>
+  );
+}
