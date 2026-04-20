@@ -9,7 +9,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { handleFirestoreError, OperationType } from '../lib/firestore-errors';
-import { canAccess } from '../lib/access';
+import { hasActiveSubscription } from '../lib/access';
 import {
   Dialog,
   DialogContent,
@@ -69,8 +69,8 @@ export const OnlineClasses: React.FC = () => {
   const [filter, setFilter] = useState('All');
   const [search, setSearch] = useState('');
   const [accessGateOpen, setAccessGateOpen] = useState(false);
-  const { user, profile, isSubscribed, isAdmin } = useAuth();
-  const allowed = canAccess({ user, isSubscribed, isAdmin, role: profile?.role });
+  const { user, profile } = useAuth();
+  const allowed = hasActiveSubscription(profile);
   const durationByIdRef = useRef(durationById);
   durationByIdRef.current = durationById;
 

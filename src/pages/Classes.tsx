@@ -6,6 +6,7 @@ import { classData as staticClassData } from '../data/classes';
 import { collection, getDocs, query, orderBy } from 'firebase/firestore';
 import { db } from '../firebase';
 import { ErrorBoundary } from '../components/ErrorBoundary';
+import type { ClassItem as BaseClassItem } from '../types/class';
 
 type ScheduleSlot = {
   dayOfWeek?: string;
@@ -16,59 +17,42 @@ type ScheduleSlot = {
 type RawClassItem = {
   id?: string;
   title?: string;
-  name?: string;
   image?: string;
-  thumbnail?: string;
   category?: string;
-  schedule?: string | string[];
   scheduleSlots?: ScheduleSlot[];
   duration?: string;
-  type?: string;
-  price?: number;
-  premium?: boolean;
-  requiresSubscription?: boolean;
+  type?: 'offline' | 'online' | 'audio';
+  videoUrl?: string;
+  audioUrl?: string;
+  createdAt?: any;
 };
 
-type ClassItem = {
-  id: string;
-  title: string;
-  image: string;
+type ClassItem = BaseClassItem & {
   category: string;
   scheduleDays: string[];
   duration: string;
-  type?: string;
-  price?: number;
-  premium?: boolean;
-  requiresSubscription?: boolean;
 };
 
 const CLASS_FALLBACK_IMAGE = 'https://picsum.photos/seed/class-fallback/1200/800';
 
 const normalizeScheduleDays = (item: RawClassItem): string[] => {
   const slots = Array.isArray(item?.scheduleSlots) ? item.scheduleSlots : [];
-  if (slots.length > 0) {
-    return slots.map((slot) => String(slot?.dayOfWeek || '').trim()).filter(Boolean);
-  }
-
-  const rawSchedule = item?.schedule;
-  if (Array.isArray(rawSchedule)) {
-    return rawSchedule.map((day) => String(day || '').trim()).filter(Boolean);
-  }
-
-  return rawSchedule?.split(',')?.map((day) => day.trim())?.filter(Boolean) || [];
+  return slots
+    .map((slot) => (typeof slot?.dayOfWeek === 'string' ? slot.dayOfWeek.trim() : ''))
+    .filter(Boolean);
 };
 
 const normalizeClassItem = (raw: RawClassItem, fallbackId: string): ClassItem => ({
-  id: String(raw?.id || fallbackId),
-  title: String(raw?.title || raw?.name || 'Untitled'),
-  image: String(raw?.image || raw?.thumbnail || CLASS_FALLBACK_IMAGE),
-  category: String(raw?.category || 'Class'),
+  id: typeof raw?.id === 'string' ? raw.id : fallbackId,
+  title: typeof raw?.title === 'string' ? raw.title : 'Untitled class',
+  type: raw?.type === 'online' || raw?.type === 'audio' ? raw.type : 'offline',
+  image: typeof raw?.image === 'string' ? raw.image : CLASS_FALLBACK_IMAGE,
+  videoUrl: typeof raw?.videoUrl === 'string' ? raw.videoUrl : undefined,
+  audioUrl: typeof raw?.audioUrl === 'string' ? raw.audioUrl : undefined,
+  createdAt: raw?.createdAt,
+  category: typeof raw?.category === 'string' ? raw.category : 'Class',
   scheduleDays: normalizeScheduleDays(raw),
-  duration: String(raw?.duration || '60 min'),
-  type: raw?.type ? String(raw.type) : undefined,
-  price: typeof raw?.price === 'number' ? raw.price : undefined,
-  premium: raw?.premium === true,
-  requiresSubscription: raw?.requiresSubscription === true,
+  duration: typeof raw?.duration === 'string' ? raw.duration : '60 min',
 });
 
 export const Classes: React.FC = () => {
@@ -203,8 +187,9 @@ export const Classes: React.FC = () => {
                       <img
                         src={item.image}
                         alt={item.title}
-                        className="absolute inset-0 h-full w-full object-cover transition-[transform,filter] duration-700 ease-out group-hover:scale-[1.04] group-hover:brightness-[1.02]"
-                        loading="lazy"
+                        className="absolute inset-0 h-full w-full object-cover block"
+                        loading="eager"
+                        fetchPriority="high"
                         decoding="async"
                       />
                       <div

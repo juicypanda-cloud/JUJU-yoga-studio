@@ -18,7 +18,7 @@ type HeroFormData = {
 };
 
 const defaultFormData: HeroFormData = {
-  image: '/images/home-hero-source-latest.png',
+  image: '',
   title: 'Ретрит Аялал',
   subtitle: 'Хамгийн үзэсгэлэнтэй газруудад дотоод амар амгалангаа олоорой.',
   cta1Text: 'ОНЛАЙНААР ХИЧЭЭЛЛЭХ',
@@ -70,7 +70,7 @@ export const HomeHeroAdmin: React.FC = () => {
 
     setSaving(true);
     try {
-      const image = formData.image?.trim() || defaultFormData.image;
+      const image = formData.image?.trim() || '';
       await setDoc(doc(db, 'siteContent', 'homeHero'), {
         ...formData,
         image,

@@ -9,12 +9,16 @@ import { toast } from 'sonner';
 import { motion } from 'motion/react';
 import { Calendar as CalendarIcon, Clock, User } from 'lucide-react';
 import { ErrorBoundary } from '../components/ErrorBoundary';
+import type { ClassItem } from '../types/class';
 
 type ClassLookupItem = {
+  id: string;
   title?: string;
-  name?: string;
-  duration?: string;
-  level?: string;
+  type?: ClassItem['type'];
+  image?: string;
+  videoUrl?: string;
+  audioUrl?: string;
+  createdAt?: any;
 };
 
 type TeacherLookupItem = {
@@ -87,7 +91,16 @@ export const Schedule: React.FC = () => {
     const unsubscribeClasses = onSnapshot(collection(db, 'classes'), (snapshot) => {
       const lookup: Record<string, ClassLookupItem> = {};
       snapshot.docs.forEach((classDoc) => {
-        lookup[classDoc.id] = classDoc.data() as ClassLookupItem;
+        const raw = classDoc.data() as Record<string, unknown>;
+        lookup[classDoc.id] = {
+          id: classDoc.id,
+          title: typeof raw.title === 'string' ? raw.title : undefined,
+          type: raw.type === 'online' || raw.type === 'audio' ? raw.type : 'offline',
+          image: typeof raw.image === 'string' ? raw.image : undefined,
+          videoUrl: typeof raw.videoUrl === 'string' ? raw.videoUrl : undefined,
+          audioUrl: typeof raw.audioUrl === 'string' ? raw.audioUrl : undefined,
+          createdAt: raw.createdAt,
+        };
       });
       setClasses(lookup);
     });
@@ -156,13 +169,18 @@ export const Schedule: React.FC = () => {
   };
 
   const getClassInfo = (item: ScheduleItem) => {
-    const classRecord = classes?.[item?.classId] || {};
+    const classRecord: ClassLookupItem = classes?.[item?.classId] ?? { id: item.classId };
     const teacherRecord = teachers?.[item?.teacherId || ''] || {};
 
     return {
-      title: classRecord?.title || classRecord?.name || item?.className || 'Unknown class',
-      level: classRecord?.level || 'Бүх түвшин',
-      duration: classRecord?.duration || '60 min',
+      title:
+        typeof classRecord?.title === 'string'
+          ? classRecord.title
+          : typeof item?.className === 'string'
+            ? item.className
+            : 'Untitled class',
+      level: 'Бүх түвшин',
+      duration: '60 min',
       time: item?.time || 'No time',
       status: item?.status || 'Active',
       teacherName: teacherRecord?.name || item?.teacherName || 'Багш',

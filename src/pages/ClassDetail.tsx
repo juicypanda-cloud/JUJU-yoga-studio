@@ -7,17 +7,11 @@ import { classData } from '../data/classes';
 import { db } from '../firebase';
 import { doc, getDoc } from 'firebase/firestore';
 import { useAuth } from '../context/AuthContext';
-import { canAccess } from '../lib/access';
+import { hasActiveSubscription } from '../lib/access';
 import { getYouTubeVideoId, getYouTubePosterUrl } from '../lib/online-video-thumb';
+import type { ClassItem } from '../types/class';
 
-type ClassContentType = 'offline' | 'online' | 'audio';
-
-type ClassDetailItem = {
-  id: string;
-  title: string;
-  type: ClassContentType;
-  videoUrl?: string;
-  audioUrl?: string;
+type ClassDetailItem = ClassItem & {
   category: string;
   schedule: string;
   time: string;
@@ -41,11 +35,11 @@ function getYouTubePosterForPreview(url: string) {
 }
 
 const normalizeClassDetail = (id: string, raw: any): ClassDetailItem => {
-  const scheduleSlots = raw?.scheduleSlots || [];
-  const schedule = Array.isArray(scheduleSlots) && scheduleSlots.length > 0
+  const scheduleSlots = Array.isArray(raw?.scheduleSlots) ? raw.scheduleSlots : [];
+  const schedule = scheduleSlots.length > 0
     ? scheduleSlots.map((slot: any) => slot?.dayOfWeek).filter(Boolean).join(', ')
-    : (raw?.schedule || 'Хуваарь удахгүй');
-  const time = Array.isArray(scheduleSlots) && scheduleSlots.length > 0
+    : 'Хуваарь удахгүй';
+  const time = scheduleSlots.length > 0
     ? scheduleSlots
       .map((slot: any) => {
         const startTime = slot?.startTime || '';
@@ -54,35 +48,39 @@ const normalizeClassDetail = (id: string, raw: any): ClassDetailItem => {
       })
       .filter(Boolean)
       .join(', ')
-    : (raw?.time || 'Цаг удахгүй');
+    : 'Цаг удахгүй';
 
   const parsedBenefits = Array.isArray(raw?.benefits)
     ? raw.benefits
-    : typeof raw?.benefits === 'string'
-      ? raw.benefits.split(',').map((item: string) => item.trim()).filter(Boolean)
-      : [];
+    : [];
+
+  const rawType = typeof raw?.type === 'string' ? raw.type.trim().toLowerCase() : '';
+  const type: ClassItem['type'] =
+    rawType === 'online' || rawType === 'audio' ? rawType : 'offline';
 
   return {
     id,
-    title: raw?.title || raw?.name || 'No name',
-    type: raw?.type || 'offline',
-    videoUrl: raw?.videoUrl || '',
-    audioUrl: raw?.audioUrl || '',
-    category: raw?.category || 'Yoga',
+    title: typeof raw?.title === 'string' ? raw.title : 'Untitled class',
+    type,
+    videoUrl: typeof raw?.videoUrl === 'string' ? raw.videoUrl : '',
+    audioUrl: typeof raw?.audioUrl === 'string' ? raw.audioUrl : '',
+    createdAt: raw?.createdAt,
+    image: typeof raw?.image === 'string' ? raw.image : 'https://picsum.photos/seed/class-detail/1200/900',
+    category: typeof raw?.category === 'string' ? raw.category : 'Yoga',
     schedule,
     time,
-    duration: raw?.duration || '60 мин',
+    duration: typeof raw?.duration === 'string' ? raw.duration : '60 мин',
     price: typeof raw?.price === 'number' ? raw.price : undefined,
-    description: raw?.description || 'Тайлбар удахгүй нэмэгдэнэ.',
+    description: typeof raw?.description === 'string' ? raw.description : 'Тайлбар удахгүй нэмэгдэнэ.',
     benefits: parsedBenefits.length > 0 ? parsedBenefits : ['Сунгалт, амьсгал, төвлөрөл сайжруулна'],
-    image: raw?.image || 'https://picsum.photos/seed/class-detail/1200/900',
   };
 };
 
 export const ClassDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
-  const { user, profile, isSubscribed, isAdmin } = useAuth();
-  const premiumAccess = canAccess({ user, isSubscribed, isAdmin, role: profile?.role });
+  const { user, profile } = useAuth();
+  const hasSubscription = hasActiveSubscription(profile);
+  const hasContentAccess = Boolean(user) && hasSubscription;
   const [classItem, setClassItem] = useState<ClassDetailItem | null>(null);
   const [loading, setLoading] = useState(true);
   const [mediaLoaded, setMediaLoaded] = useState(false);
@@ -269,7 +267,7 @@ export const ClassDetail: React.FC = () => {
                     </Button>
                   </Link>
                 </div>
-              ) : !premiumAccess ? (
+              ) : !hasSubscription ? (
                 <div className="rounded-[2rem] border border-brand-ink/10 bg-white p-10 text-center shadow-inner">
                   <div className="mx-auto mb-6 flex h-14 w-14 items-center justify-center rounded-full bg-white text-brand-icon shadow-md">
                     <Lock size={26} />
@@ -284,7 +282,7 @@ export const ClassDetail: React.FC = () => {
                     </Button>
                   </Link>
                 </div>
-              ) : classItem?.type === 'online' ? (
+              ) : !hasContentAccess ? null : classItem?.type === 'online' ? (
                 <div className="relative aspect-video overflow-hidden rounded-2xl shadow-lg shadow-brand-ink/10 bg-black">
                   <div
                     className={`absolute inset-0 transition-opacity duration-500 ${

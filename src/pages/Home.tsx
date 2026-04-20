@@ -17,11 +17,12 @@ import {
 } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Card, CardContent } from '../components/ui/card';
-import { collection, limit, onSnapshot, orderBy, query, where } from 'firebase/firestore';
+import { collection, limit, onSnapshot, orderBy, query } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useAuth } from '../context/AuthContext';
-import { canAccess } from '../lib/access';
-import { getYouTubeVideoId, getYouTubePosterUrl, resolveOnlineContentThumbnail } from '../lib/online-video-thumb';
+import { hasActiveSubscription } from '../lib/access';
+import { getYouTubeVideoId, getYouTubePosterUrl } from '../lib/online-video-thumb';
+import type { ClassItem } from '../types/class';
 
 /** Masonry aspect rhythm (reused for Firestore gallery + fallback) */
 const GALLERY_ASPECT_CYCLE = [
@@ -76,15 +77,10 @@ const normalizeHomeGalleryMoment = (id: string, raw: any, idx: number): HomeGall
   aspect: GALLERY_ASPECT_CYCLE[idx % GALLERY_ASPECT_CYCLE.length],
 });
 
-type HomeClassItem = {
-  id: string;
-  title: string;
-  image: string;
+type HomeClassItem = ClassItem & {
   duration: string;
   instructor?: string;
   description: string;
-  type: string;
-  videoUrl?: string;
 };
 
 type HomeBlogItem = {
@@ -110,21 +106,41 @@ const getYouTubeThumbnail = (url?: string) => {
   return id ? getYouTubePosterUrl(id, 'list') : '';
 };
 
-const normalizeClassItem = (id: string, raw: any): HomeClassItem => ({
-  id,
-  title: raw?.title || raw?.name || 'Untitled class',
-  image: raw?.image || raw?.thumbnail || getYouTubeThumbnail(raw?.videoUrl) || 'https://picsum.photos/seed/class-fallback/1600/900',
-  duration: raw?.duration || '60 min',
-  instructor: raw?.teacher || raw?.teacherName || raw?.instructor || '',
-  description: raw?.shortDescription || raw?.description || 'Дэлгэрэнгүй мэдээлэл удахгүй нэмэгдэнэ.',
-  type: raw?.type || 'offline',
-  videoUrl: raw?.videoUrl || '',
-});
+const normalizeClassItem = (id: string, raw: Record<string, unknown>): HomeClassItem => {
+  const rawType = typeof raw.type === 'string' ? raw.type.trim().toLowerCase() : '';
+  const type: ClassItem['type'] =
+    rawType === 'online' || rawType === 'audio' ? rawType : 'offline';
+  const title = typeof raw.title === 'string' ? raw.title : 'Untitled class';
+  const image =
+    typeof raw.image === 'string'
+      ? raw.image
+      : getYouTubeThumbnail(typeof raw.videoUrl === 'string' ? raw.videoUrl : '') ||
+        'https://picsum.photos/seed/class-fallback/1600/900';
+  const duration = typeof raw.duration === 'string' ? raw.duration : '60 min';
+  const instructor = typeof raw.teacher === 'string' ? raw.teacher : '';
+  const description =
+    typeof raw.description === 'string'
+      ? raw.description
+      : 'Дэлгэрэнгүй мэдээлэл удахгүй нэмэгдэнэ.';
+
+  return {
+    id,
+    title,
+    type,
+    image,
+    videoUrl: typeof raw.videoUrl === 'string' ? raw.videoUrl : '',
+    audioUrl: typeof raw.audioUrl === 'string' ? raw.audioUrl : '',
+    createdAt: raw.createdAt,
+    duration,
+    instructor,
+    description,
+  };
+};
 
 const normalizeBlogItem = (id: string, raw: any): HomeBlogItem => ({
   id,
-  title: raw?.title || raw?.name || 'Untitled blog',
-  image: raw?.image || raw?.thumbnail || 'https://picsum.photos/seed/blog-fallback/1200/800',
+  title: typeof raw?.title === 'string' ? raw.title : 'Untitled blog',
+  image: typeof raw?.image === 'string' ? raw.image : 'https://picsum.photos/seed/blog-fallback/1200/800',
   description: (raw?.shortDescription || raw?.excerpt || raw?.description || '')
     .toString()
     .slice(0, 180),
@@ -133,11 +149,12 @@ const normalizeBlogItem = (id: string, raw: any): HomeBlogItem => ({
 
 const normalizeRetreatItem = (id: string, raw: any): HomeRetreatItem => ({
   id,
-  title: raw?.title || raw?.name || 'Untitled retreat',
-  image: raw?.image || raw?.thumbnail || 'https://picsum.photos/seed/retreat-fallback/1200/800',
-  description: raw?.shortDescription || raw?.description || 'Дэлгэрэнгүй мэдээлэл удахгүй нэмэгдэнэ.',
-  duration: raw?.duration || '',
-  location: raw?.location || '',
+  title: typeof raw?.title === 'string' ? raw.title : 'Untitled retreat',
+  image: typeof raw?.image === 'string' ? raw.image : 'https://picsum.photos/seed/retreat-fallback/1200/800',
+  description:
+    typeof raw?.description === 'string' ? raw.description : 'Дэлгэрэнгүй мэдээлэл удахгүй нэмэгдэнэ.',
+  duration: typeof raw?.duration === 'string' ? raw.duration : '',
+  location: typeof raw?.location === 'string' ? raw.location : '',
 });
 
 const getCreatedAtSeconds = (raw: any) => {
@@ -151,32 +168,9 @@ const getCreatedAtSeconds = (raw: any) => {
   return 0;
 };
 
-const isOnlineContentClass = (raw: any) => {
-  const normalizedType = String(raw?.type || '').trim().toLowerCase();
-  return normalizedType === 'online' || Boolean(raw?.videoUrl) || Boolean(raw?.audioUrl);
-};
-
-const normalizeOnlineLibraryItem = (id: string, raw: any): HomeClassItem => ({
-  id,
-  title: raw?.title || raw?.name || 'Untitled class',
-  image:
-    resolveOnlineContentThumbnail({
-      mediaURL: raw?.mediaURL,
-      thumbnailURL: raw?.thumbnailURL,
-      thumbnail: raw?.thumbnail,
-      image: raw?.image,
-    }) ||
-    'https://picsum.photos/seed/class-fallback/1600/900',
-  duration: raw?.duration || '60 min',
-  instructor: raw?.teacherName || raw?.teacher || '',
-  description: raw?.description || raw?.shortDescription || 'Дэлгэрэнгүй мэдээлэл удахгүй нэмэгдэнэ.',
-  type: 'online',
-  videoUrl: raw?.mediaURL || '',
-});
-
 export const Home: React.FC = () => {
-  const { user, profile, isSubscribed, isAdmin } = useAuth();
-  const allowPremium = canAccess({ user, isSubscribed, isAdmin, role: profile?.role });
+  const { user, profile } = useAuth();
+  const allowPremium = hasActiveSubscription(profile);
   const premiumLibraryPath = !user ? '/login' : !allowPremium ? '/pricing' : '/online';
 
   const [offlineClasses, setOfflineClasses] = useState<HomeClassItem[]>([]);
@@ -212,91 +206,40 @@ export const Home: React.FC = () => {
   };
 
   useEffect(() => {
-    const offlineQuery = query(
-      collection(db, 'classes'),
-      where('type', '==', 'offline'),
-      limit(6)
-    );
-    const onlineQuery = query(collection(db, 'classes'), limit(20));
-    const onlineContentQuery = query(collection(db, 'onlineContent'), limit(20));
+    const classesQuery = query(collection(db, 'classes'), limit(80));
     const retreatsQuery = query(collection(db, 'retreats'), limit(6));
     const blogQuery = query(
       collection(db, 'blog'),
       orderBy('createdAt', 'desc'),
       limit(2)
     );
+    const unsubClasses = onSnapshot(classesQuery, (snapshot) => {
+      const normalizedClasses = snapshot.docs.map((classDoc) =>
+        normalizeClassItem(classDoc.id, classDoc.data() as Record<string, unknown>)
+      );
+      const latestOffline = normalizedClasses
+        .filter((item) => item.type === 'offline')
+        .sort((a, b) => getCreatedAtSeconds(b) - getCreatedAtSeconds(a))
+        .slice(0, 6);
+      const latestOnline = normalizedClasses
+        .filter((item) => item.type === 'online' || Boolean(item.videoUrl))
+        .sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0))
+        .slice(0, 3);
 
-    let classesOnlineItems: HomeClassItem[] = [];
-    let libraryOnlineItems: HomeClassItem[] = [];
-    let classesReady = false;
-    let libraryReady = false;
-    let classesFailed = false;
-    let libraryFailed = false;
-
-    const syncOnlineState = () => {
-      const nextOnlineItems = classesOnlineItems.length > 0 ? classesOnlineItems : libraryOnlineItems;
-      setOnlineClasses(nextOnlineItems);
-      if (classesReady && libraryReady) {
-        setLoadingOnline(false);
-        setOnlineError(classesFailed && libraryFailed);
-      }
-    };
-
-    const unsubOffline = onSnapshot(offlineQuery, (snapshot) => {
-      const items = snapshot.docs.map((classDoc) => normalizeClassItem(classDoc.id, classDoc.data()));
-      setOfflineClasses(items);
+      setOfflineClasses(latestOffline);
+      setOnlineClasses(latestOnline);
       setLoadingOffline(false);
+      setLoadingOnline(false);
       setOfflineError(false);
+      setOnlineError(false);
     }, (error) => {
-      console.error('Failed to load offline classes:', error);
+      console.error('Failed to load classes:', error);
       setOfflineClasses([]);
+      setOnlineClasses([]);
       setLoadingOffline(false);
+      setLoadingOnline(false);
       setOfflineError(true);
-    });
-
-    const unsubOnline = onSnapshot(onlineQuery, (snapshot) => {
-      classesOnlineItems = snapshot.docs
-        .map((classDoc) => ({
-          data: classDoc.data(),
-          item: normalizeClassItem(classDoc.id, classDoc.data()),
-        }))
-        .filter((entry) => isOnlineContentClass(entry.data))
-        .sort((a, b) => {
-          const aTime = getCreatedAtSeconds(a?.data);
-          const bTime = getCreatedAtSeconds(b?.data);
-          return bTime - aTime;
-        })
-        .slice(0, 2)
-        .map((entry) => entry.item);
-      classesReady = true;
-      classesFailed = false;
-      syncOnlineState();
-    }, (error) => {
-      console.error('Failed to load online classes:', error);
-      classesOnlineItems = [];
-      classesReady = true;
-      classesFailed = true;
-      syncOnlineState();
-    });
-
-    const unsubOnlineLibrary = onSnapshot(onlineContentQuery, (snapshot) => {
-      libraryOnlineItems = snapshot.docs
-        .map((contentDoc) => ({
-          data: contentDoc.data(),
-          item: normalizeOnlineLibraryItem(contentDoc.id, contentDoc.data()),
-        }))
-        .sort((a, b) => getCreatedAtSeconds(b?.data) - getCreatedAtSeconds(a?.data))
-        .slice(0, 2)
-        .map((entry) => entry.item);
-      libraryReady = true;
-      libraryFailed = false;
-      syncOnlineState();
-    }, (error) => {
-      console.error('Failed to load onlineContent fallback:', error);
-      libraryOnlineItems = [];
-      libraryReady = true;
-      libraryFailed = true;
-      syncOnlineState();
+      setOnlineError(true);
     });
 
     const unsubBlogs = onSnapshot(blogQuery, (snapshot) => {
@@ -331,9 +274,7 @@ export const Home: React.FC = () => {
     });
 
     return () => {
-      unsubOffline();
-      unsubOnline();
-      unsubOnlineLibrary();
+      unsubClasses();
       unsubBlogs();
       unsubRetreats();
     };
@@ -786,30 +727,30 @@ export const Home: React.FC = () => {
           ) : onlineError ? (
             <p className="text-center text-brand-ink/60 py-10">Unable to load online classes right now.</p>
           ) : onlineClasses.length === 0 ? (
-            <p className="text-center text-brand-ink/60 py-10">No online classes available</p>
+            <p className="text-center text-brand-ink/60 py-10">Одоогоор онлайн хичээл байхгүй байна.</p>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-16">
-              {onlineClasses.slice(0, 2).map((video, idx) => (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-12">
+              {onlineClasses.map((video) => (
                 <motion.div
                   key={video.id}
                   initial={{ opacity: 0, y: 20 }}
                   whileInView={{ opacity: 1, y: 0 }}
-                  transition={{ delay: idx * 0.1 }}
+                  transition={{ duration: 0.35 }}
                   viewport={{ once: true }}
                   className="group cursor-pointer"
                 >
-                  <div className="relative aspect-[16/10] rounded-2xl overflow-hidden mb-8 shadow-2xl shadow-brand-ink/5 group-hover:shadow-brand-ink/10 group-hover:-translate-y-2 transition-all duration-500">
+                  <div className="relative aspect-[16/10] rounded-2xl overflow-hidden mb-8 shadow-2xl shadow-brand-ink/5">
                     <img
                       src={video.image}
                       alt={video.title}
-                      className="absolute inset-0 h-full w-full object-cover transition-transform duration-700 group-hover:scale-105"
-                      loading={idx === 0 ? 'eager' : 'lazy'}
-                      fetchPriority={idx === 0 ? 'high' : 'low'}
+                      className="absolute inset-0 h-full w-full object-cover block"
+                      loading="eager"
+                      fetchPriority="high"
                       decoding="async"
                     />
-                    <div className="pointer-events-none absolute inset-0 z-[2] bg-gradient-to-t from-brand-ink/85 via-brand-ink/25 to-transparent opacity-70 transition-opacity duration-500" />
+                    <div className="pointer-events-none absolute inset-0 z-[2] bg-gradient-to-t from-brand-ink/85 via-brand-ink/25 to-transparent opacity-70" />
                     <Link to={premiumLibraryPath} className="absolute inset-0 z-[4] flex items-center justify-center">
-                      <div className="w-16 h-16 rounded-full bg-white/10 backdrop-blur-md border border-white/20 flex items-center justify-center text-white transform transition-all duration-500 group-hover:scale-110 group-hover:bg-brand-icon/40 group-hover:border-brand-icon/50">
+                      <div className="w-16 h-16 rounded-full bg-white/10 backdrop-blur-md border border-white/20 flex items-center justify-center text-white">
                         <Play size={24} fill="currentColor" className="ml-1" />
                       </div>
                     </Link>

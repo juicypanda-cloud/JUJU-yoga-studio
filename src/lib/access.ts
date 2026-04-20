@@ -1,11 +1,25 @@
 import type { User } from 'firebase/auth';
 
+export type UserProfile = {
+  uid: string;
+  role?: 'admin' | 'user';
+  subscriptionStatus?: 'active' | 'inactive';
+  subscriptionEndDate?: any;
+};
+
+export const hasActiveSubscription = (profile?: UserProfile | null): boolean => {
+  if (!profile) return false;
+  if (profile.role === 'admin') return true;
+  if (!profile.subscriptionEndDate) return false;
+
+  const endDate = new Date(profile.subscriptionEndDate);
+  if (Number.isNaN(endDate.getTime())) return false;
+  return endDate > new Date();
+};
+
 export type CanAccessInput = {
   user: User | null;
-  isSubscribed?: boolean;
-  isAdmin?: boolean;
-  /** Firestore profile role; admin overrides subscription for premium content */
-  role?: string | null | undefined;
+  profile?: UserProfile | null;
 };
 
 /**
@@ -13,10 +27,7 @@ export type CanAccessInput = {
  */
 export function canAccess(input: CanAccessInput): boolean {
   if (!input?.user) return false;
-  if (input.isAdmin === true) return true;
-  if (input.role === 'admin') return true;
-  if (input.isSubscribed === true) return true;
-  return false;
+  return hasActiveSubscription(input.profile);
 }
 
 export type PremiumClassLike = {

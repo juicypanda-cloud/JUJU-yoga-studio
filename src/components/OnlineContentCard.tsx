@@ -20,7 +20,7 @@ interface OnlineContentCardProps {
   accessLocked?: boolean;
 }
 
-const FALLBACK_THUMBNAIL = '/images/home-hero-source-latest.png';
+const FALLBACK_THUMBNAIL = 'https://picsum.photos/seed/online-content-fallback/1280/720';
 
 export const OnlineContentCard: React.FC<OnlineContentCardProps> = ({ content, onClick, priority = false, accessLocked = false }) => {
   const thumb = content.thumbnailURL?.trim() || FALLBACK_THUMBNAIL;
@@ -35,18 +35,18 @@ export const OnlineContentCard: React.FC<OnlineContentCardProps> = ({ content, o
           key={`${content.id}-${thumb}`}
           src={thumb}
           alt={content.title}
-          className="absolute inset-0 h-full w-full object-cover transition-all duration-700 group-hover:scale-110"
-          loading={priority ? 'eager' : 'lazy'}
-          fetchPriority={priority ? 'high' : 'low'}
+          className="absolute inset-0 h-full w-full object-cover block"
+          loading="eager"
+          fetchPriority="high"
           decoding="async"
         />
 
         {/* Gradient Overlay */}
-        <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-brand-ink/60 via-transparent to-transparent opacity-40 group-hover:opacity-60 transition-opacity duration-700" />
+        <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-brand-ink/60 via-transparent to-transparent opacity-60" />
 
         {/* Glassy Play / lock affordance */}
         <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-          <div className="w-16 h-16 rounded-full bg-white/10 backdrop-blur-md border border-white/20 flex items-center justify-center text-white transform transition-all duration-500 group-hover:scale-110 group-hover:bg-brand-icon/40 group-hover:border-brand-icon/50 shadow-2xl">
+          <div className="w-16 h-16 rounded-full bg-white/10 backdrop-blur-md border border-white/20 flex items-center justify-center text-white shadow-2xl">
             {accessLocked ? (
               <Lock size={22} strokeWidth={1.75} />
             ) : (

@@ -14,20 +14,19 @@ type HeroSlide = {
 };
 
 const defaultSlide: HeroSlide = {
-  image: '/images/home-hero-source-latest.png',
+  image: '',
   title: 'Ретрит Аялал',
   subtitle: 'Хамгийн үзэсгэлэнтэй газруудад дотоод амар амгалангаа олоорой.',
   cta1: { text: 'ОНЛАЙНААР ХИЧЭЭЛЛЭХ', link: '/online' },
   cta2: { text: 'СТУДИД ХИЧЭЭЛЛЭХ', link: '/classes' },
 };
 
-const HERO_SESSION_KEY = 'homeHero:lastSlide:v1';
+const HERO_SESSION_KEY = 'homeHero:lastSlide:v2';
+const HERO_LOCAL_KEY = 'homeHero:lastSlide:local:v1';
 
-function readPersistedSlide(): HeroSlide | null {
-  if (typeof sessionStorage === 'undefined') return null;
+function parsePersistedSlide(raw: string | null): HeroSlide | null {
+  if (!raw) return null;
   try {
-    const raw = sessionStorage.getItem(HERO_SESSION_KEY);
-    if (!raw) return null;
     const o = JSON.parse(raw) as Partial<HeroSlide> & { cta1?: Partial<HeroSlide['cta1']>; cta2?: Partial<HeroSlide['cta2']> };
     if (typeof o.image !== 'string' || !o.image.trim()) return null;
     return {
@@ -48,9 +47,18 @@ function readPersistedSlide(): HeroSlide | null {
   }
 }
 
+function readPersistedSlide(): HeroSlide | null {
+  if (typeof window === 'undefined') return null;
+  const sessionSlide = parsePersistedSlide(window.sessionStorage.getItem(HERO_SESSION_KEY));
+  if (sessionSlide) return sessionSlide;
+  return parsePersistedSlide(window.localStorage.getItem(HERO_LOCAL_KEY));
+}
+
 function persistSlide(slide: HeroSlide) {
+  if (!slide.image?.trim()) return;
   try {
     sessionStorage.setItem(HERO_SESSION_KEY, JSON.stringify(slide));
+    localStorage.setItem(HERO_LOCAL_KEY, JSON.stringify(slide));
   } catch {
     /* quota / private mode */
   }
@@ -60,7 +68,7 @@ function slideFromSnapshot(snapshot: DocumentSnapshot): HeroSlide {
   if (!snapshot.exists()) return defaultSlide;
   const data = snapshot.data() as Record<string, unknown>;
   return {
-    image: (typeof data.image === 'string' && data.image) || defaultSlide.image,
+    image: (typeof data.image === 'string' ? data.image.trim() : '') || defaultSlide.image,
     title: (typeof data.title === 'string' && data.title) || defaultSlide.title,
     subtitle: (typeof data.subtitle === 'string' && data.subtitle) || defaultSlide.subtitle,
     cta1: {
@@ -78,9 +86,22 @@ export const Hero: React.FC = () => {
   const initialSlide = readPersistedSlide() ?? defaultSlide;
   const [slide, setSlide] = useState<HeroSlide>(initialSlide);
   /** Only URL that has finished loading — avoids old image under / beside the next one. */
-  const [shownHeroUrl, setShownHeroUrl] = useState(initialSlide.image);
+  const [shownHeroUrl, setShownHeroUrl] = useState(initialSlide.image || '');
 
   useEffect(() => {
+    if (initialSlide.image) {
+      try {
+        const preload = document.createElement('link');
+        preload.rel = 'preload';
+        preload.as = 'image';
+        preload.href = initialSlide.image;
+        preload.setAttribute('fetchpriority', 'high');
+        document.head.appendChild(preload);
+      } catch {
+        /* ignore */
+      }
+    }
+
     const heroDocRef = doc(db, 'siteContent', 'homeHero');
 
     const apply = (snapshot: DocumentSnapshot) => {
@@ -101,12 +122,8 @@ export const Hero: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    const url = slide.image;
-
-    if (url === defaultSlide.image) {
-      setShownHeroUrl(defaultSlide.image);
-      return;
-    }
+    const url = slide.image?.trim();
+    if (!url) return;
 
     let cancelled = false;
     let preload: HTMLLinkElement | null = null;
@@ -139,14 +156,7 @@ export const Hero: React.FC = () => {
       }
     };
     probe.onerror = () => {
-      if (cancelled) return;
-      setSlide((s) => {
-        if (s.image === defaultSlide.image) return s;
-        const next = { ...s, image: defaultSlide.image };
-        persistSlide(next);
-        return next;
-      });
-      finish(defaultSlide.image);
+      if (!cancelled) setShownHeroUrl((prev) => prev);
     };
     probe.src = url;
 
@@ -162,15 +172,17 @@ export const Hero: React.FC = () => {
   return (
     <div className="relative min-h-screen w-full overflow-hidden bg-brand-ink">
       <div className="pointer-events-none absolute inset-0 overflow-hidden">
-        <img
-          key={shownHeroUrl}
-          src={shownHeroUrl}
-          alt={slide.title}
-          className="absolute inset-0 h-full w-full object-cover contrast-105 brightness-105"
-          loading="eager"
-          fetchPriority="high"
-          decoding="async"
-        />
+        {shownHeroUrl ? (
+          <img
+            key={shownHeroUrl}
+            src={shownHeroUrl}
+            alt={slide.title}
+            className="absolute inset-0 h-full w-full object-cover contrast-105 brightness-105"
+            loading="eager"
+            fetchPriority="high"
+            decoding="async"
+          />
+        ) : null}
       </div>
       <div className="absolute inset-0 z-[1] bg-black/20" />
 
