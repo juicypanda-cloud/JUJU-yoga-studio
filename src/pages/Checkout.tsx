@@ -73,6 +73,7 @@ export const Checkout: React.FC = () => {
   const [success, setSuccess] = useState(false);
   const [paymentSession, setPaymentSession] = useState<PaymentSession | null>(null);
   const [orderId, setOrderId] = useState('');
+  const [useQrFallback, setUseQrFallback] = useState(false);
 
   useEffect(() => {
     if (!user) {
@@ -140,6 +141,7 @@ export const Checkout: React.FC = () => {
       }
 
       setPaymentSession(session);
+      setUseQrFallback(false);
       toast.success('QPay QR амжилттай үүслээ');
     } catch (error) {
       console.error('Payment error:', error);
@@ -261,13 +263,18 @@ export const Checkout: React.FC = () => {
                     {paymentSession.qrImage || paymentSession.qrText ? (
                       <img
                         src={
-                          paymentSession.qrImage ??
+                          !useQrFallback && paymentSession.qrImage
+                            ? paymentSession.qrImage
+                            :
                           `https://api.qrserver.com/v1/create-qr-code/?size=280x280&data=${encodeURIComponent(
                             paymentSession.qrText ?? paymentSession.invoiceId
                           )}`
                         }
                         alt="QPay QR"
                         className="w-64 h-64 rounded-2xl bg-white p-2"
+                        onError={() => {
+                          if (!useQrFallback) setUseQrFallback(true);
+                        }}
                       />
                     ) : (
                       <div className="text-center text-sm text-brand-ink/50">
