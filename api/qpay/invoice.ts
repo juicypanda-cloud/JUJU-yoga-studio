@@ -1,4 +1,4 @@
-import { assertMethod, getErrorMessage, jsonResponse } from './_lib.js';
+import { assertMethod, getErrorMessage, getValidatedQPayUrl, jsonResponse } from './_lib.js';
 
 export const config = {
   runtime: 'nodejs',
@@ -16,14 +16,14 @@ function parseJsonSafe(text: string): Record<string, unknown> {
 async function fetchQPayToken() {
   const clientId = process.env.QPAY_CLIENT_ID;
   const clientSecret = process.env.QPAY_CLIENT_SECRET;
-  const baseUrl = process.env.QPAY_BASE_URL ?? 'https://merchant.qpay.mn';
+  const tokenUrl = getValidatedQPayUrl('https://merchant.qpay.mn/v2/auth/token');
 
   if (!clientId || !clientSecret) {
     throw new Error('Missing QPAY_CLIENT_ID or QPAY_CLIENT_SECRET');
   }
 
   const basicAuth = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
-  const response = await fetch(`${baseUrl}/v2/auth/token`, {
+  const response = await fetch(tokenUrl, {
     method: 'POST',
     headers: {
       Authorization: `Basic ${basicAuth}`,
@@ -68,7 +68,7 @@ export default async function handler(req: any, res: any) {
   try {
     const invoiceCode = process.env.QPAY_INVOICE_CODE;
     const callbackUrl = process.env.QPAY_CALLBACK_URL;
-    const baseUrl = process.env.QPAY_BASE_URL ?? 'https://merchant.qpay.mn';
+    const invoiceUrl = getValidatedQPayUrl('https://merchant.qpay.mn/v2/invoice');
 
     if (!invoiceCode || !callbackUrl) {
       return jsonResponse(res, 500, {
@@ -95,7 +95,7 @@ export default async function handler(req: any, res: any) {
     };
     console.log('[QPay] invoice request body:', payload);
 
-    const invoiceResponse = await fetch(`${baseUrl}/v2/invoice`, {
+    const invoiceResponse = await fetch(invoiceUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

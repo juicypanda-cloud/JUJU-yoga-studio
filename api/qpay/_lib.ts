@@ -10,17 +10,33 @@ type CachedToken = {
   expiresAt: number;
 };
 
-const QPAY_BASE_URL = process.env.QPAY_BASE_URL ?? 'https://merchant.qpay.mn';
 const QPAY_CLIENT_ID = process.env.QPAY_CLIENT_ID;
 const QPAY_CLIENT_SECRET = process.env.QPAY_CLIENT_SECRET;
 const QPAY_INVOICE_CODE = process.env.QPAY_INVOICE_CODE;
 const QPAY_CALLBACK_URL = process.env.QPAY_CALLBACK_URL;
+const QPAY_API_BASE_URL = 'https://merchant.qpay.mn';
+const QPAY_TOKEN_URL = 'https://merchant.qpay.mn/v2/auth/token';
 
 let cachedToken: CachedToken | null = null;
 let tokenFetchInFlight: Promise<string> | null = null;
 
 export function getErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
+}
+
+export function getValidatedQPayUrl(url: string | undefined | null): string {
+  if (!url) {
+    throw new Error('Invalid QPay URL configuration');
+  }
+  try {
+    const parsed = new URL(url);
+    if (parsed.protocol !== 'https:') {
+      throw new Error('Invalid protocol');
+    }
+    return parsed.toString();
+  } catch {
+    throw new Error('Invalid QPay URL configuration');
+  }
 }
 
 function parseJsonSafe(text: string): Record<string, unknown> {
@@ -100,7 +116,8 @@ export async function fetchQPayToken(forceRefresh = false): Promise<string> {
 
   tokenFetchInFlight = (async () => {
     const auth = Buffer.from(`${QPAY_CLIENT_ID}:${QPAY_CLIENT_SECRET}`).toString('base64');
-    const response = await fetch(`${QPAY_BASE_URL}/v2/auth/token`, {
+    const tokenUrl = getValidatedQPayUrl(QPAY_TOKEN_URL);
+    const response = await fetch(tokenUrl, {
       method: 'POST',
       headers: {
         Authorization: `Basic ${auth}`,
@@ -137,7 +154,8 @@ export async function fetchQPayToken(forceRefresh = false): Promise<string> {
 
 export async function qpayRequest<T>(endpoint: string, init?: RequestInit): Promise<{ status: number; data: T }> {
   const token = await fetchQPayToken();
-  let response = await fetch(`${QPAY_BASE_URL}${endpoint}`, {
+  const requestUrl = getValidatedQPayUrl(`${QPAY_API_BASE_URL}${endpoint}`);
+  let response = await fetch(requestUrl, {
     ...init,
     headers: {
       'Content-Type': 'application/json',
@@ -148,7 +166,7 @@ export async function qpayRequest<T>(endpoint: string, init?: RequestInit): Prom
 
   if (response.status === 401) {
     const refreshedToken = await fetchQPayToken(true);
-    response = await fetch(`${QPAY_BASE_URL}${endpoint}`, {
+    response = await fetch(requestUrl, {
       ...init,
       headers: {
         'Content-Type': 'application/json',
