@@ -5,7 +5,7 @@ import {
   getQPayInvoiceConfig,
   jsonResponse,
   qpayRequest,
-} from './_lib';
+} from './_lib.js';
 
 export const config = {
   runtime: 'nodejs',
