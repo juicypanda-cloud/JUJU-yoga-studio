@@ -2,6 +2,7 @@ import {
   assertMethod,
   assertQPayInvoiceConfig,
   getBody,
+  getErrorMessage,
   getQPayInvoiceConfig,
   jsonResponse,
   qpayRequest,
@@ -50,6 +51,9 @@ export default async function handler(req: any, res: any) {
     return jsonResponse(res, status, data);
   } catch (error) {
     console.error('QPay invoice create failed:', error);
-    return jsonResponse(res, 500, { error: 'QPay invoice create failed' });
+    return jsonResponse(res, 500, {
+      error: 'QPay invoice create failed',
+      details: getErrorMessage(error),
+    });
   }
 }

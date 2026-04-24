@@ -1,4 +1,4 @@
-import { assertMethod, assertQPayCredentials, fetchQPayToken, jsonResponse } from './_lib.js';
+import { assertMethod, assertQPayCredentials, fetchQPayToken, getErrorMessage, jsonResponse } from './_lib.js';
 
 export const config = {
   runtime: 'nodejs',
@@ -16,6 +16,9 @@ export default async function handler(req: any, res: any) {
     });
   } catch (error) {
     console.error('QPay token fetch failed:', error);
-    return jsonResponse(res, 500, { error: 'QPay token fetch failed' });
+    return jsonResponse(res, 500, {
+      error: 'QPay token fetch failed',
+      details: getErrorMessage(error),
+    });
   }
 }

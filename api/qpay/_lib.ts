@@ -19,6 +19,19 @@ const QPAY_CALLBACK_URL = process.env.QPAY_CALLBACK_URL;
 let cachedToken: CachedToken | null = null;
 let tokenFetchInFlight: Promise<string> | null = null;
 
+export function getErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+function parseJsonSafe(text: string): Record<string, unknown> {
+  if (!text.trim()) return {};
+  try {
+    return JSON.parse(text) as Record<string, unknown>;
+  } catch {
+    return { message: text };
+  }
+}
+
 export function jsonResponse(res: any, status: number, payload: unknown) {
   return res.status(status).json(payload);
 }
@@ -95,7 +108,7 @@ export async function fetchQPayToken(forceRefresh = false): Promise<string> {
     });
 
     const text = await response.text();
-    const payload = text ? JSON.parse(text) : {};
+    const payload = parseJsonSafe(text);
 
     if (!response.ok) {
       throw new Error(`QPay token request failed (${response.status}): ${JSON.stringify(payload)}`);
