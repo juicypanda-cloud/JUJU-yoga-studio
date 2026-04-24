@@ -7,6 +7,10 @@ import {
   qpayRequest,
 } from './_lib';
 
+export const config = {
+  runtime: 'nodejs',
+};
+
 export default async function handler(req: any, res: any) {
   if (!assertMethod(req, res, 'POST')) return;
 
