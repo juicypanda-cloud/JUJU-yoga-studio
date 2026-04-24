@@ -1,9 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { motion } from 'motion/react';
-import { CreditCard, ShieldCheck, ArrowLeft, Loader2, CheckCircle2 } from 'lucide-react';
+import { ArrowLeft, Loader2, CheckCircle2, QrCode, Smartphone } from 'lucide-react';
 import { Button } from '../components/ui/button';
-import { Input } from '../components/ui/input';
 import { useAuth } from '../context/AuthContext';
 import { doc, updateDoc } from 'firebase/firestore';
 import { db } from '../firebase';
@@ -14,6 +13,54 @@ const plans = {
   yearly: { name: 'Жил бүр', price: 390000 }
 };
 
+type PaymentSession = {
+  invoiceId: string;
+  qrText: string | null;
+  qrImage: string | null;
+  deeplink: string | null;
+};
+
+async function readJsonSafe(response: Response): Promise<Record<string, unknown>> {
+  const text = await response.text();
+  if (!text.trim()) {
+    return {};
+  }
+  try {
+    return JSON.parse(text) as Record<string, unknown>;
+  } catch {
+    return { message: text };
+  }
+}
+
+function pickString(value: unknown): string | null {
+  return typeof value === 'string' && value.trim() ? value : null;
+}
+
+function hasPaidStatus(payload: unknown): boolean {
+  if (!payload || typeof payload !== 'object') return false;
+  const stack: unknown[] = [payload];
+
+  while (stack.length) {
+    const current = stack.pop();
+    if (!current || typeof current !== 'object') continue;
+
+    for (const value of Object.values(current as Record<string, unknown>)) {
+      if (typeof value === 'string') {
+        const normalized = value.toUpperCase();
+        if (['PAID', 'SUCCESS', 'COMPLETED', 'SETTLED'].includes(normalized)) {
+          return true;
+        }
+      } else if (Array.isArray(value)) {
+        stack.push(...value);
+      } else if (value && typeof value === 'object') {
+        stack.push(value);
+      }
+    }
+  }
+
+  return false;
+}
+
 export const Checkout: React.FC = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
@@ -22,46 +69,119 @@ export const Checkout: React.FC = () => {
   const plan = plans[planId] || plans.monthly;
 
   const [loading, setLoading] = useState(false);
+  const [checkingPayment, setCheckingPayment] = useState(false);
   const [success, setSuccess] = useState(false);
-  const [formData, setFormData] = useState({
-    cardNumber: '',
-    expiry: '',
-    cvc: '',
-    name: ''
-  });
+  const [paymentSession, setPaymentSession] = useState<PaymentSession | null>(null);
+  const [orderId, setOrderId] = useState('');
 
   useEffect(() => {
     if (!user) {
       toast.error('Төлбөр хийхийн тулд нэвтэрнэ үү');
       navigate('/retreats'); // Or a dedicated login page
+      return;
     }
+    setOrderId(`${user.uid}-${Date.now()}`);
   }, [user, navigate]);
 
-  const handlePayment = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const activateSubscription = async () => {
+    if (!user) return;
+    await updateDoc(doc(db, 'users', user.uid), {
+      subscriptionStatus: 'active',
+      subscriptionPlan: planId,
+      subscriptionStartDate: new Date().toISOString(),
+      subscriptionEndDate: new Date(
+        Date.now() + (planId === 'yearly' ? 365 : 30) * 24 * 60 * 60 * 1000
+      ).toISOString(),
+    });
+  };
+
+  const createInvoice = async () => {
+    if (!user) return;
     setLoading(true);
 
-    // Simulate payment delay
-    await new Promise(resolve => setTimeout(resolve, 2000));
-
     try {
-      if (user) {
-        await updateDoc(doc(db, 'users', user.uid), {
-          subscriptionStatus: 'active',
-          subscriptionPlan: planId,
-          subscriptionStartDate: new Date().toISOString(),
-          subscriptionEndDate: new Date(Date.now() + (planId === 'yearly' ? 365 : 30) * 24 * 60 * 60 * 1000).toISOString()
-        });
-        setSuccess(true);
-        toast.success('Төлбөр амжилттай баталгаажлаа!');
+      const payload = {
+        amount: plan.price,
+        orderId,
+        description: `JUJU ${plan.name} subscription`,
+        receiverCode: 'terminal',
+        senderBranchCode: 'ONLINE',
+        receiverData: {
+          name: pickString(profile?.displayName) ?? pickString(user.displayName) ?? 'JUJU user',
+          email: pickString(user.email),
+        },
+      };
+
+      const response = await fetch('/api/qpay/invoice', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await readJsonSafe(response);
+      if (!response.ok) {
+        throw new Error(pickString(data?.error) ?? 'QPay invoice үүсгэхэд алдаа гарлаа');
       }
+
+      const links = Array.isArray(data?.urls) ? data.urls : [];
+      const deeplinkFromUrls = links
+        .map((item: unknown) => (item && typeof item === 'object' ? (item as Record<string, unknown>).link : null))
+        .find((v: unknown) => typeof v === 'string' && v.startsWith('qpay://'));
+
+      const session: PaymentSession = {
+        invoiceId: pickString(data?.invoice_id) ?? pickString(data?.invoiceId) ?? pickString(data?.id) ?? '',
+        qrText: pickString(data?.qr_text) ?? pickString(data?.qrText) ?? pickString(data?.qrcode),
+        qrImage: pickString(data?.qr_image) ?? pickString(data?.qr_image_url) ?? pickString(data?.qrImage),
+        deeplink: pickString(data?.deeplink) ?? (deeplinkFromUrls as string | null),
+      };
+
+      if (!session.invoiceId) {
+        throw new Error('invoice_id олдсонгүй. QPay response-оо шалгана уу.');
+      }
+
+      setPaymentSession(session);
+      toast.success('QPay QR амжилттай үүслээ');
     } catch (error) {
       console.error('Payment error:', error);
-      toast.error('Төлбөр хийхэд алдаа гарлаа. Дахин оролдоно уу.');
+      toast.error(error instanceof Error ? error.message : 'Төлбөр үүсгэхэд алдаа гарлаа');
     } finally {
       setLoading(false);
     }
   };
+
+  const checkPayment = async () => {
+    if (!paymentSession?.invoiceId || checkingPayment || success) return;
+    setCheckingPayment(true);
+    try {
+      const response = await fetch('/api/qpay/payment/check', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ invoiceId: paymentSession.invoiceId }),
+      });
+      const data = await readJsonSafe(response);
+      if (!response.ok) {
+        throw new Error(pickString(data?.error) ?? 'Төлбөр шалгах үед алдаа гарлаа');
+      }
+
+      if (hasPaidStatus(data)) {
+        await activateSubscription();
+        setSuccess(true);
+        toast.success('Төлбөр амжилттай баталгаажлаа!');
+      }
+    } catch (error) {
+      console.error('Payment check error:', error);
+    } finally {
+      setCheckingPayment(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!paymentSession?.invoiceId || success) return;
+    const interval = setInterval(() => {
+      checkPayment();
+    }, 8000);
+    return () => clearInterval(interval);
+  }, [paymentSession?.invoiceId, success]);
 
   if (success) {
     return (
@@ -104,85 +224,89 @@ export const Checkout: React.FC = () => {
           </button>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-start">
-            {/* Payment Form */}
+            {/* QPay Payment */}
             <motion.div
               initial={{ opacity: 0, x: -20 }}
               animate={{ opacity: 1, x: 0 }}
               className="bg-white p-12 rounded-[3rem] shadow-2xl shadow-brand-ink/5 border border-brand-ink/5"
             >
               <h2 className="text-3xl font-serif text-brand-ink mb-12 flex items-center gap-4">
-                <CreditCard className="text-brand-icon" />
-                Төлбөр хийх
+                <QrCode className="text-brand-icon" />
+                QPay төлбөр
               </h2>
 
-              <form onSubmit={handlePayment} className="space-y-8">
-                <div className="space-y-4">
-                  <label className="text-[10px] font-black tracking-widest uppercase text-brand-ink/40 ml-2">Карт дээрх нэр</label>
-                  <Input 
-                    required
-                    placeholder="JOHN DOE"
-                    className="rounded-2xl border-brand-ink/10 py-7 px-6 focus:ring-brand-icon/20"
-                    value={formData.name}
-                    onChange={e => setFormData({...formData, name: e.target.value.toUpperCase()})}
-                  />
-                </div>
-
-                <div className="space-y-4">
-                  <label className="text-[10px] font-black tracking-widest uppercase text-brand-ink/40 ml-2">Картын дугаар</label>
-                  <Input 
-                    required
-                    placeholder="0000 0000 0000 0000"
-                    className="rounded-2xl border-brand-ink/10 py-7 px-6 focus:ring-brand-icon/20"
-                    value={formData.cardNumber}
-                    onChange={e => setFormData({...formData, cardNumber: e.target.value.replace(/\D/g, '').replace(/(.{4})/g, '$1 ').trim().slice(0, 19)})}
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-8">
-                  <div className="space-y-4">
-                    <label className="text-[10px] font-black tracking-widest uppercase text-brand-ink/40 ml-2">Хүчинтэй хугацаа</label>
-                    <Input 
-                      required
-                      placeholder="MM/YY"
-                      className="rounded-2xl border-brand-ink/10 py-7 px-6 focus:ring-brand-icon/20"
-                      value={formData.expiry}
-                      onChange={e => setFormData({...formData, expiry: e.target.value.replace(/\D/g, '').replace(/(.{2})/, '$1/').slice(0, 5)})}
-                    />
-                  </div>
-                  <div className="space-y-4">
-                    <label className="text-[10px] font-black tracking-widest uppercase text-brand-ink/40 ml-2">CVC</label>
-                    <Input 
-                      required
-                      type="password"
-                      placeholder="***"
-                      className="rounded-2xl border-brand-ink/10 py-7 px-6 focus:ring-brand-icon/20"
-                      value={formData.cvc}
-                      onChange={e => setFormData({...formData, cvc: e.target.value.slice(0, 3)})}
-                    />
-                  </div>
-                </div>
-
-                <div className="pt-8">
-                  <Button 
+              {!paymentSession ? (
+                <div className="space-y-8">
+                  <p className="text-brand-ink/60 font-light leading-relaxed">
+                    Картын мэдээлэл оруулах шаардлагагүй. QPay invoice үүсгээд QR уншуулж төлбөрөө хийж болно.
+                  </p>
+                  <Button
+                    onClick={createInvoice}
                     disabled={loading}
                     className="w-full bg-brand-ink text-white hover:bg-brand-icon rounded-full py-8 text-[11px] font-black tracking-[0.2em] uppercase transition-all duration-500 shadow-xl"
                   >
                     {loading ? (
                       <span className="flex items-center gap-2">
                         <Loader2 className="animate-spin" size={16} />
-                        Төлбөр боловсруулж байна...
+                        QR үүсгэж байна...
                       </span>
                     ) : (
-                      `Төлөх: ${plan.price.toLocaleString()}₮`
+                      `QPay QR үүсгэх: ${plan.price.toLocaleString()}₮`
                     )}
                   </Button>
                 </div>
+              ) : (
+                <div className="space-y-8">
+                  <div className="rounded-3xl border border-brand-ink/10 bg-gray-50 p-8 flex flex-col items-center">
+                    {paymentSession.qrImage || paymentSession.qrText ? (
+                      <img
+                        src={
+                          paymentSession.qrImage ??
+                          `https://api.qrserver.com/v1/create-qr-code/?size=280x280&data=${encodeURIComponent(
+                            paymentSession.qrText ?? paymentSession.invoiceId
+                          )}`
+                        }
+                        alt="QPay QR"
+                        className="w-64 h-64 rounded-2xl bg-white p-2"
+                      />
+                    ) : (
+                      <div className="text-center text-sm text-brand-ink/50">
+                        QR мэдээлэл ирээгүй байна.
+                      </div>
+                    )}
+                    <p className="mt-4 text-xs text-brand-ink/40">Invoice: {paymentSession.invoiceId}</p>
+                  </div>
 
-                <div className="flex items-center justify-center gap-3 text-brand-ink/30 text-xs font-light">
-                  <ShieldCheck size={16} />
-                  Таны төлбөрийн мэдээлэл нууцлагдсан, аюулгүй.
+                  {paymentSession.deeplink && (
+                    <a
+                      href={paymentSession.deeplink}
+                      className="w-full inline-flex items-center justify-center gap-2 rounded-full py-4 bg-brand-icon text-white text-[11px] font-black tracking-[0.2em] uppercase"
+                    >
+                      <Smartphone size={14} />
+                      QPay апп-аар нээх
+                    </a>
+                  )}
+
+                  <Button
+                    onClick={checkPayment}
+                    disabled={checkingPayment}
+                    className="w-full bg-brand-ink text-white hover:bg-brand-icon rounded-full py-8 text-[11px] font-black tracking-[0.2em] uppercase transition-all duration-500 shadow-xl"
+                  >
+                    {checkingPayment ? (
+                      <span className="flex items-center gap-2">
+                        <Loader2 className="animate-spin" size={16} />
+                        Төлбөр шалгаж байна...
+                      </span>
+                    ) : (
+                      'Төлбөр шалгах'
+                    )}
+                  </Button>
+
+                  <p className="text-center text-xs text-brand-ink/40 font-light">
+                    Төлбөр төлөгдсөний дараа эрх автоматаар идэвхжинэ.
+                  </p>
                 </div>
-              </form>
+              )}
             </motion.div>
 
             {/* Order Summary */}
