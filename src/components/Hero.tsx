@@ -25,43 +25,12 @@ const defaultSlide: HeroSlide = {
 const HERO_SESSION_KEY = 'homeHero:lastSlide:v2';
 const HERO_LOCAL_KEY = 'homeHero:lastSlide:local:v1';
 
-function parsePersistedSlide(raw: string | null): HeroSlide | null {
-  if (!raw) return null;
+function clearPersistedSlideCache() {
   try {
-    const o = JSON.parse(raw) as Partial<HeroSlide> & { cta1?: Partial<HeroSlide['cta1']>; cta2?: Partial<HeroSlide['cta2']> };
-    if (typeof o.image !== 'string' || !o.image.trim()) return null;
-    return {
-      image: o.image.trim(),
-      title: typeof o.title === 'string' ? o.title : defaultSlide.title,
-      subtitle: typeof o.subtitle === 'string' ? o.subtitle : defaultSlide.subtitle,
-      cta1: {
-        text: typeof o.cta1?.text === 'string' ? o.cta1.text : defaultSlide.cta1.text,
-        link: typeof o.cta1?.link === 'string' ? o.cta1.link : defaultSlide.cta1.link,
-      },
-      cta2: {
-        text: typeof o.cta2?.text === 'string' ? o.cta2.text : defaultSlide.cta2.text,
-        link: typeof o.cta2?.link === 'string' ? o.cta2.link : defaultSlide.cta2.link,
-      },
-    };
+    sessionStorage.removeItem(HERO_SESSION_KEY);
+    localStorage.removeItem(HERO_LOCAL_KEY);
   } catch {
-    return null;
-  }
-}
-
-function readPersistedSlide(): HeroSlide | null {
-  if (typeof window === 'undefined') return null;
-  const sessionSlide = parsePersistedSlide(window.sessionStorage.getItem(HERO_SESSION_KEY));
-  if (sessionSlide) return sessionSlide;
-  return parsePersistedSlide(window.localStorage.getItem(HERO_LOCAL_KEY));
-}
-
-function persistSlide(slide: HeroSlide) {
-  if (!slide.image?.trim()) return;
-  try {
-    sessionStorage.setItem(HERO_SESSION_KEY, JSON.stringify(slide));
-    localStorage.setItem(HERO_LOCAL_KEY, JSON.stringify(slide));
-  } catch {
-    /* quota / private mode */
+    /* ignore storage access issues */
   }
 }
 
@@ -84,13 +53,15 @@ function slideFromSnapshot(snapshot: DocumentSnapshot): HeroSlide {
 }
 
 export const Hero: React.FC = () => {
-  const initialSlide = readPersistedSlide() ?? defaultSlide;
+  const initialSlide = defaultSlide;
   const [slide, setSlide] = useState<HeroSlide>(initialSlide);
   /** Only URL that has finished loading — avoids old image under / beside the next one. */
   const [shownHeroUrl, setShownHeroUrl] = useState(initialSlide.image || '');
   const fallbackHeroImage = resolveLocalImage('/images/home-hero-source-latest.png');
 
   useEffect(() => {
+    clearPersistedSlideCache();
+
     if (initialSlide.image) {
       try {
         const preload = document.createElement('link');
@@ -109,7 +80,7 @@ export const Hero: React.FC = () => {
     const apply = (snapshot: DocumentSnapshot) => {
       const next = slideFromSnapshot(snapshot);
       setSlide(next);
-      persistSlide(next);
+      clearPersistedSlideCache();
     };
 
     void getDoc(heroDocRef).then(apply).catch(() => {
