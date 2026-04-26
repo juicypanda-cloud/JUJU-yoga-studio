@@ -44,6 +44,7 @@ export const TeacherAttendance: React.FC = () => {
   const [attendanceByClass, setAttendanceByClass] = useState<Record<string, AttendanceRow[]>>({});
   const [loading, setLoading] = useState(true);
   const [savingBookingId, setSavingBookingId] = useState<string | null>(null);
+  const [attendanceOverride, setAttendanceOverride] = useState<Record<string, 'present' | 'absent'>>({});
   const [selectedClassId, setSelectedClassId] = useState<string | null>(searchParams.get('classId'));
 
   useEffect(() => {
@@ -203,6 +204,7 @@ export const TeacherAttendance: React.FC = () => {
 
   const markAttendance = async (bookingId: string, status: 'present' | 'absent') => {
     if (!bookingId) return;
+    setAttendanceOverride((prev) => ({ ...prev, [bookingId]: status }));
     setSavingBookingId(bookingId);
     try {
       await updateDoc(doc(db, 'bookings', bookingId), {
@@ -212,6 +214,11 @@ export const TeacherAttendance: React.FC = () => {
       toast.success(status === 'present' ? 'Ирц: Ирсэн' : 'Ирц: Тасалсан');
     } catch (error) {
       console.error('Attendance update failed:', error);
+      setAttendanceOverride((prev) => {
+        const next = { ...prev };
+        delete next[bookingId];
+        return next;
+      });
       toast.error('Ирц шинэчлэхэд алдаа гарлаа');
     } finally {
       setSavingBookingId(null);
@@ -295,6 +302,11 @@ export const TeacherAttendance: React.FC = () => {
                 ) : (
                   <div className="space-y-3">
                     {rows.map((row) => (
+                      (() => {
+                        const effectiveStatus = attendanceOverride[row.bookingId] || row.attendanceStatus;
+                        const isPresent = effectiveStatus === 'present';
+                        const isAbsent = effectiveStatus === 'absent';
+                        return (
                       <div
                         key={row.id}
                         className="grid grid-cols-1 gap-3 rounded-xl bg-gray-50 p-4 md:grid-cols-[1.2fr_1.2fr_0.8fr_auto]"
@@ -304,11 +316,13 @@ export const TeacherAttendance: React.FC = () => {
                           <p className="text-xs text-brand-ink/50">{row.bookedAt}</p>
                         </div>
                         <p className="text-sm text-brand-ink/70">{row.email}</p>
-                        <p className="text-sm uppercase text-brand-icon">{row.attendanceStatus}</p>
+                        <p className={`text-sm uppercase ${isPresent ? 'text-green-700' : isAbsent ? 'text-red-600' : 'text-brand-icon'}`}>
+                          {effectiveStatus}
+                        </p>
                         <div className="flex gap-2">
                           <Button
                             size="sm"
-                            className="rounded-full bg-green-600 px-4 text-white hover:bg-green-700"
+                            className={`rounded-full px-4 text-white ${isPresent ? 'bg-green-700 ring-2 ring-green-300' : 'bg-green-600 hover:bg-green-700'}`}
                             disabled={savingBookingId === row.bookingId}
                             onClick={() => markAttendance(row.bookingId, 'present')}
                           >
@@ -317,7 +331,7 @@ export const TeacherAttendance: React.FC = () => {
                           </Button>
                           <Button
                             size="sm"
-                            className="rounded-full bg-red-600 px-4 text-white hover:bg-red-700"
+                            className={`rounded-full px-4 text-white ${isAbsent ? 'bg-red-700 ring-2 ring-red-300' : 'bg-red-600 hover:bg-red-700'}`}
                             disabled={savingBookingId === row.bookingId}
                             onClick={() => markAttendance(row.bookingId, 'absent')}
                           >
@@ -326,6 +340,8 @@ export const TeacherAttendance: React.FC = () => {
                           </Button>
                         </div>
                       </div>
+                        );
+                      })()
                     ))}
                   </div>
                 )}

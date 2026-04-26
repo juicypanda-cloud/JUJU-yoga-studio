@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { addDoc, collection, doc, increment, onSnapshot, orderBy, query, updateDoc } from 'firebase/firestore';
+import { addDoc, collection, doc, increment, onSnapshot, orderBy, query, updateDoc, where } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useAuth } from '../context/AuthContext';
 import { Button } from '../components/ui/button';
@@ -84,6 +84,7 @@ export const Schedule: React.FC = () => {
   const [schedule, setSchedule] = useState<ScheduleItem[]>([]);
   const [classes, setClasses] = useState<Record<string, ClassLookupItem>>({});
   const [teachers, setTeachers] = useState<Record<string, TeacherLookupItem>>({});
+  const [myBookedScheduleIds, setMyBookedScheduleIds] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const { user } = useAuth();
 
@@ -137,6 +138,28 @@ export const Schedule: React.FC = () => {
     };
   }, []);
 
+  useEffect(() => {
+    if (!user?.uid) {
+      setMyBookedScheduleIds(new Set());
+      return;
+    }
+
+    const myBookingsQuery = query(collection(db, 'bookings'), where('userId', '==', user.uid));
+    const unsubscribe = onSnapshot(myBookingsQuery, (snapshot) => {
+      const ids = new Set<string>();
+      snapshot.docs.forEach((bookingDoc) => {
+        const data = bookingDoc.data() as any;
+        const status = String(data?.status || '').toLowerCase();
+        if (status === 'cancelled') return;
+        const scheduleId = String(data?.scheduleId || '').trim();
+        if (scheduleId) ids.add(scheduleId);
+      });
+      setMyBookedScheduleIds(ids);
+    });
+
+    return () => unsubscribe();
+  }, [user?.uid]);
+
   const handleBook = async (item: ScheduleItem) => {
     if (!user) {
       toast.error('Хичээл захиалахын тулд нэвтэрнэ үү');
@@ -145,6 +168,11 @@ export const Schedule: React.FC = () => {
 
     if ((item?.bookedCount || 0) >= (item?.capacity || 0)) {
       toast.error('Хичээл дүүрсэн байна');
+      return;
+    }
+
+    if (myBookedScheduleIds.has(item?.id)) {
+      toast.error('Та энэ хичээлд аль хэдийн бүртгүүлсэн байна');
       return;
     }
 
@@ -272,6 +300,14 @@ export const Schedule: React.FC = () => {
                                   </Badge>
                                 </TableCell>
                                 <TableCell className="py-6 px-6 text-right">
+                                  {myBookedScheduleIds.has(item?.id) ? (
+                                    <Button
+                                      disabled
+                                      className="rounded-full bg-gray-100 px-6 text-gray-500"
+                                    >
+                                      Бүртгэгдсэн
+                                    </Button>
+                                  ) : (
                                   <Button
                                     onClick={() => handleBook(item)}
                                     disabled={(item?.bookedCount || 0) >= (item?.capacity || 0)}
@@ -282,6 +318,7 @@ export const Schedule: React.FC = () => {
                                   >
                                     {(item?.bookedCount || 0) >= (item?.capacity || 0) ? 'Дүүрсэн' : 'Захиалах'}
                                   </Button>
+                                  )}
                                 </TableCell>
                               </TableRow>
                             );
