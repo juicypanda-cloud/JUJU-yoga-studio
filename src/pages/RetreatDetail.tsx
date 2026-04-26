@@ -8,6 +8,62 @@ import { Button } from '../components/ui/button';
 import { Calendar, MapPin, ArrowLeft, CheckCircle2, Users, Clock, Sparkles } from 'lucide-react';
 import { toast } from 'sonner';
 
+const DEFAULT_INCLUDED_PROGRAM = [
+  'Өглөө, оройн йогийн хичээл',
+  'Майндфүлнэс бясалгал',
+  'Эрүүл, цагаан хоол',
+  'Байгалийн аялал',
+  'Сэтгэл зүйн зөвлөгөө',
+  'Тээврийн зардал',
+];
+
+const DEFAULT_WHAT_TO_BRING = [
+  'Йогийн гудас',
+  'Биед эвтэйхэн хувцас',
+  'Дулаан хувцас (оройдоо)',
+  'Хувийн ариун цэврийн хэрэглэл',
+  'Тэмдэглэлийн дэвтэр',
+];
+
+const DEFAULT_SCHEDULE = [
+  { time: '07:00', activity: 'Өглөөний йог', desc: 'Өдрийг эрч хүчтэй, уян хатан эхлүүлэх йогийн дасгал.' },
+  { time: '08:30', activity: 'Өглөөний цай', desc: 'Эрүүл, шим тэжээлтэй өглөөний хоол.' },
+  { time: '10:00', activity: 'Майндфүлнэс бясалгал', desc: 'Оксфордын хөтөлбөрийн дагуух анхаарал төвлөрүүлэх бясалгал.' },
+  { time: '13:00', activity: 'Өдрийн хоол', desc: 'Байгалийн гаралтай, хөнгөн хооллолт.' },
+  { time: '15:00', activity: 'Байгалийн аялал', desc: 'Орчин тойронтойгоо танилцаж, цэвэр агаарт алхах.' },
+  { time: '18:00', activity: 'Оройн йог & Бясалгал', desc: 'Сэтгэл санааг амрааж, гүн нойронд бэлтгэх практик.' },
+  { time: '19:30', activity: 'Оройн хоол', desc: 'Өдрийг дүгнэж, хамт олноороо халуун дулаан яриа өрнүүлэх.' },
+];
+
+const toLineItems = (raw: unknown, fallback: string[]) => {
+  const value = typeof raw === 'string' ? raw : '';
+  const rows = value
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean);
+  return rows.length > 0 ? rows : fallback;
+};
+
+const toScheduleItems = (raw: unknown) => {
+  const value = typeof raw === 'string' ? raw : '';
+  const rows = value
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line) => {
+      const [time = '', activity = '', ...rest] = line.split('|').map((part) => part.trim());
+      if (!time || !activity) return null;
+      return {
+        time,
+        activity,
+        desc: rest.join(' | '),
+      };
+    })
+    .filter((item): item is { time: string; activity: string; desc: string } => Boolean(item));
+
+  return rows.length > 0 ? rows : DEFAULT_SCHEDULE;
+};
+
 export const RetreatDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -70,6 +126,9 @@ export const RetreatDetail: React.FC = () => {
   const heroCover =
     String(retreat.imageURL || retreat.image || retreat.thumbnail || '').trim() ||
     'https://picsum.photos/seed/retreat-detail/1600/900';
+  const includedProgramItems = toLineItems(retreat.includedProgram, DEFAULT_INCLUDED_PROGRAM);
+  const whatToBringItems = toLineItems(retreat.whatToBring, DEFAULT_WHAT_TO_BRING);
+  const scheduleItems = toScheduleItems(retreat.travelSchedule);
 
   return (
     <div className="min-h-screen bg-white pb-32">
@@ -136,14 +195,7 @@ export const RetreatDetail: React.FC = () => {
               <div className="space-y-6">
                 <h3 className="text-xl font-serif text-brand-ink">Хөтөлбөрт багтсан</h3>
                 <ul className="space-y-4">
-                  {[
-                    'Өглөө, оройн йогийн хичээл',
-                    'Майндфүлнэс бясалгал',
-                    'Эрүүл, цагаан хоол',
-                    'Байгалийн аялал',
-                    'Сэтгэл зүйн зөвлөгөө',
-                    'Тээврийн зардал'
-                  ].map((item) => (
+                  {includedProgramItems.map((item) => (
                     <li key={item} className="flex items-center gap-3 text-brand-ink/60 font-light">
                       <CheckCircle2 size={18} className="text-brand-icon shrink-0" />
                       <span>{item}</span>
@@ -154,13 +206,7 @@ export const RetreatDetail: React.FC = () => {
               <div className="space-y-6">
                 <h3 className="text-xl font-serif text-brand-ink">Юу авч ирэх вэ?</h3>
                 <ul className="space-y-4">
-                  {[
-                    'Йогийн гудас',
-                    'Биед эвтэйхэн хувцас',
-                    'Дулаан хувцас (оройдоо)',
-                    'Хувийн ариун цэврийн хэрэглэл',
-                    'Тэмдэглэлийн дэвтэр'
-                  ].map((item) => (
+                  {whatToBringItems.map((item) => (
                     <li key={item} className="flex items-center gap-3 text-brand-ink/60 font-light">
                       <div className="w-1.5 h-1.5 rounded-full bg-brand-icon shrink-0" />
                       <span>{item}</span>
@@ -176,15 +222,7 @@ export const RetreatDetail: React.FC = () => {
                 {/* Timeline Line */}
                 <div className="absolute left-0 top-2 bottom-2 w-px bg-brand-ink/10" />
                 
-                {[
-                  { time: '07:00', activity: 'Өглөөний йог', desc: 'Өдрийг эрч хүчтэй, уян хатан эхлүүлэх йогийн дасгал.' },
-                  { time: '08:30', activity: 'Өглөөний цай', desc: 'Эрүүл, шим тэжээлтэй өглөөний хоол.' },
-                  { time: '10:00', activity: 'Майндфүлнэс бясалгал', desc: 'Оксфордын хөтөлбөрийн дагуух анхаарал төвлөрүүлэх бясалгал.' },
-                  { time: '13:00', activity: 'Өдрийн хоол', desc: 'Байгалийн гаралтай, хөнгөн хооллолт.' },
-                  { time: '15:00', activity: 'Байгалийн аялал', desc: 'Орчин тойронтойгоо танилцаж, цэвэр агаарт алхах.' },
-                  { time: '18:00', activity: 'Оройн йог & Бясалгал', desc: 'Сэтгэл санааг амрааж, гүн нойронд бэлтгэх практик.' },
-                  { time: '19:30', activity: 'Оройн хоол', desc: 'Өдрийг дүгнэж, хамт олноороо халуун дулаан яриа өрнүүлэх.' }
-                ].map((item, idx) => (
+                {scheduleItems.map((item, idx) => (
                   <div key={idx} className="relative">
                     {/* Timeline Dot */}
                     <div className="absolute -left-[36px] top-1.5 w-4 h-4 rounded-full border-2 border-brand-icon bg-white" />

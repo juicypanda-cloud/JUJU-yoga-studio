@@ -37,6 +37,9 @@ interface Retreat {
   duration: string;
   price: number;
   image: string;
+  includedProgram?: string;
+  whatToBring?: string;
+  travelSchedule?: string;
   status: 'upcoming' | 'ongoing' | 'completed';
   createdAt: any;
 }
@@ -53,6 +56,9 @@ export const RetreatsAdmin: React.FC = () => {
     duration: '',
     price: 0,
     image: '',
+    includedProgram: '',
+    whatToBring: '',
+    travelSchedule: '',
     status: 'upcoming'
   });
 
@@ -116,6 +122,9 @@ export const RetreatsAdmin: React.FC = () => {
         duration: '',
         price: 0,
         image: '',
+        includedProgram: '',
+        whatToBring: '',
+        travelSchedule: '',
         status: 'upcoming'
       });
     } catch (error) {
@@ -165,6 +174,9 @@ export const RetreatsAdmin: React.FC = () => {
                 duration: '',
                 price: 0,
                 image: '',
+                includedProgram: '',
+                whatToBring: '',
+                travelSchedule: '',
                 status: 'upcoming'
               });
               setIsEditing(true);
@@ -247,6 +259,40 @@ export const RetreatsAdmin: React.FC = () => {
               placeholder="Ретритийн дэлгэрэнгүй тайлбар..."
               className="rounded-xl h-32"
             />
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="space-y-2">
+              <label className="text-xs font-black uppercase tracking-widest text-accent/40">Хөтөлбөрт багтсан</label>
+              <Textarea
+                value={currentRetreat.includedProgram || ''}
+                onChange={(e) => setCurrentRetreat({ ...currentRetreat, includedProgram: e.target.value })}
+                placeholder={'Мөр мөрөөр бичнэ:\nӨглөө, оройн йогийн хичээл\nМайндфүлнэс бясалгал\nЭрүүл хоол'}
+                className="rounded-xl min-h-[140px]"
+              />
+              <p className="text-[11px] text-accent/40">Жагсаалтын нэг мөр = нэг item</p>
+            </div>
+            <div className="space-y-2">
+              <label className="text-xs font-black uppercase tracking-widest text-accent/40">Юу авч ирэх вэ?</label>
+              <Textarea
+                value={currentRetreat.whatToBring || ''}
+                onChange={(e) => setCurrentRetreat({ ...currentRetreat, whatToBring: e.target.value })}
+                placeholder={'Мөр мөрөөр бичнэ:\nЙогийн гудас\nБиед эвтэйхэн хувцас\nТэмдэглэлийн дэвтэр'}
+                className="rounded-xl min-h-[140px]"
+              />
+              <p className="text-[11px] text-accent/40">Жагсаалтын нэг мөр = нэг item</p>
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-xs font-black uppercase tracking-widest text-accent/40">Аяллын хуваарь</label>
+            <Textarea
+              value={currentRetreat.travelSchedule || ''}
+              onChange={(e) => setCurrentRetreat({ ...currentRetreat, travelSchedule: e.target.value })}
+              placeholder={'Мөр бүрийг дараах форматаар бичнэ:\n07:00 | Өглөөний йог | Өдрийг эрч хүчтэй эхлүүлэх дасгал\n08:30 | Өглөөний цай | Эрүүл, шим тэжээлтэй хоол'}
+              className="rounded-xl min-h-[180px]"
+            />
+            <p className="text-[11px] text-accent/40">Формат: Цаг | Үйл ажиллагаа | Тайлбар</p>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
