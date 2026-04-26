@@ -27,6 +27,7 @@ import {
   resolveOnlineContentThumbnail,
 } from '../lib/online-video-thumb';
 import type { ClassItem } from '../types/class';
+import { SmartImage } from '../components/SmartImage';
 
 /** Masonry aspect rhythm (reused for Firestore gallery + fallback) */
 const GALLERY_ASPECT_CYCLE = [
@@ -350,24 +351,6 @@ export const Home: React.FC = () => {
     return () => unsubGallery();
   }, []);
 
-  useEffect(() => {
-    onlineClasses.slice(0, 4).forEach((item) => {
-      if (item?.image) {
-        const img = new Image();
-        img.decoding = 'async';
-        img.src = item.image;
-      }
-    });
-  }, [onlineClasses]);
-
-  useEffect(() => {
-    galleryMoments.slice(0, 12).forEach((item) => {
-      if (item?.url) {
-        const img = new Image();
-        img.src = item.url;
-      }
-    });
-  }, [galleryMoments]);
 
   const mindfulnessItem = blogs.find((item) => String(item.category || '').toLowerCase().includes('mindful')) || blogs[0];
   const featuredItems = {
@@ -497,12 +480,12 @@ export const Home: React.FC = () => {
                     className="absolute inset-0"
                   >
                     {currentFeature?.image ? (
-                      <img
+                      <SmartImage
                         src={currentFeature.image}
                         alt={currentFeature.title || ''}
                         className="absolute inset-0 h-full w-full object-cover"
-                        loading="eager"
-                        fetchPriority="high"
+                        loading="lazy"
+                        fetchPriority="auto"
                         decoding="async"
                       />
                     ) : null}
@@ -659,7 +642,7 @@ export const Home: React.FC = () => {
               transition={{ duration: 0.8 }}
               className="relative aspect-square lg:aspect-auto lg:h-[500px] rounded-2xl overflow-hidden grayscale hover:grayscale-0 transition-all duration-1000"
             >
-              <img
+              <SmartImage
                 src="https://images.unsplash.com/photo-1518199266791-5375a83190b7?auto=format&fit=crop&q=80&w=1200"
                 alt="Mindfulness Practice"
                 className="absolute inset-0 h-full w-full object-cover"
@@ -718,7 +701,7 @@ export const Home: React.FC = () => {
                   className="group cursor-pointer"
                 >
                   <div className="relative aspect-[16/10] rounded-2xl overflow-hidden mb-8 shadow-2xl shadow-brand-ink/5 group-hover:shadow-brand-ink/10 group-hover:-translate-y-2 transition-all duration-500">
-                    <img
+                    <SmartImage
                       src={news.image}
                       alt={news.title}
                       className="absolute inset-0 h-full w-full object-cover transition-transform duration-700 group-hover:scale-105"
@@ -792,12 +775,12 @@ export const Home: React.FC = () => {
                   className="group cursor-pointer"
                 >
                   <div className="relative aspect-[16/10] rounded-2xl overflow-hidden mb-8 shadow-2xl shadow-brand-ink/5">
-                    <img
+                    <SmartImage
                       src={video.image}
                       alt={video.title}
                       className="absolute inset-0 h-full w-full object-cover block"
-                      loading="eager"
-                      fetchPriority="high"
+                      loading="lazy"
+                      fetchPriority="auto"
                       decoding="async"
                     />
                     <div className="pointer-events-none absolute inset-0 z-[2] bg-gradient-to-t from-brand-ink/85 via-brand-ink/25 to-transparent opacity-70" />
@@ -971,7 +954,7 @@ export const Home: React.FC = () => {
                 className="relative group cursor-zoom-in overflow-hidden rounded-2xl bg-white/50 break-inside-avoid"
               >
                 <div className={`relative ${img.aspect} overflow-hidden`}>
-                  <img
+                  <SmartImage
                     src={img.url}
                     alt={img.title}
                     className="absolute inset-0 h-full w-full object-cover transition-transform duration-1000 group-hover:scale-105"
