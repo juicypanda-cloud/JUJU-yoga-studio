@@ -146,18 +146,26 @@
 .admin-panel .bg-brand-ink,
 .admin-panel .bg-brand-ink *,
 .admin-panel .text-white,
+.admin-panel .text-white *,
 .admin-panel button.bg-black,
 .admin-panel button.bg-black *,
 .admin-panel button.bg-brand-ink,
-.admin-panel button.bg-brand-ink * {
+.admin-panel button.bg-brand-ink *,
+.admin-panel button.bg-primary,
+.admin-panel button.bg-primary *,
+.admin-panel button.bg-destructive,
+.admin-panel button.bg-destructive * {
   color: #fff !important;
 }
 
 /* Ensure icon strokes stay white on dark buttons */
 .admin-panel button.bg-black svg,
 .admin-panel button.bg-brand-ink svg,
+.admin-panel button.bg-primary svg,
+.admin-panel button.bg-destructive svg,
 .admin-panel .bg-black button svg,
-.admin-panel .bg-brand-ink button svg {
+.admin-panel .bg-brand-ink button svg,
+.admin-panel .text-white svg {
   color: #fff !important;
   stroke: #fff !important;
 }
