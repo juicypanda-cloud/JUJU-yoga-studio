@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { motion } from 'motion/react';
 import { User, Mail, Calendar, CreditCard, ShieldCheck, LogOut, Users, ClipboardCheck } from 'lucide-react';
@@ -19,20 +19,10 @@ type TeacherClassSummary = {
   sessionCount: number;
 };
 
-type AttendanceRow = {
-  id: string;
-  name: string;
-  email: string;
-  status: string;
-  bookedAt: string;
-};
-
 export const Profile: React.FC = () => {
   const { user, profile, isSubscribed, isTeacher } = useAuth();
   const navigate = useNavigate();
   const [teacherClasses, setTeacherClasses] = useState<TeacherClassSummary[]>([]);
-  const [attendanceByClass, setAttendanceByClass] = useState<Record<string, AttendanceRow[]>>({});
-  const [selectedClassId, setSelectedClassId] = useState<string | null>(null);
   const [teacherLoading, setTeacherLoading] = useState(false);
 
   if (!user) {
@@ -45,21 +35,9 @@ export const Profile: React.FC = () => {
     navigate('/');
   };
 
-  const formatBookedAt = (value: any) => {
-    if (!value) return 'Тодорхойгүй';
-    if (typeof value?.toDate === 'function') return value.toDate().toLocaleString();
-    if (typeof value === 'string') {
-      const parsed = new Date(value);
-      return Number.isNaN(parsed.getTime()) ? value : parsed.toLocaleString();
-    }
-    return 'Тодорхойгүй';
-  };
-
   useEffect(() => {
     if (!user || !isTeacher) {
       setTeacherClasses([]);
-      setAttendanceByClass({});
-      setSelectedClassId(null);
       return;
     }
 
@@ -69,7 +47,6 @@ export const Profile: React.FC = () => {
     let classes: any[] = [];
     let schedules: any[] = [];
     let bookings: any[] = [];
-    let users: any[] = [];
 
     const recompute = () => {
       const displayNameCandidates = new Set(
@@ -106,11 +83,6 @@ export const Profile: React.FC = () => {
         );
       });
 
-      const userById = new Map(
-        users.map((u) => [String(u?.id || ''), { displayName: u?.displayName, email: u?.email }])
-      );
-
-      const nextAttendanceByClass: Record<string, AttendanceRow[]> = {};
       const nextTeacherClasses: TeacherClassSummary[] = teacherOwnedClasses.map((classItem) => {
         const classId = String(classItem?.id || '');
         const classSchedules = schedules.filter((slot) => String(slot?.classId || '') === classId);
@@ -129,28 +101,12 @@ export const Profile: React.FC = () => {
           );
         });
 
-        const attendanceRows: AttendanceRow[] = classBookings.map((booking) => {
-          const bookingUserId = String(booking?.userId || '');
-          const profileInfo = userById.get(bookingUserId);
-
-          return {
-            id: String(booking?.id || `${classId}-${bookingUserId}-${booking?.createdAt || ''}`),
-            name: String(booking?.userName || profileInfo?.displayName || 'Хэрэглэгч'),
-            email: String(booking?.userEmail || profileInfo?.email || '—'),
-            status: String(booking?.status || 'confirmed'),
-            bookedAt: formatBookedAt(booking?.createdAt),
-          };
-        });
-
-        nextAttendanceByClass[classId] = attendanceRows;
-
         const participantKeys = new Set(
-          attendanceRows.map((row, index) => {
-            const booking = classBookings[index];
+          classBookings.map((booking) => {
             return (
               String(booking?.userId || '') ||
               String(booking?.userEmail || '') ||
-              row.id
+              String(booking?.id || '')
             );
           })
         );
@@ -166,12 +122,7 @@ export const Profile: React.FC = () => {
       });
 
       setTeacherClasses(nextTeacherClasses);
-      setAttendanceByClass(nextAttendanceByClass);
       setTeacherLoading(false);
-
-      if (selectedClassId && !nextTeacherClasses.some((item) => item.id === selectedClassId)) {
-        setSelectedClassId(null);
-      }
     };
 
     const unsubTeachers = onSnapshot(collection(db, 'teachers'), (snapshot) => {
@@ -190,24 +141,13 @@ export const Profile: React.FC = () => {
       bookings = snapshot.docs.map((bookingDoc) => ({ id: bookingDoc.id, ...bookingDoc.data() }));
       recompute();
     });
-    const unsubUsers = onSnapshot(collection(db, 'users'), (snapshot) => {
-      users = snapshot.docs.map((userDoc) => ({ id: userDoc.id, ...userDoc.data() }));
-      recompute();
-    });
-
     return () => {
       unsubTeachers();
       unsubClasses();
       unsubSchedules();
       unsubBookings();
-      unsubUsers();
     };
-  }, [isTeacher, profile?.displayName, selectedClassId, user]);
-
-  const selectedClass = useMemo(
-    () => teacherClasses.find((classItem) => classItem.id === selectedClassId) || null,
-    [teacherClasses, selectedClassId]
-  );
+  }, [isTeacher, profile?.displayName, user]);
 
   return (
     <div className="pt-32 pb-32 min-h-screen bg-gray-50/30">
@@ -373,39 +313,14 @@ export const Profile: React.FC = () => {
                                   {classItem.participantCount} хүн бүртгэгдсэн
                                 </div>
                                 <Button
+                                  asChild
                                   variant="outline"
                                   className="rounded-full px-6"
-                                  onClick={() =>
-                                    setSelectedClassId((prev) => (prev === classItem.id ? null : classItem.id))
-                                  }
                                 >
-                                  Ирц харах
+                                  <Link to={`/teacher/attendance?classId=${classItem.id}`}>Ирц бүртгэх</Link>
                                 </Button>
                               </div>
                             </div>
-
-                            {selectedClassId === classItem.id && (
-                              <div className="mt-5 border-t border-brand-ink/10 pt-5">
-                                <p className="mb-3 text-sm font-semibold text-brand-ink">Ирцийн жагсаалт</p>
-                                {(attendanceByClass[classItem.id] || []).length === 0 ? (
-                                  <p className="text-sm text-brand-ink/50">Одоогоор ирцийн бүртгэл байхгүй байна.</p>
-                                ) : (
-                                  <div className="space-y-2">
-                                    {(attendanceByClass[classItem.id] || []).map((row) => (
-                                      <div
-                                        key={row.id}
-                                        className="grid grid-cols-1 gap-1 rounded-xl bg-gray-50 px-4 py-3 text-sm md:grid-cols-[1.2fr_1.2fr_0.8fr_1fr]"
-                                      >
-                                        <span className="font-medium text-brand-ink">{row.name}</span>
-                                        <span className="text-brand-ink/70">{row.email}</span>
-                                        <span className="uppercase text-brand-icon">{row.status}</span>
-                                        <span className="text-brand-ink/50">{row.bookedAt}</span>
-                                      </div>
-                                    ))}
-                                  </div>
-                                )}
-                              </div>
-                            )}
                           </div>
                         ))}
                       </div>
