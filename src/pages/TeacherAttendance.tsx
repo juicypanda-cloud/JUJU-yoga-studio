@@ -107,7 +107,11 @@ export const TeacherAttendance: React.FC = () => {
         const classStartTimes = classSchedules.map((slot) => resolveClassStartTime(slot)).filter(Boolean) as Date[];
 
         if (!isAdmin) {
-          const visibleForTeacher = classStartTimes.some((start) => isTodayClass(start) || isFutureClass(start));
+          // Backward-compatible fallback: if older schedule docs do not have timestamp start fields yet,
+          // keep the class visible so teachers can still view registered students.
+          const visibleForTeacher =
+            classStartTimes.length === 0 ||
+            classStartTimes.some((start) => isTodayClass(start) || isFutureClass(start));
           if (!visibleForTeacher) return null as any;
         }
 
