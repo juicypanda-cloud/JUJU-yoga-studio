@@ -131,6 +131,11 @@ export const Hero: React.FC = () => {
       if (!cancelled) setShownHeroUrl(next);
     };
 
+    // Do not keep showing the old hero forever while new one is loading/failing.
+    if (shownHeroUrl !== fallbackHeroImage) {
+      setShownHeroUrl(fallbackHeroImage);
+    }
+
     try {
       preload = document.createElement('link');
       preload.rel = 'preload';
@@ -154,7 +159,7 @@ export const Hero: React.FC = () => {
       }
     };
     probe.onerror = () => {
-      if (!cancelled) setShownHeroUrl((prev) => prev || fallbackHeroImage);
+      if (!cancelled) setShownHeroUrl(fallbackHeroImage);
     };
     probe.src = url;
 
@@ -165,7 +170,7 @@ export const Hero: React.FC = () => {
       probe.removeAttribute('src');
       if (preload?.parentNode) preload.parentNode.removeChild(preload);
     };
-  }, [fallbackHeroImage, slide.image, slide.imageVersion]);
+  }, [fallbackHeroImage, shownHeroUrl, slide.image, slide.imageVersion]);
 
   return (
     <div className="relative min-h-screen w-full overflow-hidden bg-brand-ink">
