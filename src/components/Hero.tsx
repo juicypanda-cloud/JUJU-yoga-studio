@@ -4,6 +4,7 @@ import { Button } from './ui/button';
 import { Link } from 'react-router-dom';
 import { doc, getDoc, onSnapshot, type DocumentSnapshot } from 'firebase/firestore';
 import { db } from '../firebase';
+import { resolveLocalImage } from '../lib/local-image';
 
 type HeroSlide = {
   image: string;
@@ -14,7 +15,7 @@ type HeroSlide = {
 };
 
 const defaultSlide: HeroSlide = {
-  image: '',
+  image: resolveLocalImage('/images/home-hero-source-latest.png'),
   title: 'Ретрит Аялал',
   subtitle: 'Хамгийн үзэсгэлэнтэй газруудад дотоод амар амгалангаа олоорой.',
   cta1: { text: 'ОНЛАЙНААР ХИЧЭЭЛЛЭХ', link: '/online' },
@@ -87,6 +88,7 @@ export const Hero: React.FC = () => {
   const [slide, setSlide] = useState<HeroSlide>(initialSlide);
   /** Only URL that has finished loading — avoids old image under / beside the next one. */
   const [shownHeroUrl, setShownHeroUrl] = useState(initialSlide.image || '');
+  const fallbackHeroImage = resolveLocalImage('/images/home-hero-source-latest.png');
 
   useEffect(() => {
     if (initialSlide.image) {
@@ -145,7 +147,6 @@ export const Hero: React.FC = () => {
 
     const probe = new Image();
     probe.fetchPriority = 'high';
-    probe.referrerPolicy = 'no-referrer';
     probe.onload = () => {
       if (cancelled) return;
       const d = (probe as HTMLImageElement & { decode?: () => Promise<void> }).decode?.();
@@ -156,7 +157,7 @@ export const Hero: React.FC = () => {
       }
     };
     probe.onerror = () => {
-      if (!cancelled) setShownHeroUrl((prev) => prev);
+      if (!cancelled) setShownHeroUrl((prev) => prev || fallbackHeroImage);
     };
     probe.src = url;
 
@@ -167,7 +168,7 @@ export const Hero: React.FC = () => {
       probe.removeAttribute('src');
       if (preload?.parentNode) preload.parentNode.removeChild(preload);
     };
-  }, [slide.image]);
+  }, [fallbackHeroImage, slide.image]);
 
   return (
     <div className="relative min-h-screen w-full overflow-hidden bg-brand-ink">
@@ -181,6 +182,11 @@ export const Hero: React.FC = () => {
             loading="eager"
             fetchPriority="high"
             decoding="async"
+            onError={() => {
+              if (shownHeroUrl !== fallbackHeroImage) {
+                setShownHeroUrl(fallbackHeroImage);
+              }
+            }}
           />
         ) : null}
       </div>
