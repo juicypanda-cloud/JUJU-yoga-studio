@@ -484,6 +484,7 @@ export const Home: React.FC = () => {
                         src={currentFeature.image}
                         alt={currentFeature.title || ''}
                         className="absolute inset-0 h-full w-full object-cover"
+                        sizes="100vw"
                         loading="lazy"
                         fetchPriority="auto"
                         decoding="async"
@@ -646,6 +647,7 @@ export const Home: React.FC = () => {
                 src="https://images.unsplash.com/photo-1518199266791-5375a83190b7?auto=format&fit=crop&q=80&w=1200"
                 alt="Mindfulness Practice"
                 className="absolute inset-0 h-full w-full object-cover"
+                sizes="(max-width: 1024px) 100vw, 50vw"
                 loading="lazy"
                 decoding="async"
               />
@@ -705,6 +707,7 @@ export const Home: React.FC = () => {
                       src={news.image}
                       alt={news.title}
                       className="absolute inset-0 h-full w-full object-cover transition-transform duration-700 group-hover:scale-105"
+                      sizes="(max-width: 768px) 100vw, 50vw"
                       loading="lazy"
                       decoding="async"
                     />
@@ -779,6 +782,7 @@ export const Home: React.FC = () => {
                       src={video.image}
                       alt={video.title}
                       className="absolute inset-0 h-full w-full object-cover block"
+                      sizes="(max-width: 768px) 100vw, 33vw"
                       loading="lazy"
                       fetchPriority="auto"
                       decoding="async"
@@ -958,6 +962,7 @@ export const Home: React.FC = () => {
                     src={img.url}
                     alt={img.title}
                     className="absolute inset-0 h-full w-full object-cover transition-transform duration-1000 group-hover:scale-105"
+                    sizes="(max-width: 640px) 100vw, (max-width: 1280px) 50vw, 25vw"
                     loading="lazy"
                     decoding="async"
                   />

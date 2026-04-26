@@ -11,6 +11,16 @@ export default defineConfig(({mode}) => {
       outDir: 'dist',
       assetsDir: 'assets',
       emptyOutDir: true,
+      rollupOptions: {
+        output: {
+          manualChunks: {
+            react: ['react', 'react-dom', 'react-router-dom'],
+            firebase: ['firebase/app', 'firebase/auth', 'firebase/firestore', 'firebase/storage'],
+            motion: ['motion', 'motion/react'],
+            ui: ['lucide-react', '@radix-ui/react-slot', '@base-ui/react/avatar', 'class-variance-authority'],
+          },
+        },
+      },
     },
     define: {
       'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY),
