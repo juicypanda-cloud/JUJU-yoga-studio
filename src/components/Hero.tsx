@@ -8,6 +8,7 @@ import { resolveLocalImage } from '../lib/local-image';
 
 type HeroSlide = {
   image: string;
+  imageVersion: string;
   title: string;
   subtitle: string;
   cta1: { text: string; link: string };
@@ -16,6 +17,7 @@ type HeroSlide = {
 
 const defaultSlide: HeroSlide = {
   image: resolveLocalImage('/images/home-hero-source-latest.png'),
+  imageVersion: 'default',
   title: 'Ретрит Аялал',
   subtitle: 'Хамгийн үзэсгэлэнтэй газруудад дотоод амар амгалангаа олоорой.',
   cta1: { text: 'ОНЛАЙНААР ХИЧЭЭЛЛЭХ', link: '/online' },
@@ -34,11 +36,35 @@ function clearPersistedSlideCache() {
   }
 }
 
+function toVersionString(value: unknown): string {
+  if (!value) return String(Date.now());
+  if (typeof value === 'string') return value;
+  if (typeof value === 'number') return String(value);
+  if (typeof (value as { toMillis?: () => number }).toMillis === 'function') {
+    return String((value as { toMillis: () => number }).toMillis());
+  }
+  if (typeof (value as { seconds?: number }).seconds === 'number') {
+    const raw = value as { seconds: number; nanoseconds?: number };
+    return `${raw.seconds}-${raw.nanoseconds || 0}`;
+  }
+  return String(Date.now());
+}
+
+function withHeroVersion(url: string, version: string): string {
+  if (!url) return url;
+  const clean = url.trim();
+  if (!clean) return clean;
+  const join = clean.includes('?') ? '&' : '?';
+  return `${clean}${join}v=${encodeURIComponent(version)}`;
+}
+
 function slideFromSnapshot(snapshot: DocumentSnapshot): HeroSlide {
   if (!snapshot.exists()) return defaultSlide;
   const data = snapshot.data() as Record<string, unknown>;
+  const updatedAt = data.updatedAt;
   return {
     image: (typeof data.image === 'string' ? data.image.trim() : '') || defaultSlide.image,
+    imageVersion: toVersionString(updatedAt),
     title: (typeof data.title === 'string' && data.title) || defaultSlide.title,
     subtitle: (typeof data.subtitle === 'string' && data.subtitle) || defaultSlide.subtitle,
     cta1: {
@@ -95,7 +121,7 @@ export const Hero: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    const url = slide.image?.trim();
+    const url = withHeroVersion(slide.image?.trim(), slide.imageVersion);
     if (!url) return;
 
     let cancelled = false;
@@ -139,7 +165,7 @@ export const Hero: React.FC = () => {
       probe.removeAttribute('src');
       if (preload?.parentNode) preload.parentNode.removeChild(preload);
     };
-  }, [fallbackHeroImage, slide.image]);
+  }, [fallbackHeroImage, slide.image, slide.imageVersion]);
 
   return (
     <div className="relative min-h-screen w-full overflow-hidden bg-brand-ink">
