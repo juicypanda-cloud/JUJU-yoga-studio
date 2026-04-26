@@ -19,6 +19,72 @@ service cloud.firestore {
          (request.auth.token.email == "anand@one.mn" && request.auth.token.email_verified == true));
     }
 
+    function isTeacher() {
+      return isAuthenticated() &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'teacher';
+    }
+
+    function teacherOwnsClass(classId) {
+      return classId is string &&
+        exists(/databases/$(database)/documents/classes/$(classId)) &&
+        (
+          get(/databases/$(database)/documents/classes/$(classId)).data.teacherId == request.auth.uid ||
+          (
+            get(/databases/$(database)/documents/classes/$(classId)).data.teacher is string &&
+            get(/databases/$(database)/documents/users/$(request.auth.uid)).data.displayName is string &&
+            get(/databases/$(database)/documents/classes/$(classId)).data.teacher ==
+              get(/databases/$(database)/documents/users/$(request.auth.uid)).data.displayName
+          )
+        );
+    }
+
+    function teacherCanAccessBooking(bookingData) {
+      return isTeacher() &&
+        bookingData.type == 'class' &&
+        (
+          (bookingData.classId is string && teacherOwnsClass(bookingData.classId)) ||
+          (bookingData.itemId is string && teacherOwnsClass(bookingData.itemId)) ||
+          (
+            bookingData.scheduleId is string &&
+            exists(/databases/$(database)/documents/schedule/$(bookingData.scheduleId)) &&
+            teacherOwnsClass(get(/databases/$(database)/documents/schedule/$(bookingData.scheduleId)).data.classId)
+          )
+        );
+    }
+
+    function bookingScheduleExists(bookingData) {
+      return bookingData.scheduleId is string &&
+        exists(/databases/$(database)/documents/schedule/$(bookingData.scheduleId));
+    }
+
+    function bookingStartTime(bookingData) {
+      return bookingData.classStartTime is timestamp
+        ? bookingData.classStartTime
+        : get(/databases/$(database)/documents/schedule/$(bookingData.scheduleId)).data.startAt;
+    }
+
+    function bookingTimeDataAvailable(bookingData) {
+      return (bookingData.classStartTime is timestamp) ||
+        (
+          bookingScheduleExists(bookingData) &&
+          get(/databases/$(database)/documents/schedule/$(bookingData.scheduleId)).data.startAt is timestamp
+        );
+    }
+
+    function isBookingEditableNow(bookingData) {
+      return bookingTimeDataAvailable(bookingData) &&
+        request.time >= bookingStartTime(bookingData) &&
+        request.time <= bookingStartTime(bookingData) + duration.value(24, 'h');
+    }
+
+    function teacherCanReadBookingNow(bookingData) {
+      return teacherCanAccessBooking(bookingData) &&
+        (
+          !bookingTimeDataAvailable(bookingData) ||
+          request.time <= bookingStartTime(bookingData) + duration.value(24, 'h')
+        );
+    }
+
     function isValidString(field, minLen, maxLen) {
       return request.resource.data[field] is string && 
              request.resource.data[field].size() >= minLen && 
@@ -67,7 +133,14 @@ service cloud.firestore {
     
     match /schedule/{id} {
       allow read: if true;
-      allow write: if isAdmin();
+      allow write: if isAdmin() || (
+        isAuthenticated() &&
+        request.resource.data.diff(resource.data).changedKeys().hasOnly(['bookedCount']) &&
+        request.resource.data.bookedCount is int &&
+        resource.data.bookedCount is int &&
+        request.resource.data.bookedCount == resource.data.bookedCount + 1 &&
+        request.resource.data.bookedCount <= resource.data.capacity
+      );
     }
 
     // Media library (admin CRUD + picker in admin UI)
@@ -84,9 +157,21 @@ service cloud.firestore {
 
     // Bookings
     match /bookings/{id} {
-      allow read: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow read: if isAuthenticated() && (
+        resource.data.userId == request.auth.uid ||
+        isAdmin() ||
+        teacherCanReadBookingNow(resource.data)
+      );
       allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
-      allow update, delete: if isAdmin();
+      allow update: if isAdmin() || (
+        teacherCanAccessBooking(resource.data) &&
+        isBookingEditableNow(resource.data) &&
+        request.resource.data.diff(resource.data).changedKeys().hasOnly(['attendanceStatus', 'attendanceMarkedAt']) &&
+        request.resource.data.attendanceStatus is string &&
+        request.resource.data.attendanceStatus in ['attended', 'missed', 'unknown', 'present', 'absent'] &&
+        request.resource.data.attendanceMarkedAt is timestamp
+      );
+      allow delete: if isAdmin();
     }
   }
 }

@@ -181,7 +181,7 @@ export const Schedule: React.FC = () => {
         userId: user.uid,
         scheduleId: item?.id,
         type: 'class',
-        status: 'confirmed',
+        status: 'booked',
         createdAt: new Date().toISOString(),
       });
 

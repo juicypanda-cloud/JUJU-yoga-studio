@@ -6,6 +6,7 @@ import { useAuth } from '../context/AuthContext';
 import { Button } from '../components/ui/button';
 import { CheckCircle2, XCircle, Users, ArrowLeft } from 'lucide-react';
 import { toast } from 'sonner';
+import { isFutureClass, isTodayClass, isAttendanceEditableNow, resolveClassStartTime } from '../lib/class-time';
 
 type TeacherClassSummary = {
   id: string;
@@ -14,6 +15,7 @@ type TeacherClassSummary = {
   duration: string;
   participantCount: number;
   sessionCount: number;
+  hasEditableSessionNow: boolean;
 };
 
 type AttendanceRow = {
@@ -22,8 +24,9 @@ type AttendanceRow = {
   name: string;
   email: string;
   bookingStatus: string;
-  attendanceStatus: 'present' | 'absent' | 'unknown';
+  attendanceStatus: 'attended' | 'missed' | 'unknown';
   bookedAt: string;
+  classStartTime: Date | null;
 };
 
 const formatBookedAt = (value: any) => {
@@ -37,18 +40,18 @@ const formatBookedAt = (value: any) => {
 };
 
 export const TeacherAttendance: React.FC = () => {
-  const { user, profile, isTeacher } = useAuth();
+  const { user, profile, isTeacher, isAdmin } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [teacherClasses, setTeacherClasses] = useState<TeacherClassSummary[]>([]);
   const [attendanceByClass, setAttendanceByClass] = useState<Record<string, AttendanceRow[]>>({});
   const [loading, setLoading] = useState(true);
   const [savingBookingId, setSavingBookingId] = useState<string | null>(null);
-  const [attendanceOverride, setAttendanceOverride] = useState<Record<string, 'present' | 'absent'>>({});
+  const [attendanceOverride, setAttendanceOverride] = useState<Record<string, 'attended' | 'missed'>>({});
   const [selectedClassId, setSelectedClassId] = useState<string | null>(searchParams.get('classId'));
 
   useEffect(() => {
-    if (!user || !isTeacher) return;
+    if (!user || (!isTeacher && !isAdmin)) return;
 
     let teachers: any[] = [];
     let classes: any[] = [];
@@ -95,10 +98,19 @@ export const TeacherAttendance: React.FC = () => {
         users.map((u) => [String(u?.id || ''), { displayName: u?.displayName, email: u?.email }])
       );
 
+      const classSource = isAdmin ? classes : teacherOwnedClasses;
+
       const nextAttendanceByClass: Record<string, AttendanceRow[]> = {};
-      const nextTeacherClasses: TeacherClassSummary[] = teacherOwnedClasses.map((classItem) => {
+      const nextTeacherClasses: TeacherClassSummary[] = classSource.map((classItem) => {
         const classId = String(classItem?.id || '');
         const classSchedules = schedules.filter((slot) => String(slot?.classId || '') === classId);
+        const classStartTimes = classSchedules.map((slot) => resolveClassStartTime(slot)).filter(Boolean) as Date[];
+
+        if (!isAdmin) {
+          const visibleForTeacher = classStartTimes.some((start) => isTodayClass(start) || isFutureClass(start));
+          if (!visibleForTeacher) return null as any;
+        }
+
         const scheduleIds = new Set(classSchedules.map((slot) => String(slot?.id || '')));
 
         const classBookings = bookings.filter((booking) => {
@@ -118,10 +130,20 @@ export const TeacherAttendance: React.FC = () => {
           const bookingUserId = String(booking?.userId || '');
           const profileInfo = userById.get(bookingUserId);
           const attendanceStatusRaw = String(booking?.attendanceStatus || '').toLowerCase();
-          const attendanceStatus =
-            attendanceStatusRaw === 'present' || attendanceStatusRaw === 'absent'
-              ? attendanceStatusRaw
-              : 'unknown';
+          let attendanceStatus: 'attended' | 'missed' | 'unknown' = 'unknown';
+          if (attendanceStatusRaw === 'attended' || attendanceStatusRaw === 'missed') {
+            attendanceStatus = attendanceStatusRaw;
+          } else if (attendanceStatusRaw === 'present') {
+            attendanceStatus = 'attended';
+          } else if (attendanceStatusRaw === 'absent') {
+            attendanceStatus = 'missed';
+          }
+
+          const bookingScheduleId = String(booking?.scheduleId || '');
+          const bookingSchedule = classSchedules.find((slot) => String(slot?.id || '') === bookingScheduleId);
+          const classStartTime = booking?.classStartTime
+            ? resolveClassStartTime({ startAt: booking?.classStartTime })
+            : resolveClassStartTime(bookingSchedule || {});
 
           return {
             id: `${classId}-${String(booking?.id || bookingUserId || Math.random())}`,
@@ -131,6 +153,7 @@ export const TeacherAttendance: React.FC = () => {
             bookingStatus: String(booking?.status || 'confirmed'),
             attendanceStatus,
             bookedAt: formatBookedAt(booking?.createdAt),
+            classStartTime,
           };
         });
 
@@ -150,8 +173,9 @@ export const TeacherAttendance: React.FC = () => {
           duration: String(classItem?.duration || '60 мин'),
           participantCount: participantKeys.size,
           sessionCount: classSchedules.length,
+          hasEditableSessionNow: classStartTimes.some((start) => isAttendanceEditableNow(start).editable),
         };
-      });
+      }).filter(Boolean);
 
       setTeacherClasses(nextTeacherClasses);
       setAttendanceByClass(nextAttendanceByClass);
@@ -193,7 +217,7 @@ export const TeacherAttendance: React.FC = () => {
       unsubBookings();
       unsubUsers();
     };
-  }, [isTeacher, profile?.displayName, user]);
+  }, [isAdmin, isTeacher, profile?.displayName, user]);
 
   const selectedClass = useMemo(
     () => teacherClasses.find((classItem) => classItem.id === selectedClassId) || null,
@@ -202,8 +226,15 @@ export const TeacherAttendance: React.FC = () => {
 
   const rows = selectedClassId ? attendanceByClass[selectedClassId] || [] : [];
 
-  const markAttendance = async (bookingId: string, status: 'present' | 'absent') => {
+  const markAttendance = async (bookingId: string, status: 'attended' | 'missed') => {
     if (!bookingId) return;
+    const row = rows.find((item) => item.bookingId === bookingId);
+    const editGuard = isAdmin ? { editable: true } : isAttendanceEditableNow(row?.classStartTime);
+    if (!editGuard.editable) {
+      toast.error(editGuard.reason || 'Ирц засах боломжгүй байна');
+      return;
+    }
+
     setAttendanceOverride((prev) => ({ ...prev, [bookingId]: status }));
     setSavingBookingId(bookingId);
     try {
@@ -211,7 +242,7 @@ export const TeacherAttendance: React.FC = () => {
         attendanceStatus: status,
         attendanceMarkedAt: Timestamp.now(),
       });
-      toast.success(status === 'present' ? 'Ирц: Ирсэн' : 'Ирц: Тасалсан');
+      toast.success(status === 'attended' ? 'Ирц: Ирсэн' : 'Ирц: Тасалсан');
     } catch (error) {
       console.error('Attendance update failed:', error);
       setAttendanceOverride((prev) => {
@@ -226,7 +257,7 @@ export const TeacherAttendance: React.FC = () => {
   };
 
   if (!user) return null;
-  if (!isTeacher) {
+  if (!isTeacher && !isAdmin) {
     return (
       <div className="pt-32 pb-20">
         <div className="container mx-auto px-6">
@@ -248,7 +279,9 @@ export const TeacherAttendance: React.FC = () => {
           <div className="mb-8 flex items-center justify-between">
             <div>
               <h1 className="text-3xl font-light text-brand-ink">Багшийн ирц бүртгэл</h1>
-              <p className="mt-2 text-sm text-brand-ink/50">Хичээл тус бүр дээр ирсэн/тасалсан тэмдэглэнэ.</p>
+              <p className="mt-2 text-sm text-brand-ink/50">
+                {isAdmin ? 'Админ: бүх хичээлийн ирцийг үзэх боломжтой.' : 'Багш: өнөөдөр болон цаашдын хичээлийн ирцийг бүртгэнэ.'}
+              </p>
             </div>
             <Link to="/profile">
               <Button variant="outline" className="rounded-full">
@@ -296,6 +329,11 @@ export const TeacherAttendance: React.FC = () => {
                 <h2 className="mb-4 text-xl font-serif text-brand-ink">
                   {selectedClass?.title || 'Хичээл сонгоно уу'}
                 </h2>
+                {!isAdmin && selectedClass && !selectedClass.hasEditableSessionNow && (
+                  <p className="mb-4 rounded-xl bg-amber-50 px-3 py-2 text-xs text-amber-700">
+                    Энэ хичээлийн ирцийг одоо өөрчлөх боломжгүй байна. (Эхлэхээс өмнө болон өдөр өнгөрсний дараа түгжигдэнэ)
+                  </p>
+                )}
 
                 {rows.length === 0 ? (
                   <p className="text-sm text-brand-ink/50">Энэ хичээлд бүртгэлтэй сурагч алга.</p>
@@ -304,8 +342,9 @@ export const TeacherAttendance: React.FC = () => {
                     {rows.map((row) => (
                       (() => {
                         const effectiveStatus = attendanceOverride[row.bookingId] || row.attendanceStatus;
-                        const isPresent = effectiveStatus === 'present';
-                        const isAbsent = effectiveStatus === 'absent';
+                        const isPresent = effectiveStatus === 'attended';
+                        const isAbsent = effectiveStatus === 'missed';
+                        const canEdit = isAdmin || isAttendanceEditableNow(row.classStartTime).editable;
                         return (
                       <div
                         key={row.id}
@@ -323,8 +362,8 @@ export const TeacherAttendance: React.FC = () => {
                           <Button
                             size="sm"
                             className={`rounded-full px-4 text-white ${isPresent ? 'bg-green-700 ring-2 ring-green-300' : 'bg-green-600 hover:bg-green-700'}`}
-                            disabled={savingBookingId === row.bookingId}
-                            onClick={() => markAttendance(row.bookingId, 'present')}
+                            disabled={savingBookingId === row.bookingId || !canEdit}
+                            onClick={() => markAttendance(row.bookingId, 'attended')}
                           >
                             <CheckCircle2 size={14} className="mr-1" />
                             Ирсэн
@@ -332,8 +371,8 @@ export const TeacherAttendance: React.FC = () => {
                           <Button
                             size="sm"
                             className={`rounded-full px-4 text-white ${isAbsent ? 'bg-red-700 ring-2 ring-red-300' : 'bg-red-600 hover:bg-red-700'}`}
-                            disabled={savingBookingId === row.bookingId}
-                            onClick={() => markAttendance(row.bookingId, 'absent')}
+                            disabled={savingBookingId === row.bookingId || !canEdit}
+                            onClick={() => markAttendance(row.bookingId, 'missed')}
                           >
                             <XCircle size={14} className="mr-1" />
                             Тасалсан
