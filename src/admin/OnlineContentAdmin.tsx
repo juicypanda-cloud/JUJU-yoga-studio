@@ -7,9 +7,9 @@ import { Textarea } from '../components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { Card, CardContent } from '../components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../components/ui/dialog';
-import { MediaImageField } from './MediaImageField';
 import { Plus, Trash2, Edit, Video, Music, ExternalLink } from 'lucide-react';
 import { toast } from 'sonner';
+import { resolveOnlineContentThumbnail } from '../lib/online-video-thumb';
 
 export const OnlineContentAdmin: React.FC = () => {
   const [content, setContent] = useState<any[]>([]);
@@ -24,7 +24,6 @@ export const OnlineContentAdmin: React.FC = () => {
     type: 'video',
     duration: '',
     mediaURL: '',
-    thumbnailURL: '',
     category: 'Yoga',
     level: 'Beginner',
     description: '',
@@ -42,18 +41,23 @@ export const OnlineContentAdmin: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (isSubmitting) return;
-    if (!formData.thumbnailURL?.trim()) {
-      toast.error('Thumbnail зургийг медиа сангаас сонгоно уу');
-      return;
-    }
     setIsSubmitting(true);
     try {
+      const payload = {
+        ...formData,
+        // Thumbnail is auto-derived from YouTube URL for videos.
+        thumbnailURL:
+          formData.type === 'video'
+            ? resolveOnlineContentThumbnail({ mediaURL: formData.mediaURL })
+            : '',
+      };
+
       if (editingItem) {
-        await updateDoc(doc(db, 'onlineContent', editingItem.id), formData);
+        await updateDoc(doc(db, 'onlineContent', editingItem.id), payload);
         toast.success('Амжилттай шинэчлэгдлээ');
       } else {
         await addDoc(collection(db, 'onlineContent'), {
-          ...formData,
+          ...payload,
           createdAt: new Date().toISOString(),
         });
         toast.success('Амжилттай нэмэгдлээ');
@@ -65,7 +69,6 @@ export const OnlineContentAdmin: React.FC = () => {
         type: 'video',
         duration: '',
         mediaURL: '',
-        thumbnailURL: '',
         category: 'Yoga',
         level: 'Beginner',
         description: '',
@@ -85,7 +88,6 @@ export const OnlineContentAdmin: React.FC = () => {
       type: item.type,
       duration: item.duration || '',
       mediaURL: item.mediaURL,
-      thumbnailURL: item.thumbnailURL,
       category: item.category,
       level: item.level,
       description: item.description || '',
@@ -121,7 +123,6 @@ export const OnlineContentAdmin: React.FC = () => {
               type: 'video',
               duration: '',
               mediaURL: '',
-              thumbnailURL: '',
               category: 'Yoga',
               level: 'Beginner',
               description: '',
@@ -206,13 +207,6 @@ export const OnlineContentAdmin: React.FC = () => {
                 />
               </div>
 
-              <MediaImageField
-                label="Thumbnail зураг"
-                description="Карт дээр харагдах зургийг медиа сангаас сонгоно."
-                value={formData.thumbnailURL || ''}
-                onChange={(url) => setFormData({ ...formData, thumbnailURL: url })}
-              />
-
               <div className="space-y-2">
                 <label className="text-sm font-medium">Түвшин</label>
                 <Select 
@@ -254,10 +248,14 @@ export const OnlineContentAdmin: React.FC = () => {
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {content.map((item) => (
+          // Cards also use derived thumbnail so old entries without thumbnailURL still render.
+          (() => {
+            const thumb = resolveOnlineContentThumbnail(item);
+            return (
           <Card key={item.id} className="overflow-hidden border-none shadow-sm hover:shadow-md transition-all rounded-2xl group">
             <div className="relative aspect-video overflow-hidden">
               <img
-                src={item.thumbnailURL}
+                src={thumb || 'https://picsum.photos/seed/online-content-admin/1280/720'}
                 alt={item.title}
                 loading="lazy"
                 decoding="async"
@@ -325,6 +323,8 @@ export const OnlineContentAdmin: React.FC = () => {
               </Button>
             </CardContent>
           </Card>
+            );
+          })()
         ))}
       </div>
     </div>
