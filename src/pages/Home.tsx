@@ -21,7 +21,11 @@ import { collection, limit, onSnapshot, orderBy, query } from 'firebase/firestor
 import { db } from '../firebase';
 import { useAuth } from '../context/AuthContext';
 import { hasActiveSubscription } from '../lib/access';
-import { getYouTubeVideoId, getYouTubePosterUrl } from '../lib/online-video-thumb';
+import {
+  getYouTubeVideoId,
+  getYouTubePosterUrl,
+  resolveOnlineContentThumbnail,
+} from '../lib/online-video-thumb';
 import type { ClassItem } from '../types/class';
 
 /** Masonry aspect rhythm (reused for Firestore gallery + fallback) */
@@ -137,6 +141,36 @@ const normalizeClassItem = (id: string, raw: Record<string, unknown>): HomeClass
   };
 };
 
+const normalizeOnlineContentItem = (id: string, raw: Record<string, unknown>): HomeClassItem => {
+  const title = typeof raw.title === 'string' ? raw.title : 'Untitled video';
+  const videoUrl = typeof raw.mediaURL === 'string' ? raw.mediaURL : '';
+  const image =
+    resolveOnlineContentThumbnail({
+      mediaURL: videoUrl,
+      thumbnailURL: typeof raw.thumbnailURL === 'string' ? raw.thumbnailURL : '',
+      image: typeof raw.image === 'string' ? raw.image : '',
+    }) || 'https://picsum.photos/seed/online-class-fallback/1600/900';
+  const duration = typeof raw.duration === 'string' ? raw.duration : '—';
+  const instructor = typeof raw.teacherName === 'string' ? raw.teacherName : '';
+  const description =
+    typeof raw.description === 'string'
+      ? raw.description
+      : 'Дэлгэрэнгүй мэдээлэл удахгүй нэмэгдэнэ.';
+
+  return {
+    id,
+    title,
+    type: 'online',
+    image,
+    videoUrl,
+    audioUrl: '',
+    createdAt: raw.createdAt,
+    duration,
+    instructor,
+    description,
+  };
+};
+
 const normalizeBlogItem = (id: string, raw: any): HomeBlogItem => ({
   id,
   title: typeof raw?.title === 'string' ? raw.title : 'Untitled blog',
@@ -164,6 +198,13 @@ const getCreatedAtSeconds = (raw: any) => {
   }
   if (createdAt?.toMillis) {
     return Math.floor(createdAt.toMillis() / 1000);
+  }
+  if (typeof createdAt === 'string') {
+    const parsed = Date.parse(createdAt);
+    return Number.isNaN(parsed) ? 0 : Math.floor(parsed / 1000);
+  }
+  if (typeof createdAt === 'number') {
+    return Math.floor(createdAt / (createdAt > 1_000_000_000_000 ? 1000 : 1));
   }
   return 0;
 };
@@ -207,6 +248,7 @@ export const Home: React.FC = () => {
 
   useEffect(() => {
     const classesQuery = query(collection(db, 'classes'), limit(80));
+    const onlineContentQuery = query(collection(db, 'onlineContent'), limit(30));
     const retreatsQuery = query(collection(db, 'retreats'), limit(6));
     const blogQuery = query(
       collection(db, 'blog'),
@@ -221,24 +263,33 @@ export const Home: React.FC = () => {
         .filter((item) => item.type === 'offline')
         .sort((a, b) => getCreatedAtSeconds(b) - getCreatedAtSeconds(a))
         .slice(0, 6);
-      const latestOnline = normalizedClasses
-        .filter((item) => item.type === 'online' || Boolean(item.videoUrl))
-        .sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0))
-        .slice(0, 3);
 
       setOfflineClasses(latestOffline);
-      setOnlineClasses(latestOnline);
       setLoadingOffline(false);
-      setLoadingOnline(false);
       setOfflineError(false);
-      setOnlineError(false);
     }, (error) => {
       console.error('Failed to load classes:', error);
       setOfflineClasses([]);
-      setOnlineClasses([]);
       setLoadingOffline(false);
-      setLoadingOnline(false);
       setOfflineError(true);
+    });
+
+    const unsubOnlineContent = onSnapshot(onlineContentQuery, (snapshot) => {
+      const latestOnline = snapshot.docs
+        .map((docSnap) => ({
+          raw: docSnap.data() as Record<string, unknown>,
+          item: normalizeOnlineContentItem(docSnap.id, docSnap.data() as Record<string, unknown>),
+        }))
+        .sort((a, b) => getCreatedAtSeconds(b.raw) - getCreatedAtSeconds(a.raw))
+        .slice(0, 3)
+        .map((entry) => entry.item);
+      setOnlineClasses(latestOnline);
+      setLoadingOnline(false);
+      setOnlineError(false);
+    }, (error) => {
+      console.error('Failed to load online content:', error);
+      setOnlineClasses([]);
+      setLoadingOnline(false);
       setOnlineError(true);
     });
 
@@ -275,6 +326,7 @@ export const Home: React.FC = () => {
 
     return () => {
       unsubClasses();
+      unsubOnlineContent();
       unsubBlogs();
       unsubRetreats();
     };
