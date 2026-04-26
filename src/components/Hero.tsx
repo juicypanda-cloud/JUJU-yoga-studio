@@ -17,10 +17,10 @@ type HeroSlide = {
 const defaultSlide: HeroSlide = {
   image: '',
   imageVersion: 'default',
-  title: 'Ретрит Аялал',
-  subtitle: 'Хамгийн үзэсгэлэнтэй газруудад дотоод амар амгалангаа олоорой.',
-  cta1: { text: 'ОНЛАЙНААР ХИЧЭЭЛЛЭХ', link: '/online' },
-  cta2: { text: 'СТУДИД ХИЧЭЭЛЛЭХ', link: '/classes' },
+  title: '',
+  subtitle: '',
+  cta1: { text: '', link: '/online' },
+  cta2: { text: '', link: '/classes' },
 };
 
 const HERO_SESSION_KEY = 'homeHero:lastSlide:v2';
@@ -146,39 +146,49 @@ export const Hero: React.FC = () => {
       <div className="absolute inset-0 z-[1] bg-black/20" />
 
       <div className="relative z-[2] container mx-auto px-6 min-h-screen flex flex-col justify-end pb-24 md:pb-32 text-left text-white">
-        <motion.h1
-          initial={{ x: -20, opacity: 0 }}
-          animate={{ x: 0, opacity: 1 }}
-          transition={{ delay: 0.2 }}
-          className="text-5xl md:text-8xl font-light tracking-tight mb-6 max-w-4xl"
-        >
-          {slide.title}
-        </motion.h1>
-        <motion.p
-          initial={{ x: -20, opacity: 0 }}
-          animate={{ x: 0, opacity: 1 }}
-          transition={{ delay: 0.4 }}
-          className="text-lg md:text-2xl text-white/90 max-w-xl mb-10 font-light leading-relaxed"
-        >
-          {slide.subtitle}
-        </motion.p>
-        <motion.div
-          initial={{ x: -20, opacity: 0 }}
-          animate={{ x: 0, opacity: 1 }}
-          transition={{ delay: 0.6 }}
-          className="flex flex-col sm:flex-row gap-4"
-        >
-          <Button className="bg-white text-brand-ink hover:bg-brand-icon hover:text-white rounded-full px-10 py-6 text-[11px] font-black tracking-[0.2em] uppercase shadow-xl shadow-black/20 border-none transition-all duration-300">
-            <Link to={slide.cta1.link} className="flex items-center">
-              {slide.cta1.text}
-            </Link>
-          </Button>
-          <Button variant="outline" className="bg-white/10 backdrop-blur-md border-white/20 text-white hover:bg-brand-icon hover:border-brand-icon/80 hover:text-white rounded-full px-10 py-6 text-[11px] font-black tracking-[0.2em] uppercase transition-all duration-500">
-            <Link to={slide.cta2.link} className="flex items-center">
-              {slide.cta2.text}
-            </Link>
-          </Button>
-        </motion.div>
+        {slide.title ? (
+          <motion.h1
+            initial={{ x: -20, opacity: 0 }}
+            animate={{ x: 0, opacity: 1 }}
+            transition={{ delay: 0.2 }}
+            className="text-5xl md:text-8xl font-light tracking-tight mb-6 max-w-4xl"
+          >
+            {slide.title}
+          </motion.h1>
+        ) : null}
+        {slide.subtitle ? (
+          <motion.p
+            initial={{ x: -20, opacity: 0 }}
+            animate={{ x: 0, opacity: 1 }}
+            transition={{ delay: 0.4 }}
+            className="text-lg md:text-2xl text-white/90 max-w-xl mb-10 font-light leading-relaxed"
+          >
+            {slide.subtitle}
+          </motion.p>
+        ) : null}
+        {slide.cta1.text || slide.cta2.text ? (
+          <motion.div
+            initial={{ x: -20, opacity: 0 }}
+            animate={{ x: 0, opacity: 1 }}
+            transition={{ delay: 0.6 }}
+            className="flex flex-col sm:flex-row gap-4"
+          >
+            {slide.cta1.text ? (
+              <Button className="bg-white text-brand-ink hover:bg-brand-icon hover:text-white rounded-full px-10 py-6 text-[11px] font-black tracking-[0.2em] uppercase shadow-xl shadow-black/20 border-none transition-all duration-300">
+                <Link to={slide.cta1.link} className="flex items-center">
+                  {slide.cta1.text}
+                </Link>
+              </Button>
+            ) : null}
+            {slide.cta2.text ? (
+              <Button variant="outline" className="bg-white/10 backdrop-blur-md border-white/20 text-white hover:bg-brand-icon hover:border-brand-icon/80 hover:text-white rounded-full px-10 py-6 text-[11px] font-black tracking-[0.2em] uppercase transition-all duration-500">
+                <Link to={slide.cta2.link} className="flex items-center">
+                  {slide.cta2.text}
+                </Link>
+              </Button>
+            ) : null}
+          </motion.div>
+        ) : null}
       </div>
     </div>
   );

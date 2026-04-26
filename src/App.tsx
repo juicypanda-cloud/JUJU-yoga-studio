@@ -1,5 +1,5 @@
-import React, { Suspense, lazy } from 'react';
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import React, { Suspense, lazy, useEffect, useState } from 'react';
+import { BrowserRouter as Router, Routes, Route, useLocation } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import { Layout } from './components/Layout';
 import { ScrollToTop } from './components/ScrollToTop';
@@ -59,6 +59,28 @@ const LoadingScreen = () => (
   </div>
 );
 
+const RouteLoadingOverlay: React.FC = () => {
+  const location = useLocation();
+  const [visible, setVisible] = useState(true);
+
+  useEffect(() => {
+    setVisible(true);
+    const timeoutId = window.setTimeout(() => setVisible(false), 450);
+    return () => window.clearTimeout(timeoutId);
+  }, [location.pathname, location.search]);
+
+  if (!visible) return null;
+
+  return (
+    <div className="fixed inset-0 z-[120] flex items-center justify-center bg-white/90 backdrop-blur-[1px]">
+      <div className="flex flex-col items-center gap-4">
+        <div className="w-12 h-12 border-4 border-brand-icon/20 border-t-brand-icon rounded-full animate-spin" />
+        <p className="text-[10px] font-black uppercase tracking-[0.2em] text-brand-ink/40">Уншиж байна...</p>
+      </div>
+    </div>
+  );
+};
+
 export default function App() {
   console.log('[App] Rendering');
   
@@ -67,6 +89,7 @@ export default function App() {
       <AuthProvider>
         <Router>
           <ScrollToTop />
+          <RouteLoadingOverlay />
           <Layout>
             <ErrorBoundary>
               <Suspense fallback={<LoadingScreen />}>
