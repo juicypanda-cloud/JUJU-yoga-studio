@@ -12,7 +12,7 @@ export const Logo: React.FC<{ className?: string; light?: boolean }> = ({ classN
         src={LOGO_SRC}
         alt="luju Yoga Studio"
         className={cn(
-          'h-12 w-auto object-contain object-left sm:h-14 md:h-16 lg:h-[5.25rem]',
+          'h-6 w-auto object-contain object-left sm:h-7 md:h-8 lg:h-10',
           light && 'drop-shadow-[0_2px_12px_rgba(0,0,0,0.55)]'
         )}
         loading="eager"
