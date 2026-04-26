@@ -81,9 +81,8 @@ function slideFromSnapshot(snapshot: DocumentSnapshot): HeroSlide {
 export const Hero: React.FC = () => {
   const initialSlide = defaultSlide;
   const [slide, setSlide] = useState<HeroSlide>(initialSlide);
-  /** Only URL that has finished loading — avoids old image under / beside the next one. */
-  const [shownHeroUrl, setShownHeroUrl] = useState(initialSlide.image || '');
   const fallbackHeroImage = resolveLocalImage('/images/home-hero-source-latest.png');
+  const [useFallbackImage, setUseFallbackImage] = useState(false);
 
   useEffect(() => {
     clearPersistedSlideCache();
@@ -120,73 +119,29 @@ export const Hero: React.FC = () => {
     return () => unsubscribe();
   }, []);
 
+  const heroUrl = withHeroVersion(slide.image?.trim(), slide.imageVersion);
+  const activeHeroUrl = !useFallbackImage && heroUrl ? heroUrl : fallbackHeroImage;
+
   useEffect(() => {
-    const url = withHeroVersion(slide.image?.trim(), slide.imageVersion);
-    if (!url) return;
-
-    let cancelled = false;
-    let preload: HTMLLinkElement | null = null;
-
-    const finish = (next: string) => {
-      if (!cancelled) setShownHeroUrl(next);
-    };
-
-    // Do not keep showing the old hero forever while new one is loading/failing.
-    if (shownHeroUrl !== fallbackHeroImage) {
-      setShownHeroUrl(fallbackHeroImage);
-    }
-
-    try {
-      preload = document.createElement('link');
-      preload.rel = 'preload';
-      preload.as = 'image';
-      preload.href = url;
-      preload.setAttribute('fetchpriority', 'high');
-      document.head.appendChild(preload);
-    } catch {
-      preload = null;
-    }
-
-    const probe = new Image();
-    probe.fetchPriority = 'high';
-    probe.onload = () => {
-      if (cancelled) return;
-      const d = (probe as HTMLImageElement & { decode?: () => Promise<void> }).decode?.();
-      if (d && typeof d.then === 'function') {
-        void d.then(() => finish(url)).catch(() => finish(url));
-      } else {
-        finish(url);
-      }
-    };
-    probe.onerror = () => {
-      if (!cancelled) setShownHeroUrl(fallbackHeroImage);
-    };
-    probe.src = url;
-
-    return () => {
-      cancelled = true;
-      probe.onload = null;
-      probe.onerror = null;
-      probe.removeAttribute('src');
-      if (preload?.parentNode) preload.parentNode.removeChild(preload);
-    };
-  }, [fallbackHeroImage, shownHeroUrl, slide.image, slide.imageVersion]);
+    // Whenever admin changes hero image/version, try that new URL first.
+    setUseFallbackImage(false);
+  }, [heroUrl]);
 
   return (
     <div className="relative min-h-screen w-full overflow-hidden bg-brand-ink">
       <div className="pointer-events-none absolute inset-0 overflow-hidden">
-        {shownHeroUrl ? (
+        {activeHeroUrl ? (
           <img
-            key={shownHeroUrl}
-            src={shownHeroUrl}
+            key={activeHeroUrl}
+            src={activeHeroUrl}
             alt={slide.title}
             className="absolute inset-0 h-full w-full object-cover contrast-105 brightness-105"
             loading="eager"
             fetchPriority="high"
             decoding="async"
             onError={() => {
-              if (shownHeroUrl !== fallbackHeroImage) {
-                setShownHeroUrl(fallbackHeroImage);
+              if (!useFallbackImage) {
+                setUseFallbackImage(true);
               }
             }}
           />
