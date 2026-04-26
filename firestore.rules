@@ -130,6 +130,12 @@ service cloud.firestore {
       allow read: if true;
       allow write: if isAdmin();
     }
+
+    // Site-level content (home hero, etc.)
+    match /siteContent/{id} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
     
     match /schedule/{id} {
       allow read: if true;

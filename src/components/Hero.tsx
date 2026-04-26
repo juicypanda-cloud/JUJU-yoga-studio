@@ -4,7 +4,6 @@ import { Button } from './ui/button';
 import { Link } from 'react-router-dom';
 import { doc, getDoc, onSnapshot, type DocumentSnapshot } from 'firebase/firestore';
 import { db } from '../firebase';
-import { resolveLocalImage } from '../lib/local-image';
 
 type HeroSlide = {
   image: string;
@@ -16,7 +15,7 @@ type HeroSlide = {
 };
 
 const defaultSlide: HeroSlide = {
-  image: resolveLocalImage('/images/home-hero-source-latest.png'),
+  image: '',
   imageVersion: 'default',
   title: 'Ретрит Аялал',
   subtitle: 'Хамгийн үзэсгэлэнтэй газруудад дотоод амар амгалангаа олоорой.',
@@ -81,8 +80,7 @@ function slideFromSnapshot(snapshot: DocumentSnapshot): HeroSlide {
 export const Hero: React.FC = () => {
   const initialSlide = defaultSlide;
   const [slide, setSlide] = useState<HeroSlide>(initialSlide);
-  const fallbackHeroImage = resolveLocalImage('/images/home-hero-source-latest.png');
-  const [useFallbackImage, setUseFallbackImage] = useState(false);
+  const [imageFailed, setImageFailed] = useState(false);
 
   useEffect(() => {
     clearPersistedSlideCache();
@@ -120,11 +118,11 @@ export const Hero: React.FC = () => {
   }, []);
 
   const heroUrl = withHeroVersion(slide.image?.trim(), slide.imageVersion);
-  const activeHeroUrl = !useFallbackImage && heroUrl ? heroUrl : fallbackHeroImage;
+  const activeHeroUrl = !imageFailed && heroUrl ? heroUrl : '';
 
   useEffect(() => {
-    // Whenever admin changes hero image/version, try that new URL first.
-    setUseFallbackImage(false);
+    // Never keep old/fallback hero image when source changes.
+    setImageFailed(false);
   }, [heroUrl]);
 
   return (
@@ -140,9 +138,7 @@ export const Hero: React.FC = () => {
             fetchPriority="high"
             decoding="async"
             onError={() => {
-              if (!useFallbackImage) {
-                setUseFallbackImage(true);
-              }
+              setImageFailed(true);
             }}
           />
         ) : null}
