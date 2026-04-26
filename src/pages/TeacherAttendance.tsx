@@ -348,7 +348,10 @@ export const TeacherAttendance: React.FC = () => {
                         const effectiveStatus = attendanceOverride[row.bookingId] || row.attendanceStatus;
                         const isPresent = effectiveStatus === 'attended';
                         const isAbsent = effectiveStatus === 'missed';
-                        const canEdit = isAdmin || isAttendanceEditableNow(row.classStartTime).editable;
+                        const canEdit = isAdmin || (
+                          isTodayClass(row.classStartTime) &&
+                          isAttendanceEditableNow(row.classStartTime).editable
+                        );
                         return (
                       <div
                         key={row.id}
