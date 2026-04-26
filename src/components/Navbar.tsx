@@ -96,8 +96,8 @@ export const Navbar: React.FC = () => {
     <nav
       className={`fixed top-0 left-0 right-0 z-50 transition-all duration-500 ${
         scrolled || !isHomePage
-          ? 'bg-secondary/90 backdrop-blur-md py-4 shadow-sm' 
-          : 'bg-transparent py-8'
+          ? 'bg-secondary/90 backdrop-blur-md py-2 shadow-sm'
+          : 'bg-transparent py-4'
       }`}
       onMouseLeave={() => setHoveredIndex(null)}
     >
