@@ -65,8 +65,90 @@ const RouteLoadingOverlay: React.FC = () => {
 
   useEffect(() => {
     setVisible(true);
-    const timeoutId = window.setTimeout(() => setVisible(false), 450);
-    return () => window.clearTimeout(timeoutId);
+
+    let cancelled = false;
+    const main = document.querySelector('main');
+    if (!main) {
+      setVisible(false);
+      return;
+    }
+
+    const cleanupCallbacks: Array<() => void> = [];
+    const tracked = new WeakSet<HTMLImageElement>();
+    let pending = 0;
+    let settleTimer: number | null = null;
+
+    const finishWhenStable = () => {
+      if (cancelled || pending > 0) return;
+      if (settleTimer) window.clearTimeout(settleTimer);
+      settleTimer = window.setTimeout(() => {
+        if (!cancelled) setVisible(false);
+      }, 180);
+    };
+
+    const trackImage = (img: HTMLImageElement) => {
+      if (tracked.has(img)) return;
+      tracked.add(img);
+
+      const loadingMode = (img.getAttribute('loading') || '').toLowerCase();
+      // Don't block forever on below-the-fold lazy images.
+      if (loadingMode === 'lazy' && !img.complete) return;
+
+      if (img.complete) return;
+
+      pending += 1;
+      const resolve = () => {
+        pending = Math.max(0, pending - 1);
+        img.removeEventListener('load', resolve);
+        img.removeEventListener('error', resolve);
+        finishWhenStable();
+      };
+
+      img.addEventListener('load', resolve, { once: true });
+      img.addEventListener('error', resolve, { once: true });
+      cleanupCallbacks.push(() => {
+        img.removeEventListener('load', resolve);
+        img.removeEventListener('error', resolve);
+      });
+    };
+
+    const scanImages = (root: ParentNode) => {
+      root.querySelectorAll('img').forEach((node) => trackImage(node as HTMLImageElement));
+      finishWhenStable();
+    };
+
+    // Wait one frame so the next route content mounts before scanning.
+    const frame = window.requestAnimationFrame(() => {
+      if (cancelled) return;
+      scanImages(main);
+    });
+    cleanupCallbacks.push(() => window.cancelAnimationFrame(frame));
+
+    const observer = new MutationObserver((mutations) => {
+      mutations.forEach((mutation) => {
+        mutation.addedNodes.forEach((node) => {
+          if (!(node instanceof HTMLElement)) return;
+          if (node.tagName === 'IMG') {
+            trackImage(node as HTMLImageElement);
+          } else {
+            scanImages(node);
+          }
+        });
+      });
+    });
+    observer.observe(main, { childList: true, subtree: true });
+    cleanupCallbacks.push(() => observer.disconnect());
+
+    const hardTimeout = window.setTimeout(() => {
+      if (!cancelled) setVisible(false);
+    }, 10000);
+    cleanupCallbacks.push(() => window.clearTimeout(hardTimeout));
+
+    return () => {
+      cancelled = true;
+      if (settleTimer) window.clearTimeout(settleTimer);
+      cleanupCallbacks.forEach((cb) => cb());
+    };
   }, [location.pathname, location.search]);
 
   if (!visible) return null;
