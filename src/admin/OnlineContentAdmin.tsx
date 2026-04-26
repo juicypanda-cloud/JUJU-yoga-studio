@@ -9,7 +9,77 @@ import { Card, CardContent } from '../components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../components/ui/dialog';
 import { Plus, Trash2, Edit, Video, Music, ExternalLink } from 'lucide-react';
 import { toast } from 'sonner';
-import { resolveOnlineContentThumbnail } from '../lib/online-video-thumb';
+import { getYouTubeVideoId, resolveOnlineContentThumbnail } from '../lib/online-video-thumb';
+
+declare global {
+  interface Window {
+    YT?: any;
+    onYouTubeIframeAPIReady?: () => void;
+  }
+}
+
+const formatDuration = (seconds: number) => {
+  const rounded = Math.max(0, Math.round(seconds));
+  const hrs = Math.floor(rounded / 3600);
+  const mins = Math.floor((rounded % 3600) / 60);
+  const secs = rounded % 60;
+  if (hrs > 0) return `${hrs}:${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+  return `${mins}:${String(secs).padStart(2, '0')}`;
+};
+
+const ensureYouTubeIframeApi = (): Promise<any> => {
+  if (window.YT && window.YT.Player) return Promise.resolve(window.YT);
+
+  return new Promise((resolve) => {
+    const existingScript = document.getElementById('youtube-iframe-api');
+    if (!existingScript) {
+      const tag = document.createElement('script');
+      tag.id = 'youtube-iframe-api';
+      tag.src = 'https://www.youtube.com/iframe_api';
+      document.body.appendChild(tag);
+    }
+
+    const previousReady = window.onYouTubeIframeAPIReady;
+    window.onYouTubeIframeAPIReady = () => {
+      previousReady?.();
+      resolve(window.YT);
+    };
+  });
+};
+
+const fetchYouTubeDuration = async (mediaUrl: string): Promise<string> => {
+  const videoId = getYouTubeVideoId(mediaUrl);
+  if (!videoId) return '';
+  const YT = await ensureYouTubeIframeApi();
+
+  return new Promise<string>((resolve) => {
+    const mount = document.createElement('div');
+    mount.style.position = 'fixed';
+    mount.style.left = '-99999px';
+    mount.style.top = '0';
+    document.body.appendChild(mount);
+
+    const player = new YT.Player(mount, {
+      videoId,
+      events: {
+        onReady: (event: any) => {
+          const finalize = () => {
+            const seconds = event?.target?.getDuration?.() || 0;
+            event?.target?.destroy?.();
+            mount.remove();
+            resolve(seconds > 0 ? formatDuration(seconds) : '');
+          };
+          window.setTimeout(finalize, 400);
+        },
+        onError: () => {
+          player?.destroy?.();
+          mount.remove();
+          resolve('');
+        },
+      },
+    });
+  });
+};
 
 export const OnlineContentAdmin: React.FC = () => {
   const [content, setContent] = useState<any[]>([]);
@@ -25,7 +95,6 @@ export const OnlineContentAdmin: React.FC = () => {
     duration: '',
     mediaURL: '',
     category: 'Yoga',
-    level: 'Beginner',
     description: '',
   });
 
@@ -43,8 +112,12 @@ export const OnlineContentAdmin: React.FC = () => {
     if (isSubmitting) return;
     setIsSubmitting(true);
     try {
+      const autoDuration =
+        formData.type === 'video' ? await fetchYouTubeDuration(formData.mediaURL) : formData.duration;
+
       const payload = {
         ...formData,
+        duration: autoDuration || formData.duration || '',
         // Thumbnail is auto-derived from YouTube URL for videos.
         thumbnailURL:
           formData.type === 'video'
@@ -70,7 +143,6 @@ export const OnlineContentAdmin: React.FC = () => {
         duration: '',
         mediaURL: '',
         category: 'Yoga',
-        level: 'Beginner',
         description: '',
       });
     } catch (error) {
@@ -89,7 +161,6 @@ export const OnlineContentAdmin: React.FC = () => {
       duration: item.duration || '',
       mediaURL: item.mediaURL,
       category: item.category,
-      level: item.level,
       description: item.description || '',
     });
     setIsAddOpen(true);
@@ -124,7 +195,6 @@ export const OnlineContentAdmin: React.FC = () => {
               duration: '',
               mediaURL: '',
               category: 'Yoga',
-              level: 'Beginner',
               description: '',
             });
           }
@@ -196,33 +266,22 @@ export const OnlineContentAdmin: React.FC = () => {
                 />
               </div>
 
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Хугацаа</label>
-                <Input
-                  required
-                  value={formData.duration}
-                  onChange={(e) => setFormData({ ...formData, duration: e.target.value })}
-                  placeholder="Жишээ: 24:15 эсвэл 45 мин"
-                  className="rounded-xl"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Түвшин</label>
-                <Select 
-                  value={formData.level} 
-                  onValueChange={(val) => setFormData({ ...formData, level: val })}
-                >
-                  <SelectTrigger className="rounded-xl">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Beginner">Анхан шат</SelectItem>
-                    <SelectItem value="Advanced">Ахисан шат</SelectItem>
-                    <SelectItem value="All Levels">Бүх түвшин</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+              {formData.type === 'audio' ? (
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Хугацаа</label>
+                  <Input
+                    required
+                    value={formData.duration}
+                    onChange={(e) => setFormData({ ...formData, duration: e.target.value })}
+                    placeholder="Жишээ: 24:15 эсвэл 45 мин"
+                    className="rounded-xl"
+                  />
+                </div>
+              ) : (
+                <p className="text-xs text-accent/60">
+                  Видео үргэлжлэх хугацааг YouTube линкээс автоматаар авна.
+                </p>
+              )}
 
               <div className="space-y-2">
                 <label className="text-sm font-medium">Тайлбар</label>
@@ -312,8 +371,6 @@ export const OnlineContentAdmin: React.FC = () => {
             <CardContent className="p-6">
               <div className="flex items-center gap-2 text-[10px] uppercase tracking-widest text-primary font-bold mb-2">
                 <span>{item.category}</span>
-                <span>•</span>
-                <span>{item.level}</span>
               </div>
               <h3 className="text-xl font-medium mb-4">{item.title}</h3>
               <Button variant="outline" className="w-full rounded-full border-accent/10 hover:bg-secondary/20">

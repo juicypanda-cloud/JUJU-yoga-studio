@@ -8,7 +8,6 @@ interface OnlineContentCardProps {
     type: 'video' | 'audio';
     thumbnailURL: string;
     duration?: string;
-    level: string;
     category: string;
     teacherName: string;
     description?: string;
