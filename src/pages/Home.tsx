@@ -28,6 +28,7 @@ import {
 } from '../lib/online-video-thumb';
 import type { ClassItem } from '../types/class';
 import { SmartImage } from '../components/SmartImage';
+import { resolveLocalImage } from '../lib/local-image';
 
 /** Masonry aspect rhythm (reused for Firestore gallery + fallback) */
 const GALLERY_ASPECT_CYCLE = [
@@ -68,7 +69,7 @@ const HOME_SHOP_SLIDES = [
     body: 'Хаанаас ч уншиж, давтахад тохиромжтой цахим хувилбарууд.',
   },
   {
-    src: '/images/juju-notebook.png',
+    src: resolveLocalImage('/images/juju-notebook.png'),
     alt: 'Майндфүлнэс тэмдэглэлийн дэвтэр',
     title: 'Дэвтэр',
     body: 'Хичээлийн тэмдэглэл, өдрийн төлөвлөгөө — өөрийн гараар бичихэд тохиромжтой.',

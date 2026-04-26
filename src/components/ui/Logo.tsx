@@ -1,8 +1,9 @@
 import React from 'react';
 import { cn } from '@/lib/utils';
+import { resolveLocalImage } from '@/lib/local-image';
 
 /** Wordmark PNG with transparent background (`public/images/logo-luju-wordmark.png`). */
-const LOGO_SRC = '/images/logo-luju-wordmark.png';
+const LOGO_SRC = resolveLocalImage('/images/logo-luju-wordmark.png');
 
 export const Logo: React.FC<{ className?: string; light?: boolean }> = ({ className, light }) => {
   return (
