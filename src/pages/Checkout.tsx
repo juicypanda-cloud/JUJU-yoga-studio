@@ -7,6 +7,13 @@ import { useAuth } from '../context/AuthContext';
 import { doc, updateDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { toast } from 'sonner';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '../components/ui/dialog';
 
 const plans = {
   'online-video': { name: 'Online Video', price: 100, contentType: 'video' as const },
@@ -75,6 +82,7 @@ export const Checkout: React.FC = () => {
   const [paymentSession, setPaymentSession] = useState<PaymentSession | null>(null);
   const [orderId, setOrderId] = useState('');
   const [useQrFallback, setUseQrFallback] = useState(false);
+  const [isQrModalOpen, setIsQrModalOpen] = useState(false);
 
   useEffect(() => {
     if (!user) {
@@ -143,6 +151,7 @@ export const Checkout: React.FC = () => {
 
       setPaymentSession(session);
       setUseQrFallback(false);
+      setIsQrModalOpen(true);
       toast.success('QPay QR амжилттай үүслээ');
     } catch (error) {
       console.error('Payment error:', error);
@@ -219,6 +228,67 @@ export const Checkout: React.FC = () => {
 
   return (
     <div className="pt-32 pb-32 min-h-screen bg-gray-50/50">
+      <Dialog open={isQrModalOpen && Boolean(paymentSession)} onOpenChange={setIsQrModalOpen}>
+        <DialogContent className="sm:max-w-md rounded-[2rem] p-8">
+          <DialogHeader className="gap-2">
+            <DialogTitle className="flex items-center gap-2 font-serif text-2xl text-brand-ink">
+              <QrCode className="text-brand-icon" size={22} />
+              QPay QR
+            </DialogTitle>
+            <DialogDescription className="text-brand-ink/60">
+              QR уншуулж төлбөрөө хийгээд дараа нь төлбөр шалгана уу.
+            </DialogDescription>
+          </DialogHeader>
+
+          {paymentSession ? (
+            <div className="space-y-5">
+              <div className="rounded-2xl border border-brand-ink/10 bg-gray-50 p-4 flex flex-col items-center">
+                <img
+                  src={
+                    !useQrFallback && paymentSession.qrImage
+                      ? paymentSession.qrImage
+                      : `https://api.qrserver.com/v1/create-qr-code/?size=280x280&data=${encodeURIComponent(
+                          paymentSession.qrText ?? paymentSession.invoiceId
+                        )}`
+                  }
+                  alt="QPay QR"
+                  className="w-64 h-64 rounded-2xl bg-white p-2"
+                  onError={() => {
+                    if (!useQrFallback) setUseQrFallback(true);
+                  }}
+                />
+                <p className="mt-3 text-[11px] text-brand-ink/40">Invoice: {paymentSession.invoiceId}</p>
+              </div>
+
+              {paymentSession.deeplink ? (
+                <a
+                  href={paymentSession.deeplink}
+                  className="w-full inline-flex items-center justify-center gap-2 rounded-full py-3 bg-brand-icon text-white text-[11px] font-black tracking-[0.2em] uppercase"
+                >
+                  <Smartphone size={14} />
+                  QPay апп-аар нээх
+                </a>
+              ) : null}
+
+              <Button
+                onClick={() => void checkPayment()}
+                disabled={checkingPayment}
+                className="w-full bg-brand-ink text-white hover:bg-brand-icon rounded-full py-6 text-[11px] font-black tracking-[0.2em] uppercase transition-all duration-500 shadow-xl"
+              >
+                {checkingPayment ? (
+                  <span className="flex items-center gap-2">
+                    <Loader2 className="animate-spin" size={16} />
+                    Төлбөр шалгаж байна...
+                  </span>
+                ) : (
+                  'Төлбөр шалгах'
+                )}
+              </Button>
+            </div>
+          ) : null}
+        </DialogContent>
+      </Dialog>
+
       <div className="container mx-auto px-6">
         <div className="max-w-6xl mx-auto">
           <button 
@@ -268,40 +338,16 @@ export const Checkout: React.FC = () => {
                       {paymentCompleteMessage}
                     </p>
                   ) : null}
-                  <div className="rounded-3xl border border-brand-ink/10 bg-gray-50 p-8 flex flex-col items-center">
-                    {paymentSession.qrImage || paymentSession.qrText ? (
-                      <img
-                        src={
-                          !useQrFallback && paymentSession.qrImage
-                            ? paymentSession.qrImage
-                            :
-                          `https://api.qrserver.com/v1/create-qr-code/?size=280x280&data=${encodeURIComponent(
-                            paymentSession.qrText ?? paymentSession.invoiceId
-                          )}`
-                        }
-                        alt="QPay QR"
-                        className="w-64 h-64 rounded-2xl bg-white p-2"
-                        onError={() => {
-                          if (!useQrFallback) setUseQrFallback(true);
-                        }}
-                      />
-                    ) : (
-                      <div className="text-center text-sm text-brand-ink/50">
-                        QR мэдээлэл ирээгүй байна.
-                      </div>
-                    )}
-                    <p className="mt-4 text-xs text-brand-ink/40">Invoice: {paymentSession.invoiceId}</p>
-                  </div>
-
-                  {paymentSession.deeplink && (
-                    <a
-                      href={paymentSession.deeplink}
-                      className="w-full inline-flex items-center justify-center gap-2 rounded-full py-4 bg-brand-icon text-white text-[11px] font-black tracking-[0.2em] uppercase"
+                  <div className="rounded-2xl border border-brand-ink/10 bg-gray-50 p-5 text-center">
+                    <p className="text-sm text-brand-ink/60 mb-4">QR popup-аар нээгдсэн.</p>
+                    <Button
+                      type="button"
+                      onClick={() => setIsQrModalOpen(true)}
+                      className="rounded-full bg-brand-ink px-8 text-white hover:bg-brand-icon"
                     >
-                      <Smartphone size={14} />
-                      QPay апп-аар нээх
-                    </a>
-                  )}
+                      QR дахин нээх
+                    </Button>
+                  </div>
 
                   <Button
                     onClick={() => void checkPayment()}
