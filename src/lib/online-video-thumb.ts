@@ -28,7 +28,7 @@ export const getYouTubeVideoId = (url: string) => {
   }
 };
 
-/** `mq` ≈320px wide — fast for grids; `hq` ≈480px — detail / hero */
+/** `mq` ≈320px wide — fast for lists; `hq` ≈480px — better detail */
 export type YouTubePosterSize = 'list' | 'detail';
 
 const YT_POSTER_FILE: Record<YouTubePosterSize, string> = {
@@ -37,7 +37,12 @@ const YT_POSTER_FILE: Record<YouTubePosterSize, string> = {
 };
 
 export const getYouTubePosterUrl = (videoId: string, size: YouTubePosterSize = 'list') =>
-  videoId ? `https://img.youtube.com/vi/${videoId}/${YT_POSTER_FILE[size]}` : '';
+  videoId ? `https://i.ytimg.com/vi/${videoId}/${YT_POSTER_FILE[size]}` : '';
+
+export const isYouTubeThumbnailUrl = (url?: string) => {
+  const normalized = String(url || '').toLowerCase();
+  return normalized.includes('img.youtube.com/vi/') || normalized.includes('i.ytimg.com/vi/');
+};
 
 export const getYouTubeThumbnailFromMediaUrl = (mediaUrl: string) => {
   const id = getYouTubeVideoId(mediaUrl);
@@ -45,14 +50,14 @@ export const getYouTubeThumbnailFromMediaUrl = (mediaUrl: string) => {
 };
 
 export const getYoutubeIdFromStoredThumb = (url: string) => {
-  const m = url.match(/img\.youtube\.com\/vi\/([^/]+)\//i);
+  const m = url.match(/(?:img\.youtube\.com|i\.ytimg\.com)\/vi\/([^/]+)\//i);
   return m?.[1] || '';
 };
 
 /** Use smaller YouTube JPEG for list UIs (admin may save hq/maxres URLs). */
 export const toListYouTubePosterUrl = (url: string) => {
   const trimmed = String(url || '').trim();
-  if (!trimmed.toLowerCase().includes('img.youtube.com/vi/')) return trimmed;
+  if (!isYouTubeThumbnailUrl(trimmed)) return trimmed;
   const id = getYoutubeIdFromStoredThumb(trimmed);
   return id ? getYouTubePosterUrl(id, 'list') : trimmed;
 };
@@ -85,12 +90,12 @@ export const resolveOnlineContentThumbnail = (item: {
   const mediaYtId = mediaUrl ? getYouTubeVideoId(mediaUrl) : '';
 
   if (mediaYtId) {
-    const derived = getYouTubePosterUrl(mediaYtId, 'list');
+    const derived = getYouTubePosterUrl(mediaYtId, 'detail');
     if (!stored) return derived;
-    if (stored.toLowerCase().includes('img.youtube.com/vi/')) {
+    if (isYouTubeThumbnailUrl(stored)) {
       const thumbYtId = getYoutubeIdFromStoredThumb(stored);
       if (thumbYtId && thumbYtId !== mediaYtId) return derived;
-      return toListYouTubePosterUrl(stored);
+      return getYouTubePosterUrl(mediaYtId, 'detail');
     }
     return stored;
   }
