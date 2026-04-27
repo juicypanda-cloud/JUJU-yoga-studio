@@ -9,6 +9,7 @@ import {
   signInWithEmailAndPassword,
   GoogleAuthProvider,
   signInWithPopup,
+  type User,
   type MultiFactorResolver,
 } from 'firebase/auth';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
@@ -37,6 +38,22 @@ export const Login: React.FC = () => {
     setMfaOtp('');
   };
 
+  const ensureUserProfile = async (user: User) => {
+    const userRef = doc(db, 'users', user.uid);
+    const userDoc = await getDoc(userRef);
+    if (userDoc.exists()) return;
+
+    await setDoc(userRef, {
+      uid: user.uid,
+      email: user.email || '',
+      displayName: user.displayName || '',
+      photoURL: user.photoURL || null,
+      role: 'user',
+      subscriptionStatus: 'inactive',
+      createdAt: new Date().toISOString(),
+    }, { merge: true });
+  };
+
   const handleMfaSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!mfaResolver) return;
@@ -48,6 +65,9 @@ export const Login: React.FC = () => {
     setLoading(true);
     try {
       await completeTotpMfaSignIn(mfaResolver, enrollmentId, mfaOtp);
+      if (auth.currentUser) {
+        await ensureUserProfile(auth.currentUser);
+      }
       toast.success('Амжилттай нэвтэрлээ');
       clearMfa();
       navigate(from, { replace: true });
@@ -73,7 +93,8 @@ export const Login: React.FC = () => {
 
     setLoading(true);
     try {
-      await signInWithEmailAndPassword(auth, email, password);
+      const result = await signInWithEmailAndPassword(auth, email, password);
+      await ensureUserProfile(result.user);
       toast.success('Амжилттай нэвтэрлээ');
       navigate(from, { replace: true });
     } catch (error: unknown) {
@@ -106,19 +127,7 @@ export const Login: React.FC = () => {
     try {
       const result = await signInWithPopup(auth, provider);
       const user = result.user;
-
-      const userDoc = await getDoc(doc(db, 'users', user.uid));
-      if (!userDoc.exists()) {
-        await setDoc(doc(db, 'users', user.uid), {
-          uid: user.uid,
-          email: user.email,
-          displayName: user.displayName,
-          photoURL: user.photoURL,
-          role: 'user',
-          subscriptionStatus: 'inactive',
-          createdAt: new Date().toISOString(),
-        });
-      }
+      await ensureUserProfile(user);
 
       toast.success('Амжилттай нэвтэрлээ');
       navigate(from, { replace: true });
