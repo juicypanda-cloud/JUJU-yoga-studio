@@ -44,6 +44,19 @@ export const Teachers: React.FC = () => {
     return () => unsubscribe();
   }, []);
 
+  useEffect(() => {
+    // Warm cache for first visible teacher cards.
+    teachers
+      .slice(0, 6)
+      .map((teacher) => teacher.image)
+      .filter(Boolean)
+      .forEach((url) => {
+        const img = new Image();
+        img.decoding = 'async';
+        img.src = url;
+      });
+  }, [teachers]);
+
   return (
     <div className="pt-32 pb-20 min-h-screen bg-white">
       <div className="container mx-auto px-4">
@@ -86,7 +99,8 @@ export const Teachers: React.FC = () => {
                       src={teacher.image}
                       alt={teacher.name}
                       className="absolute inset-0 h-full w-full object-cover"
-                      loading="lazy"
+                      loading={i < 3 ? 'eager' : 'lazy'}
+                      fetchPriority={i < 3 ? 'high' : 'auto'}
                       decoding="async"
                     />
                   ) : (
