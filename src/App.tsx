@@ -84,17 +84,21 @@ const RouteLoadingOverlay: React.FC = () => {
       if (settleTimer) window.clearTimeout(settleTimer);
       settleTimer = window.setTimeout(() => {
         const quietForMs = Date.now() - lastMutationAt;
-        if (!cancelled && quietForMs >= 220) {
+        if (!cancelled && quietForMs >= 120) {
           setVisible(false);
         } else {
           finishWhenStable();
         }
-      }, 220);
+      }, 120);
     };
 
     const trackImage = (img: HTMLImageElement) => {
       if (tracked.has(img)) return;
       tracked.add(img);
+
+      const loadingMode = (img.getAttribute('loading') || '').toLowerCase();
+      // Keep transitions fast: don't wait for below-the-fold lazy images.
+      if (loadingMode === 'lazy' && !img.complete) return;
 
       if (img.complete) return;
 
@@ -154,7 +158,7 @@ const RouteLoadingOverlay: React.FC = () => {
 
     const hardTimeout = window.setTimeout(() => {
       if (!cancelled) setVisible(false);
-    }, 30000);
+    }, 8000);
     cleanupCallbacks.push(() => window.clearTimeout(hardTimeout));
 
     return () => {
@@ -167,7 +171,7 @@ const RouteLoadingOverlay: React.FC = () => {
   if (!visible) return null;
 
   return (
-    <div className="fixed inset-0 z-[120] flex items-center justify-center bg-white/90 backdrop-blur-[1px]">
+    <div className="fixed inset-0 z-[120] flex items-center justify-center bg-white">
       <div className="flex flex-col items-center gap-4">
         <div className="w-12 h-12 border-4 border-brand-icon/20 border-t-brand-icon rounded-full animate-spin" />
         <p className="text-[10px] font-black uppercase tracking-[0.2em] text-brand-ink/40">Уншиж байна...</p>
