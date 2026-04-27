@@ -67,6 +67,7 @@ export const OnlineClasses: React.FC = () => {
   const [selectedContent, setSelectedContent] = useState<any | null>(null);
   const [mediaError, setMediaError] = useState('');
   const [filter, setFilter] = useState('All');
+  const [teacherFilter, setTeacherFilter] = useState('All');
   const [search, setSearch] = useState('');
   const [accessGateOpen, setAccessGateOpen] = useState(false);
   const { user, profile } = useAuth();
@@ -105,13 +106,27 @@ export const OnlineClasses: React.FC = () => {
     () =>
       content.filter((item) => {
         const matchesFilter = filter === 'All' || item.category === filter;
-        const matchesSearch = String(item.title || '')
+        const teacherName = String(item.teacherName || '').trim();
+        const matchesTeacher = teacherFilter === 'All' || teacherName === teacherFilter;
+        const searchTarget = `${String(item.title || '')} ${teacherName} ${String(item.category || '')}`;
+        const matchesSearch = searchTarget
           .toLowerCase()
           .includes(search.toLowerCase());
-        return matchesFilter && matchesSearch;
+        return matchesFilter && matchesTeacher && matchesSearch;
       }),
-    [content, filter, search]
+    [content, filter, teacherFilter, search]
   );
+
+  const teacherOptions = useMemo(() => {
+    const unique = Array.from(
+      new Set(
+        content
+          .map((item) => String(item?.teacherName || '').trim())
+          .filter(Boolean)
+      )
+    );
+    return ['All', ...unique];
+  }, [content]);
 
   useEffect(() => {
     let cancelled = false;
@@ -338,6 +353,22 @@ export const OnlineClasses: React.FC = () => {
                       }`}
                     >
                       {cat.label}
+                    </button>
+                  ))}
+                </div>
+
+                <div className="flex flex-wrap justify-center gap-3">
+                  {teacherOptions.map((teacherName) => (
+                    <button
+                      key={teacherName}
+                      onClick={() => setTeacherFilter(teacherName)}
+                      className={`px-5 py-2 rounded-full text-[10px] font-black tracking-[0.16em] uppercase transition-all duration-300 focus:outline-none ${
+                        teacherFilter === teacherName
+                          ? 'bg-brand-icon text-white shadow-md shadow-brand-icon/20'
+                          : 'bg-secondary/30 text-brand-ink/50 hover:text-brand-ink'
+                      }`}
+                    >
+                      {teacherName === 'All' ? 'Бүх багш' : teacherName}
                     </button>
                   ))}
                 </div>

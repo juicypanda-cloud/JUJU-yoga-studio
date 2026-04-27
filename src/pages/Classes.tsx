@@ -19,6 +19,8 @@ type RawClassItem = {
   title?: string;
   image?: string;
   category?: string;
+  teacherId?: string;
+  teacher?: string;
   scheduleSlots?: ScheduleSlot[];
   duration?: string;
   type?: 'offline' | 'online' | 'audio';
@@ -31,6 +33,8 @@ type ClassItem = BaseClassItem & {
   category: string;
   scheduleDays: string[];
   duration: string;
+  teacherId: string;
+  teacherName: string;
 };
 
 const CLASS_FALLBACK_IMAGE = 'https://picsum.photos/seed/class-fallback/1200/800';
@@ -51,6 +55,8 @@ const normalizeClassItem = (raw: RawClassItem, fallbackId: string): ClassItem =>
   audioUrl: typeof raw?.audioUrl === 'string' ? raw.audioUrl : undefined,
   createdAt: raw?.createdAt,
   category: typeof raw?.category === 'string' ? raw.category : 'Class',
+  teacherId: typeof raw?.teacherId === 'string' ? raw.teacherId : '',
+  teacherName: typeof raw?.teacher === 'string' ? raw.teacher : 'Багш',
   scheduleDays: normalizeScheduleDays(raw),
   duration: typeof raw?.duration === 'string' ? raw.duration : '60 min',
 });
@@ -58,6 +64,7 @@ const normalizeClassItem = (raw: RawClassItem, fallbackId: string): ClassItem =>
 export const Classes: React.FC = () => {
   const [searchParams] = useSearchParams();
   const [filter, setFilter] = useState(searchParams.get('category') || 'All');
+  const [teacherFilter, setTeacherFilter] = useState('All');
   const [classes, setClasses] = useState<ClassItem[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -101,9 +108,26 @@ export const Classes: React.FC = () => {
   }, [searchParams]);
 
   const filteredClasses = useMemo(
-    () => (classes || []).filter((item) => filter === 'All' || item?.category === filter),
-    [classes, filter]
+    () =>
+      (classes || []).filter((item) => {
+        const matchesCategory = filter === 'All' || item?.category === filter;
+        const normalizedTeacher = String(item?.teacherName || '').trim();
+        const matchesTeacher = teacherFilter === 'All' || normalizedTeacher === teacherFilter;
+        return matchesCategory && matchesTeacher;
+      }),
+    [classes, filter, teacherFilter]
   );
+
+  const teacherOptions = useMemo(() => {
+    const unique = Array.from(
+      new Set(
+        (classes || [])
+          .map((item) => String(item?.teacherName || '').trim())
+          .filter(Boolean)
+      )
+    );
+    return ['All', ...unique];
+  }, [classes]);
 
   return (
     <ErrorBoundary>
@@ -131,6 +155,22 @@ export const Classes: React.FC = () => {
                 }`}
               >
                 {cat.label}
+              </button>
+            ))}
+          </div>
+
+          <div className="mt-5 flex flex-wrap justify-center gap-3">
+            {teacherOptions.map((teacherName) => (
+              <button
+                key={teacherName}
+                onClick={() => setTeacherFilter(teacherName)}
+                className={`px-5 py-2 rounded-full text-[10px] font-black tracking-[0.16em] uppercase transition-all duration-300 focus:outline-none ${
+                  teacherFilter === teacherName
+                    ? 'bg-brand-icon text-white shadow-md shadow-brand-icon/20'
+                    : 'bg-secondary/30 text-brand-ink/50 hover:text-brand-ink'
+                }`}
+              >
+                {teacherName === 'All' ? 'Бүх багш' : teacherName}
               </button>
             ))}
           </div>
@@ -207,6 +247,9 @@ export const Classes: React.FC = () => {
                       <h3 className="font-serif text-xl leading-snug tracking-tight text-brand-ink transition-colors duration-300 group-hover:text-brand-icon md:text-[1.35rem] line-clamp-2">
                         {item?.title || 'Untitled'}
                       </h3>
+                      <p className="mt-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-brand-ink/45">
+                        Багш: {item?.teacherName || 'Багш'}
+                      </p>
 
                       <div className="mt-5 flex flex-wrap gap-2">
                         {scheduleDays.length > 0 ? (
