@@ -693,20 +693,22 @@ export const ClassDetail: React.FC = () => {
                     </div>
                   ) : null}
 
-                  <div className="flex justify-center">
-                    <Button
-                      onClick={() => {
-                        if (!user) {
-                          toast.error('Бүртгүүлэхийн тулд нэвтэрнэ үү');
-                          return;
-                        }
-                        setShowBookingPayment(true);
-                      }}
-                      className="bg-brand-ink text-white hover:bg-brand-icon rounded-full px-12 py-8 text-[11px] font-black tracking-[0.2em] uppercase transition-all duration-500 shadow-xl w-full sm:w-auto"
-                    >
-                      Одоо бүртгүүлэх
-                    </Button>
-                  </div>
+                  {!showBookingPayment ? (
+                    <div className="flex justify-center">
+                      <Button
+                        onClick={() => {
+                          if (!user) {
+                            toast.error('Бүртгүүлэхийн тулд нэвтэрнэ үү');
+                            return;
+                          }
+                          setShowBookingPayment(true);
+                        }}
+                        className="bg-brand-ink text-white hover:bg-brand-icon rounded-full px-12 py-8 text-[11px] font-black tracking-[0.2em] uppercase transition-all duration-500 shadow-xl w-full sm:w-auto"
+                      >
+                        Одоо бүртгүүлэх
+                      </Button>
+                    </div>
+                  ) : null}
                 </>
               ) : (
                 <div className="flex justify-center">
