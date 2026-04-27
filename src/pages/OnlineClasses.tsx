@@ -368,22 +368,15 @@ export const OnlineClasses: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => setTeachersExpanded((prev) => !prev)}
-                    className={`group inline-flex items-center overflow-hidden rounded-full border border-brand-ink/10 bg-white px-4 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-brand-ink transition-all duration-300 hover:w-[220px] hover:bg-secondary/20 ${
-                      showTeacherOptions ? 'w-[220px] shadow-md shadow-brand-ink/10' : 'w-[158px]'
+                    className={`inline-flex w-[158px] items-center justify-center rounded-full border border-brand-ink/10 bg-white px-4 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-brand-ink transition-all duration-300 hover:bg-secondary/20 ${
+                      showTeacherOptions ? 'shadow-md shadow-brand-ink/10' : ''
                     }`}
                   >
                     <ChevronsLeftRight
                       size={14}
-                      className={`shrink-0 transition-transform duration-300 ${showTeacherOptions ? 'rotate-90 text-brand-icon' : 'text-brand-ink/60 group-hover:rotate-90'}`}
+                      className={`shrink-0 transition-transform duration-300 ${showTeacherOptions ? 'rotate-90 text-brand-icon' : 'text-brand-ink/60'}`}
                     />
                     <span className="ml-2 whitespace-nowrap">All Teachers</span>
-                    <span
-                      className={`ml-2 overflow-hidden whitespace-nowrap text-[9px] font-semibold tracking-[0.14em] normal-case text-brand-ink/45 transition-all duration-300 ${
-                        showTeacherOptions ? 'max-w-[120px] opacity-100' : 'max-w-0 opacity-0 group-hover:max-w-[120px] group-hover:opacity-100'
-                      }`}
-                    >
-                      {teachersExpanded ? 'click to collapse' : 'click to expand'}
-                    </span>
                   </button>
 
                   {showTeacherOptions ? teacherOptions.map((teacherName) => (
