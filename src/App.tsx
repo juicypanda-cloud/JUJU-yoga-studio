@@ -77,22 +77,24 @@ const RouteLoadingOverlay: React.FC = () => {
     const tracked = new WeakSet<HTMLImageElement>();
     let pending = 0;
     let settleTimer: number | null = null;
+    let lastMutationAt = Date.now();
 
     const finishWhenStable = () => {
       if (cancelled || pending > 0) return;
       if (settleTimer) window.clearTimeout(settleTimer);
       settleTimer = window.setTimeout(() => {
-        if (!cancelled) setVisible(false);
-      }, 180);
+        const quietForMs = Date.now() - lastMutationAt;
+        if (!cancelled && quietForMs >= 220) {
+          setVisible(false);
+        } else {
+          finishWhenStable();
+        }
+      }, 220);
     };
 
     const trackImage = (img: HTMLImageElement) => {
       if (tracked.has(img)) return;
       tracked.add(img);
-
-      const loadingMode = (img.getAttribute('loading') || '').toLowerCase();
-      // Don't block forever on below-the-fold lazy images.
-      if (loadingMode === 'lazy' && !img.complete) return;
 
       if (img.complete) return;
 
@@ -125,7 +127,12 @@ const RouteLoadingOverlay: React.FC = () => {
     cleanupCallbacks.push(() => window.cancelAnimationFrame(frame));
 
     const observer = new MutationObserver((mutations) => {
+      lastMutationAt = Date.now();
       mutations.forEach((mutation) => {
+        if (mutation.type === 'attributes' && mutation.target instanceof HTMLImageElement) {
+          trackImage(mutation.target);
+          return;
+        }
         mutation.addedNodes.forEach((node) => {
           if (!(node instanceof HTMLElement)) return;
           if (node.tagName === 'IMG') {
@@ -135,13 +142,19 @@ const RouteLoadingOverlay: React.FC = () => {
           }
         });
       });
+      finishWhenStable();
     });
-    observer.observe(main, { childList: true, subtree: true });
+    observer.observe(main, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+      attributeFilter: ['src', 'srcset', 'loading'],
+    });
     cleanupCallbacks.push(() => observer.disconnect());
 
     const hardTimeout = window.setTimeout(() => {
       if (!cancelled) setVisible(false);
-    }, 10000);
+    }, 30000);
     cleanupCallbacks.push(() => window.clearTimeout(hardTimeout));
 
     return () => {
