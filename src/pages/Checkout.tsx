@@ -9,8 +9,8 @@ import { db } from '../firebase';
 import { toast } from 'sonner';
 
 const plans = {
-  monthly: { name: 'Сар бүр', price: 45000 },
-  yearly: { name: 'Жил бүр', price: 390000 }
+  monthly: { name: 'Сар бүр', price: 100 },
+  yearly: { name: 'Жил бүр', price: 200 }
 };
 
 type PaymentSession = {
@@ -71,6 +71,7 @@ export const Checkout: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [checkingPayment, setCheckingPayment] = useState(false);
   const [success, setSuccess] = useState(false);
+  const [paymentCompleteMessage, setPaymentCompleteMessage] = useState('');
   const [paymentSession, setPaymentSession] = useState<PaymentSession | null>(null);
   const [orderId, setOrderId] = useState('');
   const [useQrFallback, setUseQrFallback] = useState(false);
@@ -151,9 +152,11 @@ export const Checkout: React.FC = () => {
     }
   };
 
-  const checkPayment = async () => {
-    if (!paymentSession?.invoiceId || checkingPayment || success) return;
-    setCheckingPayment(true);
+  const checkPayment = async (opts?: { silent?: boolean }) => {
+    const silent = Boolean(opts?.silent);
+    if (!paymentSession?.invoiceId || success) return;
+    if (!silent && checkingPayment) return;
+    if (!silent) setCheckingPayment(true);
     try {
       const response = await fetch('/api/qpay/payment/check', {
         method: 'POST',
@@ -168,19 +171,20 @@ export const Checkout: React.FC = () => {
       if (hasPaidStatus(data)) {
         await activateSubscription();
         setSuccess(true);
-        toast.success('Төлбөр амжилттай баталгаажлаа!');
+        setPaymentCompleteMessage('Payment complete');
+        toast.success('Payment complete');
       }
     } catch (error) {
       console.error('Payment check error:', error);
     } finally {
-      setCheckingPayment(false);
+      if (!silent) setCheckingPayment(false);
     }
   };
 
   useEffect(() => {
     if (!paymentSession?.invoiceId || success) return;
     const interval = setInterval(() => {
-      checkPayment();
+      void checkPayment({ silent: true });
     }, 8000);
     return () => clearInterval(interval);
   }, [paymentSession?.invoiceId, success]);
@@ -259,6 +263,11 @@ export const Checkout: React.FC = () => {
                 </div>
               ) : (
                 <div className="space-y-8">
+                  {paymentCompleteMessage ? (
+                    <p className="rounded-xl bg-green-50 px-4 py-3 text-center text-sm font-medium text-green-700">
+                      {paymentCompleteMessage}
+                    </p>
+                  ) : null}
                   <div className="rounded-3xl border border-brand-ink/10 bg-gray-50 p-8 flex flex-col items-center">
                     {paymentSession.qrImage || paymentSession.qrText ? (
                       <img
@@ -295,7 +304,7 @@ export const Checkout: React.FC = () => {
                   )}
 
                   <Button
-                    onClick={checkPayment}
+                    onClick={() => void checkPayment()}
                     disabled={checkingPayment}
                     className="w-full bg-brand-ink text-white hover:bg-brand-icon rounded-full py-8 text-[11px] font-black tracking-[0.2em] uppercase transition-all duration-500 shadow-xl"
                   >
