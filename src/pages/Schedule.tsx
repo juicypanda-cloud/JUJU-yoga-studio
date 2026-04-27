@@ -163,12 +163,28 @@ export const Schedule: React.FC = () => {
     const unsubscribe = onSnapshot(myBookingsQuery, (snapshot) => {
       const recurringIds = new Set<string>();
       const weeklyIds = new Set<string>();
+      const scheduleIdsByClassId = new Map<string, string[]>();
+
+      schedule.forEach((slot) => {
+        const classId = String(slot?.classId || '').trim();
+        if (!classId) return;
+        const row = scheduleIdsByClassId.get(classId) || [];
+        row.push(String(slot?.id || '').trim());
+        scheduleIdsByClassId.set(classId, row.filter(Boolean));
+      });
+
       snapshot.docs.forEach((bookingDoc) => {
         const data = bookingDoc.data() as any;
         const status = String(data?.status || '').toLowerCase();
         if (status === 'cancelled') return;
         const scheduleId = String(data?.scheduleId || '').trim();
-        if (!scheduleId) return;
+        if (!scheduleId) {
+          const classId = String(data?.classId || data?.itemId || '').trim();
+          if (!classId) return;
+          const mappedScheduleIds = scheduleIdsByClassId.get(classId) || [];
+          mappedScheduleIds.forEach((mappedId) => recurringIds.add(mappedId));
+          return;
+        }
 
         const weekKey = String(data?.weekKey || '').trim();
         if (!weekKey) {
@@ -185,7 +201,7 @@ export const Schedule: React.FC = () => {
     });
 
     return () => unsubscribe();
-  }, [currentWeekKey, user?.uid]);
+  }, [currentWeekKey, schedule, user?.uid]);
 
   const isSlotAlreadyBooked = (scheduleId?: string) => {
     const id = String(scheduleId || '').trim();
