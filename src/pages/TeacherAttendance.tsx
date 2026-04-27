@@ -51,6 +51,13 @@ export const TeacherAttendance: React.FC = () => {
   const [selectedClassId, setSelectedClassId] = useState<string | null>(searchParams.get('classId'));
 
   useEffect(() => {
+    const queryClassId = String(searchParams.get('classId') || '').trim();
+    if (queryClassId) {
+      setSelectedClassId(queryClassId);
+    }
+  }, [searchParams]);
+
+  useEffect(() => {
     if (!user || (!isTeacher && !isAdmin)) return;
 
     let teachers: any[] = [];

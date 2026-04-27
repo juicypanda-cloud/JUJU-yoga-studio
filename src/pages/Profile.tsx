@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { motion } from 'motion/react';
-import { User, Mail, Calendar, CreditCard, ShieldCheck, LogOut, Users, ClipboardCheck } from 'lucide-react';
+import { User, Mail, Calendar, CreditCard, ShieldCheck, LogOut, Users, ClipboardCheck, CheckCircle2, XCircle, CalendarClock } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { auth } from '../firebase';
 import { ProfileTotpMfa } from '../components/auth/ProfileTotpMfa';
@@ -306,6 +306,13 @@ export const Profile: React.FC = () => {
                       </p>
                     ) : (
                       <div className="space-y-4">
+                        <div className="rounded-2xl border border-brand-icon/20 bg-brand-icon/5 p-5">
+                          <p className="text-sm text-brand-ink/70">
+                            Энгийн урсгал: <span className="font-semibold text-brand-ink">1) Хичээл сонгох</span> →{' '}
+                            <span className="font-semibold text-brand-ink">2) Ирсэн / Тасалсан</span> →{' '}
+                            <span className="font-semibold text-brand-ink">3) Хуваарь засах</span>
+                          </p>
+                        </div>
                         {teacherClasses.map((classItem) => (
                           <div key={classItem.id} className="rounded-2xl border border-brand-ink/5 p-5">
                             <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
@@ -315,24 +322,39 @@ export const Profile: React.FC = () => {
                                   {classItem.duration} • {classItem.sessionCount} хуваарь
                                 </p>
                               </div>
-                              <div className="flex items-center gap-3">
+                              <div className="flex flex-wrap items-center gap-3">
                                 <div className="inline-flex items-center gap-2 rounded-full bg-brand-icon/10 px-4 py-2 text-xs font-bold text-brand-icon">
                                   <Users size={14} />
                                   {classItem.participantCount} хүн бүртгэгдсэн
                                 </div>
                                 <Button
                                   asChild
-                                  variant="outline"
-                                  className="rounded-full px-6"
+                                  className="rounded-full bg-green-600 px-5 text-white hover:bg-green-700"
                                 >
-                                  <Link to={`/teacher/schedule?classId=${classItem.id}`}>Хуваарь засах</Link>
+                                  <Link to={`/teacher/attendance?classId=${classItem.id}`}>
+                                    <CheckCircle2 size={14} className="mr-2" />
+                                    Ирц (check/cross)
+                                  </Link>
                                 </Button>
                                 <Button
                                   asChild
                                   variant="outline"
-                                  className="rounded-full px-6"
+                                  className="rounded-full border-red-200 px-5 text-red-600 hover:bg-red-50"
                                 >
-                                  <Link to={`/teacher/attendance?classId=${classItem.id}`}>Ирц бүртгэх</Link>
+                                  <Link to={`/teacher/attendance?classId=${classItem.id}`}>
+                                    <XCircle size={14} className="mr-2" />
+                                    Тасалсан тэмдэглэх
+                                  </Link>
+                                </Button>
+                                <Button
+                                  asChild
+                                  variant="outline"
+                                  className="rounded-full px-5"
+                                >
+                                  <Link to={`/teacher/schedule?classId=${classItem.id}`}>
+                                    <CalendarClock size={14} className="mr-2" />
+                                    Хуваарь засах
+                                  </Link>
                                 </Button>
                               </div>
                             </div>
