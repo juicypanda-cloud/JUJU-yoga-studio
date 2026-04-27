@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { ArrowUpRight, ChevronsLeftRight, Clock } from 'lucide-react';
 import { classData as staticClassData } from '../data/classes';
-import { collection, getDocs, query, orderBy } from 'firebase/firestore';
+import { collection, getDocs, onSnapshot, query, orderBy } from 'firebase/firestore';
 import { db } from '../firebase';
 import { ErrorBoundary } from '../components/ErrorBoundary';
 import type { ClassItem as BaseClassItem } from '../types/class';
@@ -67,6 +67,7 @@ export const Classes: React.FC = () => {
   const [teacherFilter, setTeacherFilter] = useState('All');
   const [teachersExpanded, setTeachersExpanded] = useState(false);
   const [teachersHovered, setTeachersHovered] = useState(false);
+  const [registeredTeachers, setRegisteredTeachers] = useState<string[]>([]);
   const [classes, setClasses] = useState<ClassItem[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -101,6 +102,21 @@ export const Classes: React.FC = () => {
   }, []);
 
   useEffect(() => {
+    const unsubscribe = onSnapshot(collection(db, 'teachers'), (snapshot) => {
+      const names = Array.from(
+        new Set(
+          snapshot.docs
+            .map((teacherDoc) => String((teacherDoc.data() as Record<string, unknown>)?.name || '').trim())
+            .filter(Boolean)
+        )
+      );
+      setRegisteredTeachers(names);
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  useEffect(() => {
     const category = searchParams.get('category');
     if (category) {
       setFilter(category);
@@ -121,15 +137,9 @@ export const Classes: React.FC = () => {
   );
 
   const teacherOptions = useMemo(() => {
-    const unique = Array.from(
-      new Set(
-        (classes || [])
-          .map((item) => String(item?.teacherName || '').trim())
-          .filter(Boolean)
-      )
-    );
+    const unique = [...registeredTeachers];
     return ['All', ...unique];
-  }, [classes]);
+  }, [registeredTeachers]);
   const showTeacherOptions = teachersExpanded || teachersHovered;
 
   return (

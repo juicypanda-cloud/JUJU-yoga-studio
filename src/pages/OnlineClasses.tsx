@@ -70,6 +70,7 @@ export const OnlineClasses: React.FC = () => {
   const [teacherFilter, setTeacherFilter] = useState('All');
   const [teachersExpanded, setTeachersExpanded] = useState(false);
   const [teachersHovered, setTeachersHovered] = useState(false);
+  const [registeredTeachers, setRegisteredTeachers] = useState<string[]>([]);
   const [search, setSearch] = useState('');
   const [accessGateOpen, setAccessGateOpen] = useState(false);
   const { user, profile } = useAuth();
@@ -98,6 +99,21 @@ export const OnlineClasses: React.FC = () => {
   }, []);
 
   useEffect(() => {
+    const unsubscribe = onSnapshot(collection(db, 'teachers'), (snapshot) => {
+      const names = Array.from(
+        new Set(
+          snapshot.docs
+            .map((teacherDoc) => String((teacherDoc.data() as Record<string, unknown>)?.name || '').trim())
+            .filter(Boolean)
+        )
+      );
+      setRegisteredTeachers(names);
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  useEffect(() => {
     if (!allowed && selectedContent) {
       setSelectedContent(null);
       setMediaError('');
@@ -120,15 +136,9 @@ export const OnlineClasses: React.FC = () => {
   );
 
   const teacherOptions = useMemo(() => {
-    const unique = Array.from(
-      new Set(
-        content
-          .map((item) => String(item?.teacherName || '').trim())
-          .filter(Boolean)
-      )
-    );
+    const unique = [...registeredTeachers];
     return ['All', ...unique];
-  }, [content]);
+  }, [registeredTeachers]);
   const showTeacherOptions = teachersExpanded || teachersHovered;
 
   useEffect(() => {
