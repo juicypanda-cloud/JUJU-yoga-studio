@@ -77,8 +77,8 @@ export const Checkout: React.FC = () => {
 
   useEffect(() => {
     if (!user) {
-      toast.error('Төлбөр хийхийн тулд нэвтэрнэ үү');
-      navigate('/retreats'); // Or a dedicated login page
+      toast.error('Эхлээд нэвтэрнэ үү');
+      navigate('/');
       return;
     }
     setOrderId(`${user.uid}-${Date.now()}`);
