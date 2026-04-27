@@ -25,6 +25,18 @@ type TeacherLookupItem = {
   name?: string;
 };
 
+const getCurrentWeekKey = (now: Date = new Date()) => {
+  const d = new Date(now);
+  const day = d.getDay(); // 0=Sun ... 6=Sat
+  const diffToMonday = day === 0 ? -6 : 1 - day;
+  d.setDate(d.getDate() + diffToMonday);
+  d.setHours(0, 0, 0, 0);
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const date = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${date}`;
+};
+
 type ScheduleItem = {
   id: string;
   classId: string;
@@ -84,9 +96,11 @@ export const Schedule: React.FC = () => {
   const [schedule, setSchedule] = useState<ScheduleItem[]>([]);
   const [classes, setClasses] = useState<Record<string, ClassLookupItem>>({});
   const [teachers, setTeachers] = useState<Record<string, TeacherLookupItem>>({});
-  const [myBookedScheduleIds, setMyBookedScheduleIds] = useState<Set<string>>(new Set());
+  const [myRecurringBookedScheduleIds, setMyRecurringBookedScheduleIds] = useState<Set<string>>(new Set());
+  const [myWeeklyBookedScheduleIds, setMyWeeklyBookedScheduleIds] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const { user } = useAuth();
+  const currentWeekKey = useMemo(() => getCurrentWeekKey(), []);
 
   useEffect(() => {
     const unsubscribeClasses = onSnapshot(collection(db, 'classes'), (snapshot) => {
@@ -140,25 +154,44 @@ export const Schedule: React.FC = () => {
 
   useEffect(() => {
     if (!user?.uid) {
-      setMyBookedScheduleIds(new Set());
+      setMyRecurringBookedScheduleIds(new Set());
+      setMyWeeklyBookedScheduleIds(new Set());
       return;
     }
 
     const myBookingsQuery = query(collection(db, 'bookings'), where('userId', '==', user.uid));
     const unsubscribe = onSnapshot(myBookingsQuery, (snapshot) => {
-      const ids = new Set<string>();
+      const recurringIds = new Set<string>();
+      const weeklyIds = new Set<string>();
       snapshot.docs.forEach((bookingDoc) => {
         const data = bookingDoc.data() as any;
         const status = String(data?.status || '').toLowerCase();
         if (status === 'cancelled') return;
         const scheduleId = String(data?.scheduleId || '').trim();
-        if (scheduleId) ids.add(scheduleId);
+        if (!scheduleId) return;
+
+        const weekKey = String(data?.weekKey || '').trim();
+        if (!weekKey) {
+          // Legacy/recurring booking without week key.
+          recurringIds.add(scheduleId);
+          return;
+        }
+        if (weekKey === currentWeekKey) {
+          weeklyIds.add(scheduleId);
+        }
       });
-      setMyBookedScheduleIds(ids);
+      setMyRecurringBookedScheduleIds(recurringIds);
+      setMyWeeklyBookedScheduleIds(weeklyIds);
     });
 
     return () => unsubscribe();
-  }, [user?.uid]);
+  }, [currentWeekKey, user?.uid]);
+
+  const isSlotAlreadyBooked = (scheduleId?: string) => {
+    const id = String(scheduleId || '').trim();
+    if (!id) return false;
+    return myRecurringBookedScheduleIds.has(id) || myWeeklyBookedScheduleIds.has(id);
+  };
 
   const handleBook = async (item: ScheduleItem) => {
     if (!user) {
@@ -171,7 +204,7 @@ export const Schedule: React.FC = () => {
       return;
     }
 
-    if (myBookedScheduleIds.has(item?.id)) {
+    if (isSlotAlreadyBooked(item?.id)) {
       toast.error('Та энэ хичээлд аль хэдийн бүртгүүлсэн байна');
       return;
     }
@@ -182,6 +215,7 @@ export const Schedule: React.FC = () => {
         scheduleId: item?.id,
         type: 'class',
         status: 'booked',
+        weekKey: currentWeekKey,
         createdAt: new Date().toISOString(),
       });
 
@@ -300,7 +334,7 @@ export const Schedule: React.FC = () => {
                                   </Badge>
                                 </TableCell>
                                 <TableCell className="py-6 px-6 text-right">
-                                  {myBookedScheduleIds.has(item?.id) ? (
+                                  {isSlotAlreadyBooked(item?.id) ? (
                                     <Button
                                       disabled
                                       className="rounded-full bg-gray-100 px-6 text-gray-500"
