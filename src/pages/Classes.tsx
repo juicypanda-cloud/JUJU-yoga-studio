@@ -123,6 +123,14 @@ export const Classes: React.FC = () => {
     } else {
       setFilter('All');
     }
+
+    const teacher = String(searchParams.get('teacher') || '').trim();
+    if (teacher) {
+      setTeacherFilter(teacher);
+      setTeachersExpanded(true);
+    } else {
+      setTeacherFilter('All');
+    }
   }, [searchParams]);
 
   const filteredClasses = useMemo(

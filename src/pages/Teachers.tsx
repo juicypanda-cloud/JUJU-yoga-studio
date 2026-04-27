@@ -3,6 +3,7 @@ import { motion } from 'motion/react';
 import { collection, onSnapshot, orderBy, query } from 'firebase/firestore';
 import { db } from '../firebase';
 import { User } from 'lucide-react';
+import { Link } from 'react-router-dom';
 
 type Teacher = {
   id: string;
@@ -109,27 +110,33 @@ export const Teachers: React.FC = () => {
                 viewport={{ once: true }}
                 className="text-center"
               >
-                <div className="relative mb-8 mx-auto aspect-square max-w-[240px] overflow-hidden rounded-full shadow-2xl shadow-brand-ink/10 transition-all duration-500 hover:-translate-y-2">
-                  {teacher.image ? (
-                    <img
-                      src={teacher.image}
-                      alt={teacher.name}
-                      className="absolute inset-0 h-full w-full object-cover"
-                      loading={i < 6 ? 'eager' : 'lazy'}
-                      fetchPriority={i < 6 ? 'high' : 'auto'}
-                      decoding="async"
-                    />
-                  ) : (
-                    <div className="absolute inset-0 flex items-center justify-center bg-secondary/30 text-brand-ink/30">
-                      <User size={72} strokeWidth={1.5} />
-                    </div>
-                  )}
-                </div>
-                <h3 className="mb-2 text-2xl font-light text-brand-ink">{teacher.name}</h3>
-                <p className="mb-4 text-primary font-medium">{teacher.role}</p>
-                <p className="text-sm leading-relaxed text-brand-ink/60">
-                  {teacher.bio || 'Тун удахгүй багшийн дэлгэрэнгүй мэдээлэл нэмэгдэнэ.'}
-                </p>
+                <Link
+                  to={`/classes?teacher=${encodeURIComponent(teacher.name)}`}
+                  className="group block rounded-3xl px-4 py-3 transition-colors hover:bg-secondary/20"
+                  aria-label={`${teacher.name} багшийн хичээлүүдийг үзэх`}
+                >
+                  <div className="relative mb-8 mx-auto aspect-square max-w-[240px] overflow-hidden rounded-full shadow-2xl shadow-brand-ink/10 transition-all duration-500 group-hover:-translate-y-2">
+                    {teacher.image ? (
+                      <img
+                        src={teacher.image}
+                        alt={teacher.name}
+                        className="absolute inset-0 h-full w-full object-cover"
+                        loading={i < 6 ? 'eager' : 'lazy'}
+                        fetchPriority={i < 6 ? 'high' : 'auto'}
+                        decoding="async"
+                      />
+                    ) : (
+                      <div className="absolute inset-0 flex items-center justify-center bg-secondary/30 text-brand-ink/30">
+                        <User size={72} strokeWidth={1.5} />
+                      </div>
+                    )}
+                  </div>
+                  <h3 className="mb-2 text-2xl font-light text-brand-ink">{teacher.name}</h3>
+                  <p className="mb-4 text-primary font-medium">{teacher.role}</p>
+                  <p className="text-sm leading-relaxed text-brand-ink/60">
+                    {teacher.bio || 'Тун удахгүй багшийн дэлгэрэнгүй мэдээлэл нэмэгдэнэ.'}
+                  </p>
+                </Link>
               </motion.div>
             ))}
           </div>
