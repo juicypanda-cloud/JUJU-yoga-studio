@@ -17,6 +17,30 @@ type HeroFormData = {
   cta2Link: string;
 };
 
+const HERO_PAGE_OPTIONS = [
+  { value: '/', label: 'Нүүр хуудас (/) ' },
+  { value: '/classes', label: 'Хичээлүүд (/classes)' },
+  { value: '/schedule', label: 'Хуваарь (/schedule)' },
+  { value: '/online', label: 'Онлайн хичээл (/online)' },
+  { value: '/retreats', label: 'Ретрит (/retreats)' },
+  { value: '/mindfulness', label: 'Майндфүлнэс (/mindfulness)' },
+  { value: '/teachers', label: 'Багш нар (/teachers)' },
+  { value: '/gallery', label: 'Галерей (/gallery)' },
+  { value: '/blog', label: 'Блог (/blog)' },
+  { value: '/about', label: 'Бидний тухай (/about)' },
+  { value: '/contact', label: 'Холбоо барих (/contact)' },
+  { value: '/pricing', label: 'Гишүүнчлэл (/pricing)' },
+  { value: '/login', label: 'Нэвтрэх (/login)' },
+  { value: '/profile', label: 'Профайл (/profile)' },
+] as const;
+
+const normalizeInternalPath = (raw: string, fallback: string) => {
+  const trimmed = String(raw || '').trim();
+  if (!trimmed) return fallback;
+  if (/^https?:\/\//i.test(trimmed)) return trimmed;
+  return trimmed.startsWith('/') ? trimmed : `/${trimmed}`;
+};
+
 const defaultFormData: HeroFormData = {
   image: '',
   title: 'Ретрит Аялал',
@@ -71,9 +95,13 @@ export const HomeHeroAdmin: React.FC = () => {
     setSaving(true);
     try {
       const image = formData.image?.trim() || '';
+      const cta1Link = normalizeInternalPath(formData.cta1Link, defaultFormData.cta1Link);
+      const cta2Link = normalizeInternalPath(formData.cta2Link, defaultFormData.cta2Link);
       await setDoc(doc(db, 'siteContent', 'homeHero'), {
         ...formData,
         image,
+        cta1Link,
+        cta2Link,
         updatedAt: serverTimestamp(),
       }, { merge: true });
       toast.success('Hero хэсэг амжилттай хадгалагдлаа');
@@ -130,12 +158,17 @@ export const HomeHeroAdmin: React.FC = () => {
           </div>
           <div className="space-y-2">
             <label className="text-xs font-black uppercase tracking-widest text-black">Button 1 link</label>
-            <Input
+            <select
               value={formData.cta1Link}
               onChange={(e) => setFormData({ ...formData, cta1Link: e.target.value })}
-              placeholder="/online"
-              className="rounded-xl"
-            />
+              className="w-full rounded-xl border border-input bg-background px-3 py-2 text-sm"
+            >
+              {HERO_PAGE_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
           </div>
         </div>
 
@@ -150,12 +183,17 @@ export const HomeHeroAdmin: React.FC = () => {
           </div>
           <div className="space-y-2">
             <label className="text-xs font-black uppercase tracking-widest text-black">Button 2 link</label>
-            <Input
+            <select
               value={formData.cta2Link}
               onChange={(e) => setFormData({ ...formData, cta2Link: e.target.value })}
-              placeholder="/classes"
-              className="rounded-xl"
-            />
+              className="w-full rounded-xl border border-input bg-background px-3 py-2 text-sm"
+            >
+              {HERO_PAGE_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
           </div>
         </div>
 

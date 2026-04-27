@@ -57,6 +57,13 @@ function withHeroVersion(url: string, version: string): string {
   return `${clean}${join}v=${encodeURIComponent(version)}`;
 }
 
+function normalizeHeroLink(raw: string, fallback: string): string {
+  const trimmed = String(raw || '').trim();
+  if (!trimmed) return fallback;
+  if (/^https?:\/\//i.test(trimmed)) return trimmed;
+  return trimmed.startsWith('/') ? trimmed : `/${trimmed}`;
+}
+
 function slideFromSnapshot(snapshot: DocumentSnapshot): HeroSlide {
   if (!snapshot.exists()) return defaultSlide;
   const data = snapshot.data() as Record<string, unknown>;
@@ -119,6 +126,8 @@ export const Hero: React.FC = () => {
 
   const heroUrl = withHeroVersion(slide.image?.trim(), slide.imageVersion);
   const activeHeroUrl = !imageFailed && heroUrl ? heroUrl : '';
+  const cta1Href = normalizeHeroLink(slide.cta1.link, '/online');
+  const cta2Href = normalizeHeroLink(slide.cta2.link, '/classes');
 
   useEffect(() => {
     // Never keep old/fallback hero image when source changes.
@@ -175,14 +184,14 @@ export const Hero: React.FC = () => {
           >
             {slide.cta1.text ? (
               <Button className="bg-white text-brand-ink hover:bg-brand-icon hover:text-white rounded-full px-10 py-6 text-[11px] font-black tracking-[0.2em] uppercase shadow-xl shadow-black/20 border-none transition-all duration-300">
-                <Link to={slide.cta1.link} className="flex items-center">
+                <Link to={cta1Href} className="flex items-center">
                   {slide.cta1.text}
                 </Link>
               </Button>
             ) : null}
             {slide.cta2.text ? (
               <Button variant="outline" className="bg-white/10 backdrop-blur-md border-white/20 text-white hover:bg-brand-icon hover:border-brand-icon/80 hover:text-white rounded-full px-10 py-6 text-[11px] font-black tracking-[0.2em] uppercase transition-all duration-500">
-                <Link to={slide.cta2.link} className="flex items-center">
+                <Link to={cta2Href} className="flex items-center">
                   {slide.cta2.text}
                 </Link>
               </Button>
