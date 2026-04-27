@@ -46,15 +46,31 @@ export const Teachers: React.FC = () => {
 
   useEffect(() => {
     // Warm cache for first visible teacher cards.
+    const links: HTMLLinkElement[] = [];
     teachers
       .slice(0, 6)
       .map((teacher) => teacher.image)
       .filter(Boolean)
       .forEach((url) => {
+        const link = document.createElement('link');
+        link.rel = 'preload';
+        link.as = 'image';
+        link.href = url;
+        document.head.appendChild(link);
+        links.push(link);
+
         const img = new Image();
         img.decoding = 'async';
         img.src = url;
       });
+
+    return () => {
+      links.forEach((link) => {
+        if (link.parentNode) {
+          link.parentNode.removeChild(link);
+        }
+      });
+    };
   }, [teachers]);
 
   return (
@@ -99,8 +115,8 @@ export const Teachers: React.FC = () => {
                       src={teacher.image}
                       alt={teacher.name}
                       className="absolute inset-0 h-full w-full object-cover"
-                      loading={i < 3 ? 'eager' : 'lazy'}
-                      fetchPriority={i < 3 ? 'high' : 'auto'}
+                      loading={i < 6 ? 'eager' : 'lazy'}
+                      fetchPriority={i < 6 ? 'high' : 'auto'}
                       decoding="async"
                     />
                   ) : (
