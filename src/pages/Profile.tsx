@@ -25,6 +25,14 @@ export const Profile: React.FC = () => {
   const [teacherClasses, setTeacherClasses] = useState<TeacherClassSummary[]>([]);
   const [teacherLoading, setTeacherLoading] = useState(false);
 
+  const subscriptionPlanLabel = (() => {
+    const plan = String(profile?.subscriptionPlan || '').trim().toLowerCase();
+    if (plan === 'online-video') return 'Online Video';
+    if (plan === 'online-audio') return 'Online Audio';
+    if (plan === 'yearly') return 'Жилийн багц';
+    return 'Сарын багц';
+  })();
+
   if (!user) {
     navigate('/');
     return null;
@@ -210,7 +218,7 @@ export const Profile: React.FC = () => {
                       </span>
                       {isSubscribed && (
                         <span className="text-xs text-brand-ink/40 font-light">
-                          {profile?.subscriptionPlan === 'yearly' ? 'Жилийн багц' : 'Сарын багц'}
+                          {subscriptionPlanLabel}
                         </span>
                       )}
                     </div>

@@ -6,29 +6,26 @@ import { Link } from 'react-router-dom';
 
 const plans = [
   {
-    id: 'monthly',
-    name: 'Сар бүр',
-    price: '45,000₮',
-    description: 'Богино хугацаанд хичээллэж үзэх хүсэлтэй хүмүүст тохиромжтой.',
+    id: 'online-video',
+    name: 'Online Video',
+    price: '100₮',
+    description: 'Видео хичээлийн сантай ажиллах, дагаж хийх контент.',
     features: [
-      'Бүх онлайн хичээлд хандах эрх',
-      'Шууд дамжуулалтад оролцох',
-      'Бясалгалын аудио сан',
-      'Студийн хичээлд 10% хөнгөлөлт'
+      'Онлайн видео хичээлүүд',
+      'Шинэ видео контент тогтмол нэмэгдэнэ',
+      'Хаанаас ч үзэх боломж'
     ],
     highlight: false
   },
   {
-    id: 'yearly',
-    name: 'Жил бүр',
-    price: '390,000₮',
-    description: 'Урт хугацааны тогтвортой дадал хэвшил тогтоох хүсэлтэй хүмүүст.',
+    id: 'online-audio',
+    name: 'Online Audio',
+    price: '200₮',
+    description: 'Аудио бясалгал, амьсгалын дасгал болон сонсох контент.',
     features: [
-      'Бүх онлайн хичээлд хандах эрх',
-      'Шууд дамжуулалтад оролцох',
-      'Бясалгалын аудио сан',
-      'Студийн хичээлд 20% хөнгөлөлт',
-      '2 сарын төлбөр хэмнэнэ'
+      'Онлайн аудио сан',
+      'Бясалгал, амьсгалын аудио',
+      'Хүссэн үедээ сонсох боломж'
     ],
     highlight: true
   }
@@ -91,7 +88,7 @@ export const Pricing: React.FC = () => {
                   <div className="flex items-baseline gap-2 mb-6">
                     <span className="text-5xl font-serif">{plan.price}</span>
                     <span className={`text-sm font-light ${plan.highlight ? 'text-white/60' : 'text-brand-ink/40'}`}>
-                      / {plan.id === 'monthly' ? 'сар' : 'жил'}
+                      / багц
                     </span>
                   </div>
                   <p className={`text-sm font-light leading-relaxed ${plan.highlight ? 'text-white/60' : 'text-brand-ink/60'}`}>

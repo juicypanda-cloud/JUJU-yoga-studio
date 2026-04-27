@@ -9,8 +9,8 @@ import { db } from '../firebase';
 import { toast } from 'sonner';
 
 const plans = {
-  monthly: { name: 'Сар бүр', price: 100 },
-  yearly: { name: 'Жил бүр', price: 200 }
+  'online-video': { name: 'Online Video', price: 100, contentType: 'video' as const },
+  'online-audio': { name: 'Online Audio', price: 200, contentType: 'audio' as const },
 };
 
 type PaymentSession = {
@@ -66,7 +66,7 @@ export const Checkout: React.FC = () => {
   const navigate = useNavigate();
   const { user, profile } = useAuth();
   const planId = searchParams.get('plan') as keyof typeof plans;
-  const plan = plans[planId] || plans.monthly;
+  const plan = plans[planId] || plans['online-video'];
 
   const [loading, setLoading] = useState(false);
   const [checkingPayment, setCheckingPayment] = useState(false);
@@ -92,7 +92,7 @@ export const Checkout: React.FC = () => {
       subscriptionPlan: planId,
       subscriptionStartDate: new Date().toISOString(),
       subscriptionEndDate: new Date(
-        Date.now() + (planId === 'yearly' ? 365 : 30) * 24 * 60 * 60 * 1000
+        Date.now() + 30 * 24 * 60 * 60 * 1000
       ).toISOString(),
     });
   };
@@ -341,11 +341,13 @@ export const Checkout: React.FC = () => {
                   </div>
                   <div className="flex justify-between items-center">
                     <span className="text-white/60 font-light">Хугацаа</span>
-                    <span className="font-serif">{planId === 'yearly' ? '1 жил' : '1 сар'}</span>
+                    <span className="font-serif">1 сар</span>
                   </div>
                   <div className="flex justify-between items-center">
                     <span className="text-white/60 font-light">Хандалт</span>
-                    <span className="font-serif">Хязгааргүй</span>
+                    <span className="font-serif">
+                      {plan.contentType === 'video' ? 'Видео сан' : 'Аудио сан'}
+                    </span>
                   </div>
                 </div>
 
@@ -361,10 +363,10 @@ export const Checkout: React.FC = () => {
                 <h4 className="text-lg font-serif text-brand-ink mb-4">Яагаад гишүүн болох хэрэгтэй вэ?</h4>
                 <ul className="space-y-4">
                   {[
-                    '100+ гаруй мэргэжлийн видео хичээл',
+                    plan.contentType === 'video' ? 'Видео хичээлүүдэд хандах эрх' : 'Аудио сан руу хандах эрх',
                     'Долоо хоног бүр шинэ контент',
                     'Хаанаас ч, хүссэн үедээ үзэх боломж',
-                    'Студийн үйлчилгээнд тусгай хөнгөлөлт'
+                    'Төлөвлөгөөндөө тохирсон онлайн сан'
                   ].map((text, i) => (
                     <li key={i} className="flex items-start gap-3 text-sm text-brand-ink/60 font-light">
                       <div className="w-1.5 h-1.5 rounded-full bg-brand-icon mt-1.5 shrink-0" />

@@ -9,7 +9,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { handleFirestoreError, OperationType } from '../lib/firestore-errors';
-import { hasActiveSubscription } from '../lib/access';
+import { canAccessOnlineContentType } from '../lib/access';
 import {
   Dialog,
   DialogContent,
@@ -74,7 +74,10 @@ export const OnlineClasses: React.FC = () => {
   const [search, setSearch] = useState('');
   const [accessGateOpen, setAccessGateOpen] = useState(false);
   const { user, profile } = useAuth();
-  const allowed = hasActiveSubscription(profile);
+  const canAccessItem = (item: any) => {
+    const type = String(item?.type || '').trim().toLowerCase() === 'audio' ? 'audio' : 'video';
+    return canAccessOnlineContentType(profile, type);
+  };
   const durationByIdRef = useRef(durationById);
   durationByIdRef.current = durationById;
 
@@ -114,11 +117,11 @@ export const OnlineClasses: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    if (!allowed && selectedContent) {
+    if (selectedContent && !canAccessItem(selectedContent)) {
       setSelectedContent(null);
       setMediaError('');
     }
-  }, [allowed, selectedContent]);
+  }, [profile, selectedContent]);
 
   const filteredContent = useMemo(
     () =>
@@ -145,9 +148,9 @@ export const OnlineClasses: React.FC = () => {
     let cancelled = false;
 
     const loadDurations = async () => {
-      if (!allowed) return;
+      if (!profile) return;
       const candidates = content.filter(
-        (item) => !item.duration && getYouTubeVideoId(String(item.mediaURL || ''))
+        (item) => canAccessItem(item) && !item.duration && getYouTubeVideoId(String(item.mediaURL || ''))
       );
       if (candidates.length === 0) return;
 
@@ -201,7 +204,7 @@ export const OnlineClasses: React.FC = () => {
     return () => {
       cancelled = true;
     };
-  }, [content, allowed]);
+  }, [content, profile]);
 
   const normalizedContent = useMemo(
     () =>
@@ -266,7 +269,7 @@ export const OnlineClasses: React.FC = () => {
 
       <div className="container mx-auto px-4">
         <AnimatePresence mode="wait">
-          {selectedContent && allowed ? (
+          {selectedContent && canAccessItem(selectedContent) ? (
             <motion.div
               key="player"
               initial={{ opacity: 0, y: 20 }}
@@ -446,9 +449,9 @@ export const OnlineClasses: React.FC = () => {
                         <OnlineContentCard 
                           content={item} 
                           priority={index < 8}
-                          accessLocked={!allowed}
+                          accessLocked={!canAccessItem(item)}
                           onClick={() => {
-                            if (!allowed) {
+                            if (!canAccessItem(item)) {
                               setAccessGateOpen(true);
                               return;
                             }

@@ -4,6 +4,7 @@ export type UserProfile = {
   uid: string;
   role?: 'admin' | 'user';
   subscriptionStatus?: 'active' | 'inactive';
+  subscriptionPlan?: string;
   subscriptionEndDate?: any;
 };
 
@@ -28,6 +29,26 @@ export type CanAccessInput = {
 export function canAccess(input: CanAccessInput): boolean {
   if (!input?.user) return false;
   return hasActiveSubscription(input.profile);
+}
+
+export type OnlineContentType = 'video' | 'audio';
+
+/**
+ * Plan-scoped access for online library content.
+ * Legacy plans (`monthly`, `yearly`) keep full access for backward compatibility.
+ */
+export function canAccessOnlineContentType(
+  profile: UserProfile | null | undefined,
+  contentType: OnlineContentType
+): boolean {
+  if (!hasActiveSubscription(profile)) return false;
+  if (profile?.role === 'admin') return true;
+
+  const plan = String(profile?.subscriptionPlan || '').trim().toLowerCase();
+  if (!plan || plan === 'monthly' || plan === 'yearly') return true;
+  if (plan === 'online-video') return contentType === 'video';
+  if (plan === 'online-audio') return contentType === 'audio';
+  return false;
 }
 
 export type PremiumClassLike = {

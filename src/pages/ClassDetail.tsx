@@ -7,7 +7,7 @@ import { classData } from '../data/classes';
 import { db } from '../firebase';
 import { doc, getDoc } from 'firebase/firestore';
 import { useAuth } from '../context/AuthContext';
-import { hasActiveSubscription } from '../lib/access';
+import { canAccessOnlineContentType } from '../lib/access';
 import { getYouTubeVideoId, getYouTubePosterUrl } from '../lib/online-video-thumb';
 import type { ClassItem } from '../types/class';
 
@@ -79,8 +79,8 @@ const normalizeClassDetail = (id: string, raw: any): ClassDetailItem => {
 export const ClassDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const { user, profile } = useAuth();
-  const hasSubscription = hasActiveSubscription(profile);
-  const hasContentAccess = Boolean(user) && hasSubscription;
+  const mediaType = String(classItem?.type || '').trim().toLowerCase() === 'audio' ? 'audio' : 'video';
+  const hasContentAccess = Boolean(user) && canAccessOnlineContentType(profile, mediaType);
   const [classItem, setClassItem] = useState<ClassDetailItem | null>(null);
   const [loading, setLoading] = useState(true);
   const [mediaLoaded, setMediaLoaded] = useState(false);
@@ -267,14 +267,14 @@ export const ClassDetail: React.FC = () => {
                     </Button>
                   </Link>
                 </div>
-              ) : !hasSubscription ? (
+              ) : !hasContentAccess ? (
                 <div className="rounded-[2rem] border border-brand-ink/10 bg-white p-10 text-center shadow-inner">
                   <div className="mx-auto mb-6 flex h-14 w-14 items-center justify-center rounded-full bg-white text-brand-icon shadow-md">
                     <Lock size={26} />
                   </div>
                   <h4 className="font-serif text-xl text-brand-ink mb-2">Гишүүнчлэл шаардлагатай</h4>
                   <p className="text-sm text-brand-ink/60 font-light leading-relaxed mb-8">
-                    Онлайн болон аудио контентыг үзэхийн тулд идэвхтэй гишүүнчлэлтэй байх шаардлагатай.
+                    Энэ контентыг үзэхийн тулд тохирох гишүүнчлэл шаардлагатай.
                   </p>
                   <Link to="/pricing">
                     <Button className="bg-brand-ink text-white hover:bg-brand-icon rounded-full px-10 py-6 text-[11px] font-black tracking-[0.2em] uppercase shadow-lg">
@@ -282,7 +282,7 @@ export const ClassDetail: React.FC = () => {
                     </Button>
                   </Link>
                 </div>
-              ) : !hasContentAccess ? null : classItem?.type === 'online' ? (
+              ) : classItem?.type === 'online' ? (
                 <div className="relative aspect-video overflow-hidden rounded-2xl shadow-lg shadow-brand-ink/10 bg-black">
                   <div
                     className={`absolute inset-0 transition-opacity duration-500 ${
