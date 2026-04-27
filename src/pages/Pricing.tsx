@@ -27,7 +27,7 @@ const plans = [
       'Бясалгал, амьсгалын аудио',
       'Хүссэн үедээ сонсох боломж'
     ],
-    highlight: true
+    highlight: false
   }
 ];
 
