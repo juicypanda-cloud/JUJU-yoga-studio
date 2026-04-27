@@ -379,7 +379,7 @@ export const OnlineClasses: React.FC = () => {
                       size={14}
                       className={`shrink-0 transition-transform duration-300 ${showTeacherOptions ? 'rotate-90 text-brand-icon' : 'text-brand-ink/60'}`}
                     />
-                    <span className="ml-2 whitespace-nowrap">All Teachers</span>
+                    <span className="ml-2 whitespace-nowrap">Бүх багш</span>
                   </button>
 
                   {showTeacherOptions ? teacherOptions.map((teacherName) => (
