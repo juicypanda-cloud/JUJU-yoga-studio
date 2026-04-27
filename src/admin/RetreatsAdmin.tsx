@@ -44,6 +44,51 @@ interface Retreat {
   createdAt: any;
 }
 
+type TravelScheduleRow = {
+  time: string;
+  activity: string;
+  desc: string;
+};
+
+const EMPTY_SCHEDULE_ROW: TravelScheduleRow = {
+  time: '',
+  activity: '',
+  desc: '',
+};
+
+const parseTravelScheduleRows = (raw?: string): TravelScheduleRow[] => {
+  const source = String(raw || '').trim();
+  if (!source) return [{ ...EMPTY_SCHEDULE_ROW }];
+
+  const rows = source
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line) => {
+      const [time = '', activity = '', ...rest] = line.split('|').map((part) => part.trim());
+      return {
+        time,
+        activity,
+        desc: rest.join(' | ').trim(),
+      };
+    })
+    .filter((row) => row.time || row.activity || row.desc);
+
+  return rows.length > 0 ? rows : [{ ...EMPTY_SCHEDULE_ROW }];
+};
+
+const serializeTravelScheduleRows = (rows: TravelScheduleRow[]): string => {
+  return rows
+    .map((row) => ({
+      time: row.time.trim(),
+      activity: row.activity.trim(),
+      desc: row.desc.trim(),
+    }))
+    .filter((row) => row.time || row.activity || row.desc)
+    .map((row) => [row.time, row.activity, row.desc].filter(Boolean).join(' | '))
+    .join('\n');
+};
+
 export const RetreatsAdmin: React.FC = () => {
   const [retreats, setRetreats] = useState<Retreat[]>([]);
   const [loading, setLoading] = useState(true);
@@ -64,6 +109,7 @@ export const RetreatsAdmin: React.FC = () => {
 
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [travelScheduleRows, setTravelScheduleRows] = useState<TravelScheduleRow[]>([{ ...EMPTY_SCHEDULE_ROW }]);
 
   useEffect(() => {
     const q = query(collection(db, 'retreats'), orderBy('createdAt', 'desc'));
@@ -96,11 +142,13 @@ export const RetreatsAdmin: React.FC = () => {
 
     setIsSaving(true);
     try {
+      const travelSchedule = serializeTravelScheduleRows(travelScheduleRows);
       if (currentRetreat.id) {
         const { id, ...rest } = currentRetreat as any;
         const retreatRef = doc(db, 'retreats', id);
         await updateDoc(retreatRef, {
           ...rest,
+          travelSchedule,
           updatedAt: Timestamp.now()
         });
         toast.success('Ретрит амжилттай шинэчлэгдлээ');
@@ -108,6 +156,7 @@ export const RetreatsAdmin: React.FC = () => {
         const { id: _omit, ...payload } = currentRetreat as any;
         await addDoc(collection(db, 'retreats'), {
           ...payload,
+          travelSchedule,
           createdAt: Timestamp.now(),
           updatedAt: Timestamp.now()
         });
@@ -127,6 +176,7 @@ export const RetreatsAdmin: React.FC = () => {
         travelSchedule: '',
         status: 'upcoming'
       });
+      setTravelScheduleRows([{ ...EMPTY_SCHEDULE_ROW }]);
     } catch (error) {
       console.error('Error saving retreat:', error);
       try {
@@ -179,6 +229,7 @@ export const RetreatsAdmin: React.FC = () => {
                 travelSchedule: '',
                 status: 'upcoming'
               });
+              setTravelScheduleRows([{ ...EMPTY_SCHEDULE_ROW }]);
               setIsEditing(true);
             }}
             className="bg-brand-ink text-white rounded-full px-6"
@@ -286,13 +337,67 @@ export const RetreatsAdmin: React.FC = () => {
 
           <div className="space-y-2">
             <label className="text-xs font-black uppercase tracking-widest text-accent/40">Аяллын хуваарь</label>
-            <Textarea
-              value={currentRetreat.travelSchedule || ''}
-              onChange={(e) => setCurrentRetreat({ ...currentRetreat, travelSchedule: e.target.value })}
-              placeholder={'Мөр бүрийг дараах форматаар бичнэ:\n07:00 | Өглөөний йог | Өдрийг эрч хүчтэй эхлүүлэх дасгал\n08:30 | Өглөөний цай | Эрүүл, шим тэжээлтэй хоол'}
-              className="rounded-xl min-h-[180px]"
-            />
-            <p className="text-[11px] text-accent/40">Формат: Цаг | Үйл ажиллагаа | Тайлбар</p>
+            <div className="space-y-3 rounded-xl border border-input bg-background p-4">
+              {travelScheduleRows.map((row, index) => (
+                <div key={`${index}-${row.time}-${row.activity}`} className="grid grid-cols-1 gap-3 md:grid-cols-[140px_1fr_1.5fr_auto]">
+                  <Input
+                    type="time"
+                    value={row.time}
+                    onChange={(e) => {
+                      const next = [...travelScheduleRows];
+                      next[index] = { ...next[index], time: e.target.value };
+                      setTravelScheduleRows(next);
+                    }}
+                    className="rounded-xl"
+                  />
+                  <Input
+                    value={row.activity}
+                    onChange={(e) => {
+                      const next = [...travelScheduleRows];
+                      next[index] = { ...next[index], activity: e.target.value };
+                      setTravelScheduleRows(next);
+                    }}
+                    placeholder="Үйл ажиллагаа"
+                    className="rounded-xl"
+                  />
+                  <Input
+                    value={row.desc}
+                    onChange={(e) => {
+                      const next = [...travelScheduleRows];
+                      next[index] = { ...next[index], desc: e.target.value };
+                      setTravelScheduleRows(next);
+                    }}
+                    placeholder="Тайлбар"
+                    className="rounded-xl"
+                  />
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    onClick={() => {
+                      if (travelScheduleRows.length === 1) {
+                        setTravelScheduleRows([{ ...EMPTY_SCHEDULE_ROW }]);
+                        return;
+                      }
+                      setTravelScheduleRows(travelScheduleRows.filter((_, i) => i !== index));
+                    }}
+                    className="h-10 rounded-xl text-red-600 hover:bg-red-50"
+                  >
+                    <Trash2 size={14} className="mr-2" />
+                    Устгах
+                  </Button>
+                </div>
+              ))}
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setTravelScheduleRows([...travelScheduleRows, { ...EMPTY_SCHEDULE_ROW }])}
+                className="rounded-full"
+              >
+                <Plus size={14} className="mr-2" />
+                Мөр нэмэх
+              </Button>
+            </div>
+            <p className="text-[11px] text-accent/40">Цаг + үйл ажиллагаа + тайлбар байдлаар хуваарь үүсгэнэ</p>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -399,6 +504,7 @@ export const RetreatsAdmin: React.FC = () => {
                           size="sm" 
                           onClick={() => {
                             setCurrentRetreat(item);
+                            setTravelScheduleRows(parseTravelScheduleRows(item.travelSchedule));
                             setIsEditing(true);
                           }}
                           className="rounded-full px-6"
