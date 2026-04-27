@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { ArrowUpRight, Clock } from 'lucide-react';
+import { ArrowUpRight, ChevronsLeftRight, Clock } from 'lucide-react';
 import { classData as staticClassData } from '../data/classes';
 import { collection, getDocs, query, orderBy } from 'firebase/firestore';
 import { db } from '../firebase';
@@ -65,6 +65,7 @@ export const Classes: React.FC = () => {
   const [searchParams] = useSearchParams();
   const [filter, setFilter] = useState(searchParams.get('category') || 'All');
   const [teacherFilter, setTeacherFilter] = useState('All');
+  const [teachersExpanded, setTeachersExpanded] = useState(false);
   const [classes, setClasses] = useState<ClassItem[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -159,8 +160,29 @@ export const Classes: React.FC = () => {
             ))}
           </div>
 
-          <div className="mt-5 flex flex-wrap justify-center gap-3">
-            {teacherOptions.map((teacherName) => (
+          <div className="mt-5 flex flex-col items-center gap-3">
+            <button
+              type="button"
+              onClick={() => setTeachersExpanded((prev) => !prev)}
+              className={`group inline-flex items-center overflow-hidden rounded-full border border-brand-ink/10 bg-white px-4 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-brand-ink transition-all duration-300 hover:w-[220px] hover:bg-secondary/20 ${
+                teachersExpanded ? 'w-[220px] shadow-md shadow-brand-ink/10' : 'w-[158px]'
+              }`}
+            >
+              <ChevronsLeftRight
+                size={14}
+                className={`shrink-0 transition-transform duration-300 ${teachersExpanded ? 'rotate-90 text-brand-icon' : 'text-brand-ink/60 group-hover:rotate-90'}`}
+              />
+              <span className="ml-2 whitespace-nowrap">All Teachers</span>
+              <span
+                className={`ml-2 overflow-hidden whitespace-nowrap text-[9px] font-semibold tracking-[0.14em] normal-case text-brand-ink/45 transition-all duration-300 ${
+                  teachersExpanded ? 'max-w-[120px] opacity-100' : 'max-w-0 opacity-0 group-hover:max-w-[120px] group-hover:opacity-100'
+                }`}
+              >
+                {teachersExpanded ? 'click to collapse' : 'click to expand'}
+              </span>
+            </button>
+
+            {teachersExpanded ? teacherOptions.map((teacherName) => (
               <button
                 key={teacherName}
                 onClick={() => setTeacherFilter(teacherName)}
@@ -172,7 +194,7 @@ export const Classes: React.FC = () => {
               >
                 {teacherName === 'All' ? 'Бүх багш' : teacherName}
               </button>
-            ))}
+            )) : null}
           </div>
         </div>
 
