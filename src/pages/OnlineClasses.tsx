@@ -69,6 +69,7 @@ export const OnlineClasses: React.FC = () => {
   const [filter, setFilter] = useState('All');
   const [teacherFilter, setTeacherFilter] = useState('All');
   const [teachersExpanded, setTeachersExpanded] = useState(false);
+  const [teachersHovered, setTeachersHovered] = useState(false);
   const [search, setSearch] = useState('');
   const [accessGateOpen, setAccessGateOpen] = useState(false);
   const { user, profile } = useAuth();
@@ -128,6 +129,7 @@ export const OnlineClasses: React.FC = () => {
     );
     return ['All', ...unique];
   }, [content]);
+  const showTeacherOptions = teachersExpanded || teachersHovered;
 
   useEffect(() => {
     let cancelled = false;
@@ -358,29 +360,33 @@ export const OnlineClasses: React.FC = () => {
                   ))}
                 </div>
 
-                <div className="flex flex-col items-center gap-3">
+                <div
+                  className="flex flex-col items-center gap-3"
+                  onMouseEnter={() => setTeachersHovered(true)}
+                  onMouseLeave={() => setTeachersHovered(false)}
+                >
                   <button
                     type="button"
                     onClick={() => setTeachersExpanded((prev) => !prev)}
                     className={`group inline-flex items-center overflow-hidden rounded-full border border-brand-ink/10 bg-white px-4 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-brand-ink transition-all duration-300 hover:w-[220px] hover:bg-secondary/20 ${
-                      teachersExpanded ? 'w-[220px] shadow-md shadow-brand-ink/10' : 'w-[158px]'
+                      showTeacherOptions ? 'w-[220px] shadow-md shadow-brand-ink/10' : 'w-[158px]'
                     }`}
                   >
                     <ChevronsLeftRight
                       size={14}
-                      className={`shrink-0 transition-transform duration-300 ${teachersExpanded ? 'rotate-90 text-brand-icon' : 'text-brand-ink/60 group-hover:rotate-90'}`}
+                      className={`shrink-0 transition-transform duration-300 ${showTeacherOptions ? 'rotate-90 text-brand-icon' : 'text-brand-ink/60 group-hover:rotate-90'}`}
                     />
                     <span className="ml-2 whitespace-nowrap">All Teachers</span>
                     <span
                       className={`ml-2 overflow-hidden whitespace-nowrap text-[9px] font-semibold tracking-[0.14em] normal-case text-brand-ink/45 transition-all duration-300 ${
-                        teachersExpanded ? 'max-w-[120px] opacity-100' : 'max-w-0 opacity-0 group-hover:max-w-[120px] group-hover:opacity-100'
+                        showTeacherOptions ? 'max-w-[120px] opacity-100' : 'max-w-0 opacity-0 group-hover:max-w-[120px] group-hover:opacity-100'
                       }`}
                     >
                       {teachersExpanded ? 'click to collapse' : 'click to expand'}
                     </span>
                   </button>
 
-                  {teachersExpanded ? teacherOptions.map((teacherName) => (
+                  {showTeacherOptions ? teacherOptions.map((teacherName) => (
                     <button
                       key={teacherName}
                       onClick={() => setTeacherFilter(teacherName)}
