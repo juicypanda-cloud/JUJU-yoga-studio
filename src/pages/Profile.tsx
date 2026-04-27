@@ -4,7 +4,6 @@ import { motion } from 'motion/react';
 import { User, Mail, Calendar, CreditCard, ShieldCheck, LogOut, Users, ClipboardCheck, CheckCircle2, XCircle, CalendarClock } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { auth } from '../firebase';
-import { ProfileTotpMfa } from '../components/auth/ProfileTotpMfa';
 import { signOut } from 'firebase/auth';
 import { useNavigate, Link } from 'react-router-dom';
 import { collection, onSnapshot } from 'firebase/firestore';
@@ -365,7 +364,6 @@ export const Profile: React.FC = () => {
                   </div>
                 )}
 
-                <ProfileTotpMfa user={user} />
               </div>
             </div>
           </motion.div>
