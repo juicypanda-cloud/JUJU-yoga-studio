@@ -325,6 +325,13 @@ export const Profile: React.FC = () => {
                                   variant="outline"
                                   className="rounded-full px-6"
                                 >
+                                  <Link to={`/teacher/schedule?classId=${classItem.id}`}>Хуваарь засах</Link>
+                                </Button>
+                                <Button
+                                  asChild
+                                  variant="outline"
+                                  className="rounded-full px-6"
+                                >
                                   <Link to={`/teacher/attendance?classId=${classItem.id}`}>Ирц бүртгэх</Link>
                                 </Button>
                               </div>

@@ -139,13 +139,29 @@ service cloud.firestore {
     
     match /schedule/{id} {
       allow read: if true;
-      allow write: if isAdmin() || (
+      allow create: if isAdmin() || (
+        isTeacher() &&
+        request.resource.data.classId is string &&
+        teacherOwnsClass(request.resource.data.classId)
+      );
+      allow update: if isAdmin() || (
         isAuthenticated() &&
         request.resource.data.diff(resource.data).changedKeys().hasOnly(['bookedCount']) &&
         request.resource.data.bookedCount is int &&
         resource.data.bookedCount is int &&
         request.resource.data.bookedCount == resource.data.bookedCount + 1 &&
         request.resource.data.bookedCount <= resource.data.capacity
+      ) || (
+        isTeacher() &&
+        resource.data.classId is string &&
+        request.resource.data.classId is string &&
+        teacherOwnsClass(resource.data.classId) &&
+        teacherOwnsClass(request.resource.data.classId)
+      );
+      allow delete: if isAdmin() || (
+        isTeacher() &&
+        resource.data.classId is string &&
+        teacherOwnsClass(resource.data.classId)
       );
     }
 

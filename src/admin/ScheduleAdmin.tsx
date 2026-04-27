@@ -92,6 +92,7 @@ export const ScheduleAdmin: React.FC = () => {
         const dataToSave = {
           ...rest,
           className: selectedClass?.title || '',
+          teacherId: selectedClass?.teacherId || '',
           teacherName: selectedClass?.teacher || '',
           updatedAt: Timestamp.now()
         };
@@ -102,6 +103,7 @@ export const ScheduleAdmin: React.FC = () => {
         const dataToSave = {
           ...rest,
           className: selectedClass?.title || '',
+          teacherId: selectedClass?.teacherId || '',
           teacherName: selectedClass?.teacher || '',
           updatedAt: Timestamp.now()
         };

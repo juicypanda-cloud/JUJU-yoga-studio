@@ -39,6 +39,7 @@ const Pricing = safeLazy(() => import('./pages/Pricing').then(m => ({ default: m
 const Checkout = safeLazy(() => import('./pages/Checkout').then(m => ({ default: m.Checkout })));
 const Profile = safeLazy(() => import('./pages/Profile').then(m => ({ default: m.Profile })));
 const TeacherAttendance = safeLazy(() => import('./pages/TeacherAttendance').then(m => ({ default: m.TeacherAttendance })));
+const TeacherSchedule = safeLazy(() => import('./pages/TeacherSchedule').then(m => ({ default: m.TeacherSchedule })));
 const Rules = safeLazy(() => import('./pages/Rules').then(m => ({ default: m.Rules })));
 const About = safeLazy(() => import('./pages/About').then(m => ({ default: m.About })));
 const Contact = safeLazy(() => import('./pages/Contact').then(m => ({ default: m.Contact })));
@@ -204,6 +205,7 @@ export default function App() {
                   <Route path="/checkout" element={<Checkout />} />
                   <Route path="/profile" element={<Profile />} />
                   <Route path="/teacher/attendance" element={<TeacherAttendance />} />
+                  <Route path="/teacher/schedule" element={<TeacherSchedule />} />
                   <Route path="/teachers" element={<Teachers />} />
                   <Route path="/gallery" element={<Gallery />} />
                   <Route path="/mindfulness" element={<Mindfulness />} />
