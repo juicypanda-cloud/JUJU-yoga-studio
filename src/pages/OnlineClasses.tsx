@@ -363,7 +363,10 @@ export const OnlineClasses: React.FC = () => {
                 <div
                   className="flex flex-col items-center gap-3"
                   onMouseEnter={() => setTeachersHovered(true)}
-                  onMouseLeave={() => setTeachersHovered(false)}
+                  onMouseLeave={() => {
+                    setTeachersHovered(false);
+                    setTeachersExpanded(false);
+                  }}
                 >
                   <button
                     type="button"

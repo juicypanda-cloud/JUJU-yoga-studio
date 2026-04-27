@@ -165,7 +165,10 @@ export const Classes: React.FC = () => {
           <div
             className="mt-5 flex flex-col items-center gap-3"
             onMouseEnter={() => setTeachersHovered(true)}
-            onMouseLeave={() => setTeachersHovered(false)}
+            onMouseLeave={() => {
+              setTeachersHovered(false);
+              setTeachersExpanded(false);
+            }}
           >
             <button
               type="button"
