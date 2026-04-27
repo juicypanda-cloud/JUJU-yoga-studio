@@ -1,7 +1,6 @@
 import React from 'react';
 import { Play, Lock } from 'lucide-react';
 import { Card } from './ui/card';
-import { isYouTubeThumbnailUrl } from '../lib/online-video-thumb';
 interface OnlineContentCardProps {
   content: {
     id: string;
@@ -24,7 +23,6 @@ const FALLBACK_THUMBNAIL = 'https://picsum.photos/seed/online-content-fallback/1
 
 export const OnlineContentCard: React.FC<OnlineContentCardProps> = ({ content, onClick, priority = false, accessLocked = false }) => {
   const thumb = content.thumbnailURL?.trim() || FALLBACK_THUMBNAIL;
-  const isYouTubeThumb = isYouTubeThumbnailUrl(thumb);
 
   return (
     <div className="group cursor-pointer" onClick={onClick}>
@@ -36,7 +34,7 @@ export const OnlineContentCard: React.FC<OnlineContentCardProps> = ({ content, o
           key={`${content.id}-${thumb}`}
           src={thumb}
           alt={content.title}
-          className={`absolute inset-0 h-full w-full block ${isYouTubeThumb ? 'object-contain bg-black' : 'object-cover'}`}
+          className="absolute inset-0 h-full w-full object-cover block"
           loading="eager"
           fetchPriority="high"
           decoding="async"
