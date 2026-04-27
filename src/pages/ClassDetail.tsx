@@ -24,6 +24,7 @@ type ClassDetailItem = ClassItem & {
   schedule: string;
   time: string;
   duration: string;
+  scheduleEntries: Array<{ day: string; time: string }>;
   price?: number;
   description: string;
   benefits: string[];
@@ -85,6 +86,19 @@ function hasPaidStatus(payload: unknown): boolean {
 
 const normalizeClassDetail = (id: string, raw: any): ClassDetailItem => {
   const scheduleSlots = Array.isArray(raw?.scheduleSlots) ? raw.scheduleSlots : [];
+  const scheduleEntries = scheduleSlots
+    .map((slot: any) => {
+      const day = String(slot?.dayOfWeek || '').trim();
+      const startTime = String(slot?.startTime || '').trim();
+      const endTime = String(slot?.endTime || '').trim();
+      const time = startTime && endTime ? `${startTime}-${endTime}` : startTime || endTime;
+      if (!day && !time) return null;
+      return {
+        day: day || 'Өдөр тодорхойгүй',
+        time: time || 'Цаг тодорхойгүй',
+      };
+    })
+    .filter((item): item is { day: string; time: string } => Boolean(item));
   const schedule = scheduleSlots.length > 0
     ? scheduleSlots.map((slot: any) => slot?.dayOfWeek).filter(Boolean).join(', ')
     : 'Хуваарь удахгүй';
@@ -119,6 +133,7 @@ const normalizeClassDetail = (id: string, raw: any): ClassDetailItem => {
     schedule,
     time,
     duration: typeof raw?.duration === 'string' ? raw.duration : '60 мин',
+    scheduleEntries,
     price: typeof raw?.price === 'number' ? raw.price : undefined,
     description: typeof raw?.description === 'string' ? raw.description : 'Тайлбар удахгүй нэмэгдэнэ.',
     benefits: parsedBenefits.length > 0 ? parsedBenefits : ['Сунгалт, амьсгал, төвлөрөл сайжруулна'],
@@ -432,22 +447,42 @@ export const ClassDetail: React.FC = () => {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-6">
-              <div className="bg-white p-8 rounded-[2rem] shadow-2xl shadow-brand-ink/5 border border-brand-ink/5 hover:shadow-brand-ink/10 hover:-translate-y-2 transition-all duration-500 group/info">
-                <div className="w-10 h-10 rounded-xl bg-gray-50 flex items-center justify-center text-brand-icon mb-4 shadow-sm group-hover/info:bg-brand-icon group-hover/info:text-white transition-colors duration-500">
-                  <Calendar size={20} />
-                </div>
-                <p className="text-[10px] font-black uppercase tracking-widest text-brand-ink/30 mb-1">Хуваарь</p>
-                <p className="text-brand-ink font-medium">{classItem.schedule}</p>
+            {classItem.scheduleEntries.length > 0 ? (
+              <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
+                {classItem.scheduleEntries.map((entry, index) => (
+                  <div
+                    key={`${entry.day}-${entry.time}-${index}`}
+                    className="bg-white p-8 rounded-[2rem] shadow-2xl shadow-brand-ink/5 border border-brand-ink/5 hover:shadow-brand-ink/10 hover:-translate-y-2 transition-all duration-500 group/info"
+                  >
+                    <div className="w-10 h-10 rounded-xl bg-gray-50 flex items-center justify-center text-brand-icon mb-4 shadow-sm group-hover/info:bg-brand-icon group-hover/info:text-white transition-colors duration-500">
+                      <Calendar size={20} />
+                    </div>
+                    <p className="text-[10px] font-black uppercase tracking-widest text-brand-ink/30 mb-1">
+                      Хуваарь {index + 1}
+                    </p>
+                    <p className="text-brand-ink font-medium">{entry.day}</p>
+                    <p className="text-brand-ink/70 text-sm mt-1">{entry.time}</p>
+                  </div>
+                ))}
               </div>
-              <div className="bg-white p-8 rounded-[2rem] shadow-2xl shadow-brand-ink/5 border border-brand-ink/5 hover:shadow-brand-ink/10 hover:-translate-y-2 transition-all duration-500 group/info">
-                <div className="w-10 h-10 rounded-xl bg-gray-50 flex items-center justify-center text-brand-icon mb-4 shadow-sm group-hover/info:bg-brand-icon group-hover/info:text-white transition-colors duration-500">
-                  <Clock size={20} />
+            ) : (
+              <div className="grid grid-cols-2 gap-6">
+                <div className="bg-white p-8 rounded-[2rem] shadow-2xl shadow-brand-ink/5 border border-brand-ink/5 hover:shadow-brand-ink/10 hover:-translate-y-2 transition-all duration-500 group/info">
+                  <div className="w-10 h-10 rounded-xl bg-gray-50 flex items-center justify-center text-brand-icon mb-4 shadow-sm group-hover/info:bg-brand-icon group-hover/info:text-white transition-colors duration-500">
+                    <Calendar size={20} />
+                  </div>
+                  <p className="text-[10px] font-black uppercase tracking-widest text-brand-ink/30 mb-1">Хуваарь</p>
+                  <p className="text-brand-ink font-medium">{classItem.schedule}</p>
                 </div>
-                <p className="text-[10px] font-black uppercase tracking-widest text-brand-ink/30 mb-1">Цаг & Хугацаа</p>
-                <p className="text-brand-ink font-medium">{classItem.time} • {classItem.duration}</p>
+                <div className="bg-white p-8 rounded-[2rem] shadow-2xl shadow-brand-ink/5 border border-brand-ink/5 hover:shadow-brand-ink/10 hover:-translate-y-2 transition-all duration-500 group/info">
+                  <div className="w-10 h-10 rounded-xl bg-gray-50 flex items-center justify-center text-brand-icon mb-4 shadow-sm group-hover/info:bg-brand-icon group-hover/info:text-white transition-colors duration-500">
+                    <Clock size={20} />
+                  </div>
+                  <p className="text-[10px] font-black uppercase tracking-widest text-brand-ink/30 mb-1">Цаг & Хугацаа</p>
+                  <p className="text-brand-ink font-medium">{classItem.time} • {classItem.duration}</p>
+                </div>
               </div>
-            </div>
+            )}
           </motion.div>
 
           {/* Right Column: Content */}
