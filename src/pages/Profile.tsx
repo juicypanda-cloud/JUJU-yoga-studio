@@ -32,6 +32,7 @@ type RosterStudent = {
   name: string;
   email: string;
   attendance: RosterAttendance;
+  bookingIds: string[];
 };
 
 type TeacherClassSummary = {
@@ -88,6 +89,8 @@ export const Profile: React.FC = () => {
   const [scheduleSaving, setScheduleSaving] = useState(false);
   const [rosterDialogOpen, setRosterDialogOpen] = useState(false);
   const [rosterClassId, setRosterClassId] = useState('');
+  const [rosterOverride, setRosterOverride] = useState<Record<string, RosterAttendance>>({});
+  const [rosterSavingKey, setRosterSavingKey] = useState<string>('');
 
   const subscriptionPlanLabel = (() => {
     const plan = String(profile?.subscriptionPlan || '').trim().toLowerCase();
@@ -182,23 +185,32 @@ export const Profile: React.FC = () => {
 
         const rosterByKey = new Map<
           string,
-          { name: string; email: string; attendance: RosterAttendance }
+          { name: string; email: string; attendance: RosterAttendance; bookingIds: string[] }
         >();
         classBookings.forEach((booking) => {
           const b = booking as Record<string, unknown>;
           const key = String(b?.userId || b?.userEmail || b?.id || '').trim();
           if (!key) return;
+          const bookingId = String(b?.id || '').trim();
           const att = attendanceFromBooking(b);
           const name = String(b?.userName || b?.displayName || b?.name || 'Суралцагч').trim();
           const email = String(b?.userEmail || b?.email || '').trim();
           const existing = rosterByKey.get(key);
           if (!existing) {
-            rosterByKey.set(key, { name: name || 'Суралцагч', email, attendance: att });
+            rosterByKey.set(key, {
+              name: name || 'Суралцагч',
+              email,
+              attendance: att,
+              bookingIds: bookingId ? [bookingId] : [],
+            });
           } else {
             rosterByKey.set(key, {
               name: name || existing.name,
               email: email || existing.email,
               attendance: mergeAttendance(existing.attendance, att),
+              bookingIds: bookingId
+                ? Array.from(new Set([...existing.bookingIds, bookingId]))
+                : existing.bookingIds,
             });
           }
         });
@@ -286,10 +298,43 @@ export const Profile: React.FC = () => {
 
   const openRosterDialog = (classId: string) => {
     setRosterClassId(classId);
+    setRosterOverride({});
     setRosterDialogOpen(true);
   };
 
   const rosterClass = teacherClasses.find((c) => c.id === rosterClassId);
+
+  const setStudentAttendance = async (student: RosterStudent, next: RosterAttendance) => {
+    if (!user) return;
+    if (!student.bookingIds || student.bookingIds.length === 0) {
+      toast.error('Бүртгэлийн бичлэг олдсонгүй');
+      return;
+    }
+    if (rosterSavingKey) return;
+
+    const previous = rosterOverride[student.key] ?? student.attendance;
+    setRosterSavingKey(student.key);
+    setRosterOverride((current) => ({ ...current, [student.key]: next }));
+
+    try {
+      const attendanceStatus = next === 'present' ? 'attended' : next === 'absent' ? 'missed' : 'unknown';
+      await Promise.all(
+        student.bookingIds.map((bookingId) =>
+          updateDoc(doc(db, 'bookings', bookingId), {
+            attendanceStatus,
+            attendanceUpdatedAt: Timestamp.now(),
+            attendanceUpdatedBy: user.uid,
+          })
+        )
+      );
+      toast.success('Ирц хадгалагдлаа');
+    } catch (err) {
+      setRosterOverride((current) => ({ ...current, [student.key]: previous }));
+      toast.error('Ирц хадгалахад алдаа гарлаа');
+    } finally {
+      setRosterSavingKey('');
+    }
+  };
 
   const handleSaveSchedule = async () => {
     if (!user || scheduleSaving) return;
@@ -592,6 +637,11 @@ export const Profile: React.FC = () => {
                                 </p>
                               ) : (
                                 rosterClass?.roster.map((student) => (
+                                  (() => {
+                                    const effectiveAttendance =
+                                      rosterOverride[student.key] ?? student.attendance;
+                                    const saving = rosterSavingKey === student.key;
+                                    return (
                                   <div
                                     key={student.key}
                                     className="flex flex-col gap-1 rounded-xl border border-brand-ink/10 bg-secondary/15 px-4 py-3 sm:flex-row sm:items-center sm:justify-between"
@@ -602,34 +652,67 @@ export const Profile: React.FC = () => {
                                         <p className="truncate text-xs text-brand-ink/45">{student.email}</p>
                                       ) : null}
                                     </div>
-                                    <span
-                                      className={`shrink-0 text-xs font-black uppercase tracking-wider ${
-                                        student.attendance === 'present'
-                                          ? 'text-emerald-700'
-                                          : student.attendance === 'absent'
-                                            ? 'text-red-600'
-                                            : 'text-brand-ink/40'
-                                      }`}
-                                    >
-                                      {student.attendance === 'present'
-                                        ? 'Ирсэн'
-                                        : student.attendance === 'absent'
-                                          ? 'Ирээгүй'
-                                          : 'Ирц бүртгэгдээгүй'}
-                                    </span>
+                                    <div className="flex flex-wrap items-center gap-2 pt-2 sm:justify-end sm:pt-0">
+                                      <span
+                                        className={`mr-2 shrink-0 text-xs font-black uppercase tracking-wider ${
+                                          effectiveAttendance === 'present'
+                                            ? 'text-emerald-700'
+                                            : effectiveAttendance === 'absent'
+                                              ? 'text-red-600'
+                                              : 'text-brand-ink/40'
+                                        }`}
+                                      >
+                                        {effectiveAttendance === 'present'
+                                          ? 'Ирсэн'
+                                          : effectiveAttendance === 'absent'
+                                            ? 'Ирээгүй'
+                                            : 'Ирц бүртгэгдээгүй'}
+                                      </span>
+                                      <Button
+                                        type="button"
+                                        variant={effectiveAttendance === 'present' ? 'default' : 'outline'}
+                                        size="sm"
+                                        className={
+                                          effectiveAttendance === 'present'
+                                            ? 'rounded-full bg-emerald-600 text-white hover:bg-emerald-700'
+                                            : 'rounded-full'
+                                        }
+                                        disabled={saving}
+                                        onClick={() => void setStudentAttendance(student, 'present')}
+                                      >
+                                        Ирсэн
+                                      </Button>
+                                      <Button
+                                        type="button"
+                                        variant={effectiveAttendance === 'absent' ? 'default' : 'outline'}
+                                        size="sm"
+                                        className={
+                                          effectiveAttendance === 'absent'
+                                            ? 'rounded-full bg-red-600 text-white hover:bg-red-700'
+                                            : 'rounded-full'
+                                        }
+                                        disabled={saving}
+                                        onClick={() => void setStudentAttendance(student, 'absent')}
+                                      >
+                                        Ирээгүй
+                                      </Button>
+                                      <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="sm"
+                                        className="rounded-full text-xs"
+                                        disabled={saving}
+                                        onClick={() => void setStudentAttendance(student, 'unknown')}
+                                      >
+                                        Цэвэрлэх
+                                      </Button>
+                                    </div>
                                   </div>
+                                    );
+                                  })()
                                 ))
                               )}
                             </div>
-                            {rosterClass ? (
-                              <div className="pt-4">
-                                <Button variant="outline" className="w-full rounded-full" asChild>
-                                  <Link to={`/teacher/attendance?classId=${rosterClass.id}`}>
-                                    Ирц засах (дэлгэрэнгүй)
-                                  </Link>
-                                </Button>
-                              </div>
-                            ) : null}
                           </DialogContent>
                         </Dialog>
 
