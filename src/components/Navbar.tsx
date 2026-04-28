@@ -76,6 +76,12 @@ export const Navbar: React.FC = () => {
     setOpenMobileMenu(null);
   }, [location.pathname]);
 
+  useEffect(() => {
+    if (!isOpen) {
+      setOpenMobileMenu(null);
+    }
+  }, [isOpen]);
+
   const handleLogout = () => signOut(auth);
 
   const isHomePage = location.pathname === '/';
@@ -264,7 +270,7 @@ export const Navbar: React.FC = () => {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={() => setIsOpen(false)}
-              className="fixed inset-0 bg-brand-ink/20 backdrop-blur-sm z-40 xl:hidden"
+              className="fixed inset-0 bg-transparent z-40 xl:hidden"
             />
             <motion.div
               initial={{ x: '100%' }}
