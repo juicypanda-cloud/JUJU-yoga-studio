@@ -196,10 +196,17 @@ export const Profile: React.FC = () => {
           const firstName = String(b?.userFirstName || '').trim();
           const lastName = String(b?.userLastName || '').trim();
           const fullName = `${firstName} ${lastName}`.trim();
-          const name = String(
-            fullName || b?.userName || b?.displayName || b?.name || b?.studentName || 'Суралцагч'
-          ).trim();
           const email = String(b?.userEmail || b?.email || '').trim();
+          const emailName = email.includes('@') ? email.split('@')[0].trim() : '';
+          const name = String(
+            fullName ||
+              b?.userName ||
+              b?.displayName ||
+              b?.name ||
+              b?.studentName ||
+              emailName ||
+              'Суралцагч'
+          ).trim();
           const existing = rosterByKey.get(key);
           if (!existing) {
             rosterByKey.set(key, {
@@ -658,21 +665,6 @@ export const Profile: React.FC = () => {
                                       ) : null}
                                     </div>
                                     <div className="flex flex-wrap items-center gap-2 pt-2 sm:justify-end sm:pt-0">
-                                      <span
-                                        className={`mr-2 shrink-0 text-xs font-black uppercase tracking-wider ${
-                                          effectiveAttendance === 'present'
-                                            ? 'text-emerald-700'
-                                            : effectiveAttendance === 'absent'
-                                              ? 'text-red-600'
-                                              : 'text-brand-ink/40'
-                                        }`}
-                                      >
-                                        {effectiveAttendance === 'present'
-                                          ? 'Ирсэн'
-                                          : effectiveAttendance === 'absent'
-                                            ? 'Ирээгүй'
-                                            : 'Ирц бүртгэгдээгүй'}
-                                      </span>
                                       <Button
                                         type="button"
                                         variant={effectiveAttendance === 'present' ? 'default' : 'outline'}
