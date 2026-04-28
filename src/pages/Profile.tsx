@@ -97,6 +97,19 @@ type ScheduleRow = {
 
 const WEEK_DAYS = ['Даваа', 'Мягмар', 'Лхагва', 'Пүрэв', 'Баасан', 'Бямба', 'Ням'];
 
+function getScheduleDaysForClass(classId: string, rows: ScheduleRow[]) {
+  const days = Array.from(
+    new Set(
+      rows
+        .filter((row) => String(row.classId || '') === classId)
+        .map((row) => String(row.dayOfWeek || ''))
+        .filter(Boolean)
+    )
+  );
+
+  return WEEK_DAYS.filter((day) => days.includes(day));
+}
+
 export const Profile: React.FC = () => {
   const { user, profile, isSubscribed, isTeacher } = useAuth();
   const navigate = useNavigate();
@@ -132,6 +145,14 @@ export const Profile: React.FC = () => {
     signOut(auth);
     navigate('/');
   };
+
+  const scheduleDaysForSelectedClass = getScheduleDaysForClass(scheduleClassId, scheduleRows);
+  const scheduleEntriesForSelectedClass = scheduleRows
+    .filter((row) => String(row.classId || '') === scheduleClassId)
+    .sort(
+      (a, b) =>
+        WEEK_DAYS.indexOf(String(a.dayOfWeek || '')) - WEEK_DAYS.indexOf(String(b.dayOfWeek || ''))
+    );
 
   useEffect(() => {
     if (!user || !isTeacher) {
@@ -377,9 +398,22 @@ export const Profile: React.FC = () => {
     }
   }, [scheduleDialogOpen, scheduleClassId, scheduleDay, scheduleRows]);
 
+  useEffect(() => {
+    if (!scheduleDialogOpen || !scheduleClassId) return;
+    const availableDays = getScheduleDaysForClass(scheduleClassId, scheduleRows);
+    if (availableDays.length === 0) {
+      if (scheduleDay !== 'Даваа') setScheduleDay('Даваа');
+      return;
+    }
+    if (!availableDays.includes(scheduleDay)) {
+      setScheduleDay(availableDays[0]);
+    }
+  }, [scheduleDialogOpen, scheduleClassId, scheduleDay, scheduleRows]);
+
   const openScheduleDialog = (presetClassId: string) => {
+    const availableDays = getScheduleDaysForClass(presetClassId, scheduleRows);
     setScheduleClassId(presetClassId);
-    setScheduleDay('Даваа');
+    setScheduleDay(availableDays[0] || 'Даваа');
     setScheduleDialogOpen(true);
   };
 
@@ -625,7 +659,12 @@ export const Profile: React.FC = () => {
                                 <label className="text-xs font-black uppercase tracking-widest text-brand-ink/40">Хичээл</label>
                                 <select
                                   value={scheduleClassId}
-                                  onChange={(e) => setScheduleClassId(e.target.value)}
+                                  onChange={(e) => {
+                                    const nextClassId = e.target.value;
+                                    const availableDays = getScheduleDaysForClass(nextClassId, scheduleRows);
+                                    setScheduleClassId(nextClassId);
+                                    setScheduleDay(availableDays[0] || 'Даваа');
+                                  }}
                                   className="h-11 w-full rounded-xl border border-input bg-background px-3 text-sm text-brand-ink focus:outline-none focus:ring-2 focus:ring-brand-icon/20"
                                 >
                                   {teacherClasses.map((item) => (
@@ -642,13 +681,43 @@ export const Profile: React.FC = () => {
                                   onChange={(e) => setScheduleDay(e.target.value)}
                                   className="h-11 w-full rounded-xl border border-input bg-background px-3 text-sm text-brand-ink focus:outline-none focus:ring-2 focus:ring-brand-icon/20"
                                 >
-                                  {WEEK_DAYS.map((day) => (
+                                  {(scheduleDaysForSelectedClass.length > 0 ? scheduleDaysForSelectedClass : WEEK_DAYS).map((day) => (
                                     <option key={day} value={day}>
                                       {day}
                                     </option>
                                   ))}
                                 </select>
                               </div>
+                              {scheduleEntriesForSelectedClass.length > 0 ? (
+                                <div className="space-y-2">
+                                  <label className="text-xs font-black uppercase tracking-widest text-brand-ink/40">
+                                    Боломжтой хуваариуд
+                                  </label>
+                                  <div className="flex flex-wrap gap-2">
+                                    {scheduleEntriesForSelectedClass.map((row) => {
+                                      const day = String(row.dayOfWeek || '');
+                                      const active = day === scheduleDay;
+                                      return (
+                                        <button
+                                          key={row.id}
+                                          type="button"
+                                          onClick={() => setScheduleDay(day)}
+                                          className={`rounded-full border px-3 py-2 text-xs font-semibold transition-colors ${
+                                            active
+                                              ? 'border-brand-icon bg-brand-icon text-white'
+                                              : 'border-brand-ink/10 bg-white text-brand-ink/70 hover:border-brand-icon/40'
+                                          }`}
+                                        >
+                                          {day} {row.startTime ? `• ${row.startTime}` : ''}
+                                        </button>
+                                      );
+                                    })}
+                                  </div>
+                                  <p className="text-xs text-brand-ink/45">
+                                    Олон өдөртэй хичээл бол өөрчлөх өдрөө эндээс сонгоно уу.
+                                  </p>
+                                </div>
+                              ) : null}
                               <div className="rounded-xl border border-brand-ink/10 bg-secondary/20 p-4">
                                 <p className="mb-3 text-xs font-bold uppercase tracking-[0.12em] text-brand-ink/50">
                                   Одоогийн цаг
