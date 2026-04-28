@@ -193,7 +193,12 @@ export const Profile: React.FC = () => {
           if (!key) return;
           const bookingId = String(b?.id || '').trim();
           const att = attendanceFromBooking(b);
-          const name = String(b?.userName || b?.displayName || b?.name || 'Суралцагч').trim();
+          const firstName = String(b?.userFirstName || '').trim();
+          const lastName = String(b?.userLastName || '').trim();
+          const fullName = `${firstName} ${lastName}`.trim();
+          const name = String(
+            fullName || b?.userName || b?.displayName || b?.name || b?.studentName || 'Суралцагч'
+          ).trim();
           const email = String(b?.userEmail || b?.email || '').trim();
           const existing = rosterByKey.get(key);
           if (!existing) {
@@ -695,16 +700,6 @@ export const Profile: React.FC = () => {
                                         onClick={() => void setStudentAttendance(student, 'absent')}
                                       >
                                         Ирээгүй
-                                      </Button>
-                                      <Button
-                                        type="button"
-                                        variant="ghost"
-                                        size="sm"
-                                        className="rounded-full text-xs"
-                                        disabled={saving}
-                                        onClick={() => void setStudentAttendance(student, 'unknown')}
-                                      >
-                                        Цэвэрлэх
                                       </Button>
                                     </div>
                                   </div>
