@@ -176,7 +176,7 @@ export const Navbar: React.FC = () => {
         {/* Auth Button */}
         <div className="flex-1 hidden xl:flex items-center justify-end gap-6 z-50" onMouseEnter={() => setHoveredIndex(null)}>
           {user ? (
-            <div className="flex items-center gap-4">
+            <div className="flex items-center">
               <Link 
                 to="/profile" 
                 className={`text-[12px] tracking-[0.2em] uppercase transition-all duration-300 ease-out h-6 flex items-center origin-center hover:scale-105 ${
@@ -187,14 +187,6 @@ export const Navbar: React.FC = () => {
               >
                 Миний бүртгэл
               </Link>
-              <button 
-                onClick={handleLogout}
-                className={`transition-colors ${
-                  (scrolled || !isHomePage) ? 'text-brand-ink/60 hover:text-red-500' : 'text-white/60 hover:text-white'
-                }`}
-              >
-                <LogOut size={18} />
-              </button>
             </div>
           ) : (
             <Link to="/login">
