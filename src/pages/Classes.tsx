@@ -73,7 +73,6 @@ export const Classes: React.FC = () => {
   const [filter, setFilter] = useState(searchParams.get('category') || 'All');
   const [teacherFilter, setTeacherFilter] = useState('All');
   const [teachersExpanded, setTeachersExpanded] = useState(false);
-  const [teachersHovered, setTeachersHovered] = useState(false);
   const [registeredTeachers, setRegisteredTeachers] = useState<string[]>([]);
   const [classes, setClasses] = useState<ClassItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -155,7 +154,7 @@ export const Classes: React.FC = () => {
     const unique = [...registeredTeachers];
     return ['All', ...unique];
   }, [registeredTeachers]);
-  const showTeacherOptions = teachersExpanded || teachersHovered;
+  const showTeacherOptions = teachersExpanded;
 
   return (
     <ErrorBoundary>
@@ -187,14 +186,7 @@ export const Classes: React.FC = () => {
             ))}
           </div>
 
-          <div
-            className="mt-5 flex flex-col items-center gap-3"
-            onMouseEnter={() => setTeachersHovered(true)}
-            onMouseLeave={() => {
-              setTeachersHovered(false);
-              setTeachersExpanded(false);
-            }}
-          >
+          <div className="mt-5 flex flex-col items-center gap-3">
             <button
               type="button"
               onClick={() => setTeachersExpanded((prev) => !prev)}
@@ -212,7 +204,10 @@ export const Classes: React.FC = () => {
             {showTeacherOptions ? teacherOptions.map((teacherName) => (
               <button
                 key={teacherName}
-                onClick={() => setTeacherFilter(teacherName)}
+                onClick={() => {
+                  setTeacherFilter(teacherName);
+                  setTeachersExpanded(false);
+                }}
                 className={`px-5 py-2 rounded-full text-[10px] font-black tracking-[0.16em] uppercase transition-all duration-300 focus:outline-none ${
                   teacherFilter === teacherName
                     ? 'bg-brand-icon text-white shadow-md shadow-brand-icon/20'
