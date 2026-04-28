@@ -109,7 +109,7 @@ export const Navbar: React.FC = () => {
         </div>
 
         {/* Desktop Nav Links */}
-        <div className="hidden lg:flex items-center gap-12">
+        <div className="hidden xl:flex items-center gap-10">
           <div className="flex items-center gap-12">
             {megaMenus.map((menu, idx) => (
               <div 
@@ -174,7 +174,7 @@ export const Navbar: React.FC = () => {
         </div>
 
         {/* Auth Button */}
-        <div className="flex-1 hidden lg:flex items-center justify-end gap-6 z-50" onMouseEnter={() => setHoveredIndex(null)}>
+        <div className="flex-1 hidden xl:flex items-center justify-end gap-6 z-50" onMouseEnter={() => setHoveredIndex(null)}>
           {user ? (
             <div className="flex items-center gap-4">
               <Link 
@@ -214,7 +214,7 @@ export const Navbar: React.FC = () => {
 
         {/* Mobile Toggle */}
         <button
-          className={`lg:hidden z-50 p-2 ml-auto transition-colors ${
+          className={`xl:hidden z-50 p-2 ml-auto transition-colors ${
             (scrolled || !isHomePage) || isOpen ? 'text-brand-ink' : 'text-white'
           }`}
           onClick={() => setIsOpen(!isOpen)}
@@ -231,7 +231,7 @@ export const Navbar: React.FC = () => {
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: -10 }}
             transition={{ type: 'spring', damping: 20, stiffness: 100 }}
-            className="absolute top-full left-0 right-0 px-6 pb-6 hidden lg:block"
+            className="absolute top-full left-0 right-0 px-6 pb-6 hidden xl:block"
           >
             <div className="container mx-auto bg-white rounded-[32px] shadow-2xl border border-secondary overflow-hidden p-12">
               <div className="grid grid-cols-4 gap-x-12 gap-y-8 bg-white">
@@ -270,14 +270,14 @@ export const Navbar: React.FC = () => {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={() => setIsOpen(false)}
-              className="fixed inset-0 bg-brand-ink/20 backdrop-blur-sm z-40 lg:hidden"
+              className="fixed inset-0 bg-brand-ink/20 backdrop-blur-sm z-40 xl:hidden"
             />
             <motion.div
               initial={{ x: '100%' }}
               animate={{ x: 0 }}
               exit={{ x: '100%' }}
               transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-              className="fixed top-0 right-0 bottom-0 w-[85%] max-w-sm bg-secondary z-50 lg:hidden p-8 flex flex-col shadow-2xl"
+              className="fixed top-0 right-0 bottom-0 w-[85%] max-w-sm bg-secondary z-50 xl:hidden p-8 flex flex-col shadow-2xl"
             >
               <div className="flex justify-end mb-12">
                 <button onClick={() => setIsOpen(false)} className="p-2 text-brand-ink">
