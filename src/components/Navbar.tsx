@@ -283,13 +283,13 @@ export const Navbar: React.FC = () => {
                     <h3 className="text-[12px] font-bold tracking-[0.2em] uppercase text-brand-ink/40">
                       {menu.name}
                     </h3>
-                    <div className="flex flex-wrap gap-2">
+                    <div className="flex flex-col gap-2">
                       {menu.links.map((link) => (
                         <Link
                           key={link.name}
                           to={link.path}
                           onClick={() => handleNavClick(link.path)}
-                          className="px-4 py-2 bg-white rounded-full text-sm font-medium text-brand-ink hover:bg-primary/10 hover:text-primary transition-all duration-300 ease-out hover:scale-105 hover:font-semibold border border-primary/20 origin-center"
+                          className="w-full px-4 py-2 bg-white rounded-full text-sm font-medium text-brand-ink hover:bg-primary/10 hover:text-primary transition-all duration-300 ease-out hover:scale-[1.01] hover:font-semibold border border-primary/20 origin-left"
                         >
                           {link.name}
                         </Link>
