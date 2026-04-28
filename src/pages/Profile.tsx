@@ -25,6 +25,15 @@ import {
 } from '../components/ui/dialog';
 import { toast } from 'sonner';
 
+type RosterAttendance = 'present' | 'absent' | 'unknown';
+
+type RosterStudent = {
+  key: string;
+  name: string;
+  email: string;
+  attendance: RosterAttendance;
+};
+
 type TeacherClassSummary = {
   id: string;
   title: string;
@@ -35,7 +44,20 @@ type TeacherClassSummary = {
   /** Sum of capacity across schedule slots for this class (fallback if none). */
   capacityTotal: number;
   sessionCount: number;
+  roster: RosterStudent[];
 };
+
+function attendanceFromBooking(booking: Record<string, unknown>): RosterAttendance {
+  const raw = String(booking?.attendanceStatus || '').toLowerCase();
+  if (raw === 'attended' || raw === 'present') return 'present';
+  if (raw === 'missed' || raw === 'absent') return 'absent';
+  return 'unknown';
+}
+
+function mergeAttendance(a: RosterAttendance, b: RosterAttendance): RosterAttendance {
+  const order = { present: 2, absent: 1, unknown: 0 };
+  return order[a] >= order[b] ? a : b;
+}
 
 type ScheduleRow = {
   id: string;
@@ -64,6 +86,8 @@ export const Profile: React.FC = () => {
   const [scheduleRoom, setScheduleRoom] = useState('Main Hall');
   const [existingScheduleId, setExistingScheduleId] = useState<string | null>(null);
   const [scheduleSaving, setScheduleSaving] = useState(false);
+  const [rosterDialogOpen, setRosterDialogOpen] = useState(false);
+  const [rosterClassId, setRosterClassId] = useState('');
 
   const subscriptionPlanLabel = (() => {
     const plan = String(profile?.subscriptionPlan || '').trim().toLowerCase();
@@ -156,6 +180,32 @@ export const Profile: React.FC = () => {
           if (key) participantKeys.add(key);
         });
 
+        const rosterByKey = new Map<
+          string,
+          { name: string; email: string; attendance: RosterAttendance }
+        >();
+        classBookings.forEach((booking) => {
+          const b = booking as Record<string, unknown>;
+          const key = String(b?.userId || b?.userEmail || b?.id || '').trim();
+          if (!key) return;
+          const att = attendanceFromBooking(b);
+          const name = String(b?.userName || b?.displayName || b?.name || 'Суралцагч').trim();
+          const email = String(b?.userEmail || b?.email || '').trim();
+          const existing = rosterByKey.get(key);
+          if (!existing) {
+            rosterByKey.set(key, { name: name || 'Суралцагч', email, attendance: att });
+          } else {
+            rosterByKey.set(key, {
+              name: name || existing.name,
+              email: email || existing.email,
+              attendance: mergeAttendance(existing.attendance, att),
+            });
+          }
+        });
+        const roster: RosterStudent[] = Array.from(rosterByKey.entries())
+          .map(([k, v]) => ({ key: k, ...v }))
+          .sort((a, b) => a.name.localeCompare(b.name, 'mn'));
+
         const capacityTotal =
           classSchedules.length > 0
             ? classSchedules.reduce((sum, slot) => sum + (Number(slot?.capacity) || 20), 0)
@@ -170,6 +220,7 @@ export const Profile: React.FC = () => {
           participantCount: participantKeys.size,
           capacityTotal,
           sessionCount: classSchedules.length,
+          roster,
         };
       });
 
@@ -232,6 +283,13 @@ export const Profile: React.FC = () => {
     setScheduleDay('Даваа');
     setScheduleDialogOpen(true);
   };
+
+  const openRosterDialog = (classId: string) => {
+    setRosterClassId(classId);
+    setRosterDialogOpen(true);
+  };
+
+  const rosterClass = teacherClasses.find((c) => c.id === rosterClassId);
 
   const handleSaveSchedule = async () => {
     if (!user || scheduleSaving) return;
@@ -517,27 +575,93 @@ export const Profile: React.FC = () => {
                           </DialogContent>
                         </Dialog>
 
+                        <Dialog open={rosterDialogOpen} onOpenChange={setRosterDialogOpen}>
+                          <DialogContent className="sm:max-w-lg rounded-[2rem] p-6 sm:p-8" showCloseButton>
+                            <DialogHeader>
+                              <DialogTitle className="font-serif text-2xl text-brand-ink">
+                                {rosterClass?.title ?? 'Ирц'}
+                              </DialogTitle>
+                              <DialogDescription className="text-brand-ink/60">
+                                Бүртгэлтэй суралцагчид болон ирцийн төлөв.
+                              </DialogDescription>
+                            </DialogHeader>
+                            <div className="max-h-[min(60vh,28rem)] space-y-2 overflow-y-auto pr-1 pt-2">
+                              {rosterClass && rosterClass.roster.length === 0 ? (
+                                <p className="text-sm text-brand-ink/50">
+                                  Энэ хичээлд суралцагчийн бүртгэл байхгүй.
+                                </p>
+                              ) : (
+                                rosterClass?.roster.map((student) => (
+                                  <div
+                                    key={student.key}
+                                    className="flex flex-col gap-1 rounded-xl border border-brand-ink/10 bg-secondary/15 px-4 py-3 sm:flex-row sm:items-center sm:justify-between"
+                                  >
+                                    <div className="min-w-0">
+                                      <p className="font-medium text-brand-ink">{student.name}</p>
+                                      {student.email ? (
+                                        <p className="truncate text-xs text-brand-ink/45">{student.email}</p>
+                                      ) : null}
+                                    </div>
+                                    <span
+                                      className={`shrink-0 text-xs font-black uppercase tracking-wider ${
+                                        student.attendance === 'present'
+                                          ? 'text-emerald-700'
+                                          : student.attendance === 'absent'
+                                            ? 'text-red-600'
+                                            : 'text-brand-ink/40'
+                                      }`}
+                                    >
+                                      {student.attendance === 'present'
+                                        ? 'Ирсэн'
+                                        : student.attendance === 'absent'
+                                          ? 'Ирээгүй'
+                                          : 'Ирц бүртгэгдээгүй'}
+                                    </span>
+                                  </div>
+                                ))
+                              )}
+                            </div>
+                            {rosterClass ? (
+                              <div className="pt-4">
+                                <Button variant="outline" className="w-full rounded-full" asChild>
+                                  <Link to={`/teacher/attendance?classId=${rosterClass.id}`}>
+                                    Ирц засах (дэлгэрэнгүй)
+                                  </Link>
+                                </Button>
+                              </div>
+                            ) : null}
+                          </DialogContent>
+                        </Dialog>
+
                         {teacherClasses.map((classItem) => (
                           <div
                             key={classItem.id}
                             className="flex flex-col gap-4 rounded-2xl border border-brand-ink/5 p-5 sm:flex-row sm:items-center sm:justify-between"
                           >
-                            <div className="min-w-0 flex-1">
+                            <button
+                              type="button"
+                              className="min-w-0 flex-1 rounded-xl p-1 text-left outline-none ring-offset-background transition-colors hover:bg-brand-ink/[0.03] focus-visible:ring-2 focus-visible:ring-brand-icon/25 -m-1"
+                              onClick={() => openRosterDialog(classItem.id)}
+                            >
                               <p className="text-lg font-medium text-brand-ink">{classItem.title}</p>
                               <p className="text-xs uppercase tracking-[0.2em] text-brand-ink/40">
                                 {classItem.duration} • {classItem.sessionCount} хуваарь
                               </p>
-                            </div>
+                            </button>
                             <div className="flex w-full shrink-0 flex-row flex-wrap items-center justify-end gap-x-4 gap-y-2 sm:w-auto sm:gap-x-5">
                               <span className="text-sm tabular-nums tracking-tight text-brand-ink/55">
                                 {classItem.participantCount}/{classItem.capacityTotal}
                               </span>
                               <div className="flex flex-wrap items-center gap-2">
-                                <Button variant="outline" size="sm" className="rounded-full px-4 text-xs font-semibold" asChild>
-                                  <Link to={`/teacher/attendance?classId=${classItem.id}`}>
-                                    <ClipboardList size={14} className="mr-2" />
-                                    Ирц
-                                  </Link>
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  size="sm"
+                                  className="rounded-full px-4 text-xs font-semibold"
+                                  onClick={() => openRosterDialog(classItem.id)}
+                                >
+                                  <ClipboardList size={14} className="mr-2" />
+                                  Ирц
                                 </Button>
                                 <Button
                                   type="button"
