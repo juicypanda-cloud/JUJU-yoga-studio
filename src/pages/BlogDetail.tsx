@@ -4,12 +4,13 @@ import { motion } from 'motion/react';
 import { ArrowLeft, Calendar } from 'lucide-react';
 import { blogPosts as staticBlogPosts } from '../data/blog';
 import { Button } from '../components/ui/button';
-import { doc, getDoc } from 'firebase/firestore';
+import { collection, doc, getDoc, getDocs, orderBy, query } from 'firebase/firestore';
 import { db } from '../firebase';
 
 export const BlogDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const [post, setPost] = useState<any>(null);
+  const [relatedPosts, setRelatedPosts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -34,6 +35,26 @@ export const BlogDetail: React.FC = () => {
     };
 
     fetchPost();
+  }, [id]);
+
+  useEffect(() => {
+    const fetchRelatedPosts = async () => {
+      try {
+        const q = query(collection(db, 'blog'), orderBy('createdAt', 'desc'));
+        const snapshot = await getDocs(q);
+        const fetched = snapshot.docs.map((item) => ({
+          id: item.id,
+          ...(item.data() as Record<string, unknown>),
+        }));
+
+        setRelatedPosts(fetched.filter((item) => String(item?.id || '') !== String(id || '')).slice(0, 3));
+      } catch (error) {
+        console.error('Error fetching related blog posts:', error);
+        setRelatedPosts([]);
+      }
+    };
+
+    void fetchRelatedPosts();
   }, [id]);
 
   if (loading) {
@@ -149,22 +170,26 @@ export const BlogDetail: React.FC = () => {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            {staticBlogPosts.filter(p => p.id !== post.id).slice(0, 3).map((relatedPost) => (
-              <Link key={relatedPost.id} to={`/blog/${relatedPost.id}`} className="group">
-                <div className="relative aspect-[4/3] overflow-hidden rounded-3xl mb-6 shadow-lg transition-all duration-500 group-hover:shadow-xl">
-                  <img
-                    src={relatedPost.image}
-                    alt={relatedPost.title}
-                    className="absolute inset-0 h-full w-full object-cover transition-transform duration-700 group-hover:scale-105"
-                    loading="lazy"
-                    decoding="async"
-                  />
-                </div>
-                <h3 className="text-xl font-serif text-brand-ink group-hover:text-brand-icon transition-colors line-clamp-2">
-                  {relatedPost.title}
-                </h3>
-              </Link>
-            ))}
+            {relatedPosts.length > 0 ? (
+              relatedPosts.map((relatedPost) => (
+                <Link key={relatedPost.id} to={`/blog/${relatedPost.id}`} className="group">
+                  <div className="relative aspect-[4/3] overflow-hidden rounded-3xl mb-6 shadow-lg transition-all duration-500 group-hover:shadow-xl">
+                    <img
+                      src={String(relatedPost?.image || '')}
+                      alt={String(relatedPost?.title || 'Blog')}
+                      className="absolute inset-0 h-full w-full object-cover transition-transform duration-700 group-hover:scale-105"
+                      loading="lazy"
+                      decoding="async"
+                    />
+                  </div>
+                  <h3 className="text-xl font-serif text-brand-ink group-hover:text-brand-icon transition-colors line-clamp-2">
+                    {String(relatedPost?.title || '')}
+                  </h3>
+                </Link>
+              ))
+            ) : (
+              <p className="text-brand-ink/50 text-sm">Өөр нийтлэл одоогоор алга байна.</p>
+            )}
           </div>
         </div>
       </section>
