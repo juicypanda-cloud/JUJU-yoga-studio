@@ -37,6 +37,12 @@ type ClassItem = {
   teacherId?: string;
 };
 
+type TeacherRecord = {
+  id: string;
+  name?: string;
+  email?: string;
+};
+
 const days = ['Даваа', 'Мягмар', 'Лхагва', 'Пүрэв', 'Баасан', 'Бямба', 'Ням'];
 
 export const TeacherSchedule: React.FC = () => {
@@ -45,6 +51,7 @@ export const TeacherSchedule: React.FC = () => {
   const preselectedClassId = String(searchParams.get('classId') || '').trim();
 
   const [allClasses, setAllClasses] = useState<ClassItem[]>([]);
+  const [allTeachers, setAllTeachers] = useState<TeacherRecord[]>([]);
   const [allSchedule, setAllSchedule] = useState<ScheduleItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [isEditing, setIsEditing] = useState(false);
@@ -67,6 +74,10 @@ export const TeacherSchedule: React.FC = () => {
       const rows = snapshot.docs.map((row) => ({ id: row.id, ...(row.data() as Record<string, unknown>) })) as ClassItem[];
       setAllClasses(rows);
     });
+    const unsubTeachers = onSnapshot(collection(db, 'teachers'), (snapshot) => {
+      const rows = snapshot.docs.map((row) => ({ id: row.id, ...(row.data() as Record<string, unknown>) })) as TeacherRecord[];
+      setAllTeachers(rows);
+    });
 
     const scheduleQ = query(collection(db, 'schedule'), orderBy('dayOfWeek'), orderBy('startTime'));
     const unsubSchedule = onSnapshot(
@@ -81,21 +92,47 @@ export const TeacherSchedule: React.FC = () => {
 
     return () => {
       unsubClasses();
+      unsubTeachers();
       unsubSchedule();
     };
   }, []);
 
   const teacherClasses = useMemo(() => {
-    const uid = String(user?.uid || '');
-    const name = myDisplayName;
+    const uid = String(user?.uid || '').trim();
+    const emailCandidate = String(user?.email || '').trim().toLowerCase();
+    const displayNameCandidates = new Set(
+      [myDisplayName, String(user?.displayName || '').trim()]
+        .map((name) => String(name || '').trim().toLowerCase())
+        .filter(Boolean)
+    );
+
+    const matchedTeachers = allTeachers.filter((teacher) => {
+      const teacherId = String(teacher?.id || '').trim();
+      const teacherName = String(teacher?.name || '').trim().toLowerCase();
+      const teacherEmail = String(teacher?.email || '').trim().toLowerCase();
+      return (
+        (uid && teacherId === uid) ||
+        (teacherEmail && teacherEmail === emailCandidate) ||
+        (teacherName && displayNameCandidates.has(teacherName))
+      );
+    });
+
+    const matchedTeacherIds = new Set(matchedTeachers.map((teacher) => String(teacher?.id || '').trim()).filter(Boolean));
+    const matchedTeacherNames = new Set(
+      matchedTeachers
+        .map((teacher) => String(teacher?.name || '').trim().toLowerCase())
+        .filter(Boolean)
+    );
+    displayNameCandidates.forEach((name) => matchedTeacherNames.add(name));
+
     return allClasses.filter((item) => {
-      const classTeacherId = String(item?.teacherId || '');
-      const classTeacherName = String(item?.teacher || '').trim();
-      if (classTeacherId && uid && classTeacherId === uid) return true;
-      if (classTeacherName && name && classTeacherName === name) return true;
+      const classTeacherId = String(item?.teacherId || '').trim();
+      const classTeacherName = String(item?.teacher || '').trim().toLowerCase();
+      if (classTeacherId && (classTeacherId === uid || matchedTeacherIds.has(classTeacherId))) return true;
+      if (classTeacherName && matchedTeacherNames.has(classTeacherName)) return true;
       return false;
     });
-  }, [allClasses, myDisplayName, user?.uid]);
+  }, [allClasses, allTeachers, myDisplayName, user?.displayName, user?.email, user?.uid]);
 
   const teacherClassIds = useMemo(() => new Set(teacherClasses.map((c) => c.id)), [teacherClasses]);
 
