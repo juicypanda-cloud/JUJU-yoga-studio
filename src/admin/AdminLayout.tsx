@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link, useLocation, Routes, Route, Navigate } from 'react-router-dom';
 import { 
   LayoutDashboard, 
@@ -59,12 +59,21 @@ export const AdminLayout: React.FC = () => {
   if (loading) return <div className="pt-32 text-center">Уншиж байна...</div>;
   if (!isAdmin) return <Navigate to="/" />;
 
+  useEffect(() => {
+    if (!mobileSidebarOpen) return;
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = previous;
+    };
+  }, [mobileSidebarOpen]);
+
   const handleMobileNavigate = () => {
     setMobileSidebarOpen(false);
   };
 
   return (
-    <div className="admin-panel flex h-screen bg-white pt-20">
+    <div className="admin-panel flex h-screen bg-white">
       {/* Mobile Sidebar Toggle */}
       <button
         type="button"
@@ -86,8 +95,8 @@ export const AdminLayout: React.FC = () => {
       ) : null}
 
       {/* Sidebar */}
-      <aside className="w-64 bg-white border-r border-brand-ink/5 hidden md:flex flex-col">
-        <ScrollArea className="flex-grow py-6">
+      <aside className="w-64 h-screen bg-white border-r border-brand-ink/5 hidden md:flex flex-col pt-20">
+        <ScrollArea className="flex-grow py-6 overscroll-contain">
           <div className="px-6 mb-8">
             <h2 className="text-[10px] font-black uppercase tracking-[0.2em] text-brand-ink/30">Удирдлага</h2>
           </div>
@@ -121,7 +130,7 @@ export const AdminLayout: React.FC = () => {
 
       {/* Mobile Sidebar Drawer */}
       <aside
-        className={`fixed left-0 top-20 bottom-0 z-50 w-72 bg-white border-r border-brand-ink/5 flex flex-col transition-transform duration-300 md:hidden ${
+        className={`fixed left-0 top-0 h-screen z-50 w-72 bg-white border-r border-brand-ink/5 flex flex-col pt-20 transition-transform duration-300 md:hidden ${
           mobileSidebarOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
@@ -136,7 +145,7 @@ export const AdminLayout: React.FC = () => {
             <X size={16} />
           </button>
         </div>
-        <ScrollArea className="flex-grow py-4">
+        <ScrollArea className="flex-grow py-4 overscroll-contain">
           <nav className="px-3 space-y-1">
             {sidebarLinks.map((link) => {
               const isActive = location.pathname === link.path;
@@ -171,7 +180,7 @@ export const AdminLayout: React.FC = () => {
       </aside>
 
       {/* Main Content */}
-      <main className="flex-grow overflow-auto">
+      <main className="flex-grow overflow-auto pt-20">
         <Routes>
           <Route path="/" element={<Dashboard />} />
           <Route path="/home-hero" element={<HomeHeroAdmin />} />
