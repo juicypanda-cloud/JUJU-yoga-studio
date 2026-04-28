@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Link, useLocation, Routes, Route, Navigate } from 'react-router-dom';
 import { 
   LayoutDashboard, 
@@ -11,7 +11,9 @@ import {
   Settings,
   BookOpen,
   Brain,
-  Grid
+  Grid,
+  Menu,
+  X
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { ScrollArea } from '../components/ui/scroll-area';
@@ -52,12 +54,37 @@ const sidebarLinks = [
 export const AdminLayout: React.FC = () => {
   const { isAdmin, loading } = useAuth();
   const location = useLocation();
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
 
   if (loading) return <div className="pt-32 text-center">Уншиж байна...</div>;
   if (!isAdmin) return <Navigate to="/" />;
 
+  const handleMobileNavigate = () => {
+    setMobileSidebarOpen(false);
+  };
+
   return (
     <div className="admin-panel flex h-screen bg-white pt-20">
+      {/* Mobile Sidebar Toggle */}
+      <button
+        type="button"
+        onClick={() => setMobileSidebarOpen(true)}
+        className="md:hidden fixed left-4 top-24 z-40 rounded-full border border-brand-ink/10 bg-white p-2 text-brand-ink shadow-sm"
+        aria-label="Open admin sidebar"
+      >
+        <Menu size={18} />
+      </button>
+
+      {/* Mobile Sidebar Overlay */}
+      {mobileSidebarOpen ? (
+        <button
+          type="button"
+          className="fixed inset-0 z-40 bg-brand-ink/20 md:hidden"
+          onClick={() => setMobileSidebarOpen(false)}
+          aria-label="Close admin sidebar overlay"
+        />
+      ) : null}
+
       {/* Sidebar */}
       <aside className="w-64 bg-white border-r border-brand-ink/5 hidden md:flex flex-col">
         <ScrollArea className="flex-grow py-6">
@@ -87,6 +114,57 @@ export const AdminLayout: React.FC = () => {
         <Separator className="bg-brand-ink/5" />
         <div className="p-6">
           <Link to="/" className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-brand-ink/30 hover:text-brand-icon transition-colors">
+            <Settings size={14} /> Сайт руу буцах
+          </Link>
+        </div>
+      </aside>
+
+      {/* Mobile Sidebar Drawer */}
+      <aside
+        className={`fixed left-0 top-20 bottom-0 z-50 w-72 bg-white border-r border-brand-ink/5 flex flex-col transition-transform duration-300 md:hidden ${
+          mobileSidebarOpen ? 'translate-x-0' : '-translate-x-full'
+        }`}
+      >
+        <div className="flex items-center justify-between px-6 py-4 border-b border-brand-ink/5">
+          <h2 className="text-[10px] font-black uppercase tracking-[0.2em] text-brand-ink/30">Удирдлага</h2>
+          <button
+            type="button"
+            onClick={() => setMobileSidebarOpen(false)}
+            className="rounded-full p-1 text-brand-ink/60 hover:text-brand-ink"
+            aria-label="Close admin sidebar"
+          >
+            <X size={16} />
+          </button>
+        </div>
+        <ScrollArea className="flex-grow py-4">
+          <nav className="px-3 space-y-1">
+            {sidebarLinks.map((link) => {
+              const isActive = location.pathname === link.path;
+              return (
+                <Link
+                  key={link.path}
+                  to={link.path}
+                  onClick={handleMobileNavigate}
+                  className={`flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-bold uppercase tracking-widest transition-all duration-300 ${
+                    isActive
+                      ? 'bg-brand-ink text-white shadow-lg shadow-brand-ink/10'
+                      : 'text-brand-ink/50 hover:bg-white hover:text-brand-ink'
+                  }`}
+                >
+                  <link.icon size={16} />
+                  {link.name}
+                </Link>
+              );
+            })}
+          </nav>
+        </ScrollArea>
+        <Separator className="bg-brand-ink/5" />
+        <div className="p-6">
+          <Link
+            to="/"
+            onClick={handleMobileNavigate}
+            className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-brand-ink/30 hover:text-brand-icon transition-colors"
+          >
             <Settings size={14} /> Сайт руу буцах
           </Link>
         </div>
