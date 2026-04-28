@@ -57,6 +57,7 @@ export const Navbar: React.FC = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
+  const [openMobileMenu, setOpenMobileMenu] = useState<string | null>(null);
   const location = useLocation();
   const navigate = useNavigate();
   const { user, isAdmin } = useAuth();
@@ -72,6 +73,7 @@ export const Navbar: React.FC = () => {
 
   useEffect(() => {
     setHoveredIndex(null);
+    setOpenMobileMenu(null);
   }, [location.pathname]);
 
   const handleLogout = () => signOut(auth);
@@ -279,22 +281,46 @@ export const Navbar: React.FC = () => {
 
               <div className="flex flex-col gap-8 overflow-y-auto pb-12">
                 {megaMenus.map((menu) => (
-                  <div key={menu.name} className="flex flex-col gap-4">
-                    <h3 className="text-[12px] font-bold tracking-[0.2em] uppercase text-brand-ink/40">
-                      {menu.name}
-                    </h3>
-                    <div className="flex flex-col gap-2">
-                      {menu.links.map((link) => (
-                        <Link
-                          key={link.name}
-                          to={link.path}
-                          onClick={() => handleNavClick(link.path)}
-                          className="w-full px-4 py-2 bg-white rounded-full text-sm font-medium text-brand-ink hover:bg-primary/10 hover:text-primary transition-all duration-300 ease-out hover:scale-[1.01] hover:font-semibold border border-primary/20 origin-left"
+                  <div key={menu.name} className="flex flex-col gap-3">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setOpenMobileMenu((current) => (current === menu.name ? null : menu.name))
+                      }
+                      className="flex w-full items-center justify-between text-left text-2xl font-serif font-medium italic text-brand-ink transition-all duration-300 ease-out hover:text-primary"
+                    >
+                      <span>{menu.name}</span>
+                      <ChevronDown
+                        size={18}
+                        className={`shrink-0 transition-transform duration-300 ${
+                          openMobileMenu === menu.name ? 'rotate-180' : ''
+                        }`}
+                      />
+                    </button>
+                    <AnimatePresence initial={false}>
+                      {openMobileMenu === menu.name ? (
+                        <motion.div
+                          initial={{ height: 0, opacity: 0 }}
+                          animate={{ height: 'auto', opacity: 1 }}
+                          exit={{ height: 0, opacity: 0 }}
+                          transition={{ duration: 0.2 }}
+                          className="overflow-hidden"
                         >
-                          {link.name}
-                        </Link>
-                      ))}
-                    </div>
+                          <div className="flex flex-col gap-3 pl-4 pt-1">
+                            {menu.links.map((link) => (
+                              <Link
+                                key={link.name}
+                                to={link.path}
+                                onClick={() => handleNavClick(link.path)}
+                                className="block text-lg font-medium text-brand-ink/70 transition-all duration-300 ease-out hover:text-primary"
+                              >
+                                {link.name}
+                              </Link>
+                            ))}
+                          </div>
+                        </motion.div>
+                      ) : null}
+                    </AnimatePresence>
                   </div>
                 ))}
                 
