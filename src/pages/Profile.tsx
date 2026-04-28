@@ -12,8 +12,10 @@ import {
   collection,
   doc,
   onSnapshot,
+  query,
   Timestamp,
   updateDoc,
+  where,
 } from 'firebase/firestore';
 import { db } from '../firebase';
 import {
@@ -143,6 +145,67 @@ export const Profile: React.FC = () => {
     let classes: any[] = [];
     let schedules: any[] = [];
     let bookings: any[] = [];
+    let bookingUnsubs: Array<() => void> = [];
+    let bookingSubscriptionKey = '';
+    const bookingsById = new Map<string, any>();
+
+    const chunk = <T,>(items: T[], size: number) => {
+      const out: T[][] = [];
+      for (let i = 0; i < items.length; i += size) out.push(items.slice(i, i + size));
+      return out;
+    };
+
+    const clearBookingListeners = () => {
+      bookingUnsubs.forEach((unsub) => unsub());
+      bookingUnsubs = [];
+      bookingSubscriptionKey = '';
+      bookingsById.clear();
+      bookings = [];
+    };
+
+    const upsertBookingSnapshot = (snapshot: any) => {
+      snapshot.docChanges().forEach((change: any) => {
+        const id = change.doc.id;
+        if (change.type === 'removed') {
+          bookingsById.delete(id);
+        } else {
+          bookingsById.set(id, { id, ...change.doc.data() });
+        }
+      });
+      bookings = Array.from(bookingsById.values());
+      recompute();
+    };
+
+    const ensureBookingListeners = (classIds: string[], scheduleIds: string[]) => {
+      const normalizedClassIds = Array.from(new Set(classIds)).filter(Boolean).sort();
+      const normalizedScheduleIds = Array.from(new Set(scheduleIds)).filter(Boolean).sort();
+      const nextKey = `${normalizedClassIds.join(',')}|${normalizedScheduleIds.join(',')}`;
+      if (nextKey === bookingSubscriptionKey) return;
+
+      clearBookingListeners();
+      bookingSubscriptionKey = nextKey;
+
+      if (normalizedClassIds.length === 0 && normalizedScheduleIds.length === 0) return;
+
+      const bookingsRef = collection(db, 'bookings');
+      const classBatches = chunk(normalizedClassIds, 10);
+      const scheduleBatches = chunk(normalizedScheduleIds, 10);
+
+      classBatches.forEach((batch) => {
+        bookingUnsubs.push(
+          onSnapshot(query(bookingsRef, where('itemId', 'in', batch)), upsertBookingSnapshot)
+        );
+        bookingUnsubs.push(
+          onSnapshot(query(bookingsRef, where('classId', 'in', batch)), upsertBookingSnapshot)
+        );
+      });
+
+      scheduleBatches.forEach((batch) => {
+        bookingUnsubs.push(
+          onSnapshot(query(bookingsRef, where('scheduleId', 'in', batch)), upsertBookingSnapshot)
+        );
+      });
+    };
 
     const recompute = () => {
       const displayNameCandidates = new Set(
@@ -178,6 +241,13 @@ export const Profile: React.FC = () => {
           (classTeacherName && matchedTeacherNames.has(classTeacherName))
         );
       });
+
+      const teacherClassIds = teacherOwnedClasses.map((cls) => String(cls?.id || '')).filter(Boolean);
+      const teacherScheduleIds = schedules
+        .filter((slot) => teacherClassIds.includes(String(slot?.classId || '')))
+        .map((slot) => String(slot?.id || ''))
+        .filter(Boolean);
+      ensureBookingListeners(teacherClassIds, teacherScheduleIds);
 
       const nextTeacherClasses: TeacherClassSummary[] = teacherOwnedClasses.map((classItem) => {
         const classId = String(classItem?.id || '');
@@ -279,15 +349,11 @@ export const Profile: React.FC = () => {
       );
       recompute();
     });
-    const unsubBookings = onSnapshot(collection(db, 'bookings'), (snapshot) => {
-      bookings = snapshot.docs.map((bookingDoc) => ({ id: bookingDoc.id, ...bookingDoc.data() }));
-      recompute();
-    });
     return () => {
       unsubTeachers();
       unsubClasses();
       unsubSchedules();
-      unsubBookings();
+      clearBookingListeners();
     };
   }, [isTeacher, profile?.displayName, user]);
 
@@ -343,8 +409,7 @@ export const Profile: React.FC = () => {
         student.bookingIds.map((bookingId) =>
           updateDoc(doc(db, 'bookings', bookingId), {
             attendanceStatus,
-            attendanceUpdatedAt: Timestamp.now(),
-            attendanceUpdatedBy: user.uid,
+            attendanceMarkedAt: Timestamp.now(),
           })
         )
       );

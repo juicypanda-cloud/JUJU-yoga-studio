@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { collection, onSnapshot, Timestamp, updateDoc, doc } from 'firebase/firestore';
+import { collection, onSnapshot, Timestamp, updateDoc, doc, query, where } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useAuth } from '../context/AuthContext';
 import { Button } from '../components/ui/button';
@@ -89,7 +89,68 @@ export const TeacherAttendance: React.FC = () => {
     let classes: any[] = [];
     let schedules: any[] = [];
     let bookings: any[] = [];
-    let users: any[] = [];
+    // NOTE: teachers cannot read arbitrary user docs by rules. Attendance UIs should rely on booking fields.
+    let bookingUnsubs: Array<() => void> = [];
+    let bookingSubscriptionKey = '';
+    const bookingsById = new Map<string, any>();
+
+    const chunk = <T,>(items: T[], size: number) => {
+      const out: T[][] = [];
+      for (let i = 0; i < items.length; i += size) out.push(items.slice(i, i + size));
+      return out;
+    };
+
+    const clearBookingListeners = () => {
+      bookingUnsubs.forEach((unsub) => unsub());
+      bookingUnsubs = [];
+      bookingSubscriptionKey = '';
+      bookingsById.clear();
+      bookings = [];
+    };
+
+    const upsertBookingSnapshot = (snapshot: any) => {
+      snapshot.docChanges().forEach((change: any) => {
+        const id = change.doc.id;
+        if (change.type === 'removed') {
+          bookingsById.delete(id);
+        } else {
+          bookingsById.set(id, { id, ...change.doc.data() });
+        }
+      });
+      bookings = Array.from(bookingsById.values());
+      recompute();
+    };
+
+    const ensureBookingListeners = (classIds: string[], scheduleIds: string[]) => {
+      const normalizedClassIds = Array.from(new Set(classIds)).filter(Boolean).sort();
+      const normalizedScheduleIds = Array.from(new Set(scheduleIds)).filter(Boolean).sort();
+      const nextKey = `${normalizedClassIds.join(',')}|${normalizedScheduleIds.join(',')}`;
+      if (nextKey === bookingSubscriptionKey) return;
+
+      clearBookingListeners();
+      bookingSubscriptionKey = nextKey;
+
+      if (normalizedClassIds.length === 0 && normalizedScheduleIds.length === 0) return;
+
+      const bookingsRef = collection(db, 'bookings');
+      const classBatches = chunk(normalizedClassIds, 10);
+      const scheduleBatches = chunk(normalizedScheduleIds, 10);
+
+      classBatches.forEach((batch) => {
+        bookingUnsubs.push(
+          onSnapshot(query(bookingsRef, where('itemId', 'in', batch)), upsertBookingSnapshot)
+        );
+        bookingUnsubs.push(
+          onSnapshot(query(bookingsRef, where('classId', 'in', batch)), upsertBookingSnapshot)
+        );
+      });
+
+      scheduleBatches.forEach((batch) => {
+        bookingUnsubs.push(
+          onSnapshot(query(bookingsRef, where('scheduleId', 'in', batch)), upsertBookingSnapshot)
+        );
+      });
+    };
 
     const recompute = () => {
       const displayNameCandidates = new Set(
@@ -126,11 +187,15 @@ export const TeacherAttendance: React.FC = () => {
         );
       });
 
-      const userById = new Map(
-        users.map((u) => [String(u?.id || ''), { displayName: u?.displayName, email: u?.email }])
-      );
-
       const classSource = isAdmin ? classes : teacherOwnedClasses;
+      if (!isAdmin) {
+        const teacherClassIds = teacherOwnedClasses.map((cls) => String(cls?.id || '')).filter(Boolean);
+        const teacherScheduleIds = schedules
+          .filter((slot) => teacherClassIds.includes(String(slot?.classId || '')))
+          .map((slot) => String(slot?.id || ''))
+          .filter(Boolean);
+        ensureBookingListeners(teacherClassIds, teacherScheduleIds);
+      }
 
       const nextAttendanceByClass: Record<string, AttendanceRow[]> = {};
       const nextTeacherClasses: TeacherClassSummary[] = classSource.map((classItem) => {
@@ -163,8 +228,6 @@ export const TeacherAttendance: React.FC = () => {
         });
 
         const attendanceRows: AttendanceRow[] = classBookings.map((booking) => {
-          const bookingUserId = String(booking?.userId || '');
-          const profileInfo = userById.get(bookingUserId);
           const attendanceStatusRaw = String(booking?.attendanceStatus || '').toLowerCase();
           let attendanceStatus: 'attended' | 'missed' | 'unknown' = 'unknown';
           if (attendanceStatusRaw === 'attended' || attendanceStatusRaw === 'missed') {
@@ -182,13 +245,13 @@ export const TeacherAttendance: React.FC = () => {
             : resolveClassStartTime(bookingSchedule || {});
 
           return {
-            id: `${classId}-${String(booking?.id || bookingUserId || Math.random())}`,
+            id: `${classId}-${String(booking?.id || Math.random())}`,
             bookingId: String(booking?.id || ''),
             name: resolveAttendanceName(
               booking as Record<string, unknown>,
-              (profileInfo as Record<string, unknown> | null | undefined) ?? null
+              null
             ),
-            email: String(booking?.userEmail || profileInfo?.email || '—'),
+            email: String(booking?.userEmail || '—'),
             bookingStatus: String(booking?.status || 'confirmed'),
             attendanceStatus,
             bookedAt: formatBookedAt(booking?.createdAt),
@@ -240,14 +303,21 @@ export const TeacherAttendance: React.FC = () => {
       schedules = snapshot.docs.map((scheduleDoc) => ({ id: scheduleDoc.id, ...scheduleDoc.data() }));
       recompute();
     });
-    const unsubBookings = onSnapshot(collection(db, 'bookings'), (snapshot) => {
-      bookings = snapshot.docs.map((bookingDoc) => ({ id: bookingDoc.id, ...bookingDoc.data() }));
-      recompute();
-    });
-    const unsubUsers = onSnapshot(collection(db, 'users'), (snapshot) => {
-      users = snapshot.docs.map((userDoc) => ({ id: userDoc.id, ...userDoc.data() }));
-      recompute();
-    });
+    const unsubBookings = isAdmin
+      ? onSnapshot(collection(db, 'bookings'), (snapshot) => {
+          bookings = snapshot.docs.map((bookingDoc) => ({ id: bookingDoc.id, ...bookingDoc.data() }));
+          recompute();
+        })
+      : () => {};
+    const unsubUsers = isAdmin
+      ? onSnapshot(collection(db, 'users'), (snapshot) => {
+          // Admin-only: keep for richer names/emails.
+          // Teachers are not allowed to read other users' docs by rules.
+          // eslint-disable-next-line @typescript-eslint/no-unused-vars
+          const _ = snapshot;
+          recompute();
+        })
+      : () => {};
 
     return () => {
       unsubTeachers();
@@ -255,6 +325,7 @@ export const TeacherAttendance: React.FC = () => {
       unsubSchedules();
       unsubBookings();
       unsubUsers();
+      clearBookingListeners();
     };
   }, [isAdmin, isTeacher, profile?.displayName, user]);
 
