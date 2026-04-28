@@ -3,31 +3,65 @@ import { useAuth } from '../context/AuthContext';
 import { motion } from 'motion/react';
 import { User, Mail, Calendar, CreditCard, ShieldCheck, LogOut, Users, ClipboardCheck, CalendarClock } from 'lucide-react';
 import { Button } from '../components/ui/button';
+import { Input } from '../components/ui/input';
 import { auth } from '../firebase';
 import { signOut } from 'firebase/auth';
 import { useNavigate, Link } from 'react-router-dom';
-import { collection, onSnapshot } from 'firebase/firestore';
+import {
+  addDoc,
+  collection,
+  doc,
+  onSnapshot,
+  Timestamp,
+  updateDoc,
+} from 'firebase/firestore';
 import { db } from '../firebase';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '../components/ui/dialog';
+import { toast } from 'sonner';
 
 type TeacherClassSummary = {
   id: string;
   title: string;
   teacher: string;
+  teacherId: string;
   duration: string;
   participantCount: number;
   sessionCount: number;
-  participants: Array<{
-    key: string;
-    name: string;
-    email: string;
-  }>;
 };
+
+type ScheduleRow = {
+  id: string;
+  classId?: string;
+  dayOfWeek?: string;
+  startTime?: string;
+  endTime?: string;
+  room?: string;
+  bookedCount?: number;
+  capacity?: number;
+};
+
+const WEEK_DAYS = ['Даваа', 'Мягмар', 'Лхагва', 'Пүрэв', 'Баасан', 'Бямба', 'Ням'];
 
 export const Profile: React.FC = () => {
   const { user, profile, isSubscribed, isTeacher } = useAuth();
   const navigate = useNavigate();
   const [teacherClasses, setTeacherClasses] = useState<TeacherClassSummary[]>([]);
   const [teacherLoading, setTeacherLoading] = useState(false);
+  const [scheduleRows, setScheduleRows] = useState<ScheduleRow[]>([]);
+  const [scheduleDialogOpen, setScheduleDialogOpen] = useState(false);
+  const [scheduleClassId, setScheduleClassId] = useState('');
+  const [scheduleDay, setScheduleDay] = useState('Даваа');
+  const [scheduleStart, setScheduleStart] = useState('08:00');
+  const [scheduleEnd, setScheduleEnd] = useState('09:00');
+  const [scheduleRoom, setScheduleRoom] = useState('Main Hall');
+  const [existingScheduleId, setExistingScheduleId] = useState<string | null>(null);
+  const [scheduleSaving, setScheduleSaving] = useState(false);
 
   const subscriptionPlanLabel = (() => {
     const plan = String(profile?.subscriptionPlan || '').trim().toLowerCase();
@@ -113,26 +147,21 @@ export const Profile: React.FC = () => {
           );
         });
 
-        const participantMap = new Map<string, { key: string; name: string; email: string }>();
+        const participantKeys = new Set<string>();
         classBookings.forEach((booking) => {
-          const key = String(booking?.userId || booking?.userEmail || booking?.id || '').trim();
-          if (!key || participantMap.has(key)) return;
-          participantMap.set(key, {
-            key,
-            name: String(booking?.userName || '').trim() || 'Хэрэглэгч',
-            email: String(booking?.userEmail || '').trim() || '—',
-          });
+          const key =
+            String(booking?.userId || booking?.userEmail || booking?.id || '').trim();
+          if (key) participantKeys.add(key);
         });
-        const participants = Array.from(participantMap.values());
 
         return {
           id: classId,
           title: String(classItem?.title || 'Untitled class'),
           teacher: String(classItem?.teacher || profile?.displayName || user?.displayName || 'Багш'),
+          teacherId: String(classItem?.teacherId || ''),
           duration: String(classItem?.duration || '60 мин'),
-          participantCount: participants.length,
+          participantCount: participantKeys.size,
           sessionCount: classSchedules.length,
-          participants,
         };
       });
 
@@ -150,6 +179,12 @@ export const Profile: React.FC = () => {
     });
     const unsubSchedules = onSnapshot(collection(db, 'schedule'), (snapshot) => {
       schedules = snapshot.docs.map((scheduleDoc) => ({ id: scheduleDoc.id, ...scheduleDoc.data() }));
+      setScheduleRows(
+        snapshot.docs.map((scheduleDoc) => ({
+          id: scheduleDoc.id,
+          ...(scheduleDoc.data() as Record<string, unknown>),
+        })) as ScheduleRow[]
+      );
       recompute();
     });
     const unsubBookings = onSnapshot(collection(db, 'bookings'), (snapshot) => {
@@ -163,6 +198,73 @@ export const Profile: React.FC = () => {
       unsubBookings();
     };
   }, [isTeacher, profile?.displayName, user]);
+
+  useEffect(() => {
+    if (!scheduleDialogOpen || !scheduleClassId) return;
+    const slot = scheduleRows.find(
+      (row) =>
+        String(row.classId || '') === scheduleClassId &&
+        String(row.dayOfWeek || '') === scheduleDay
+    );
+    if (slot) {
+      setExistingScheduleId(slot.id);
+      setScheduleStart(String(slot.startTime || '08:00'));
+      setScheduleEnd(String(slot.endTime || '09:00'));
+      setScheduleRoom(String(slot.room || 'Main Hall'));
+    } else {
+      setExistingScheduleId(null);
+      setScheduleStart('08:00');
+      setScheduleEnd('09:00');
+      setScheduleRoom('Main Hall');
+    }
+  }, [scheduleDialogOpen, scheduleClassId, scheduleDay, scheduleRows]);
+
+  const openScheduleDialog = (presetClassId: string) => {
+    setScheduleClassId(presetClassId);
+    setScheduleDay('Даваа');
+    setScheduleDialogOpen(true);
+  };
+
+  const handleSaveSchedule = async () => {
+    if (!user || scheduleSaving) return;
+    const cls = teacherClasses.find((item) => item.id === scheduleClassId);
+    if (!cls || !scheduleClassId || !scheduleStart) {
+      toast.error('Хичээл болон цаг заавал сонгоно уу');
+      return;
+    }
+    setScheduleSaving(true);
+    try {
+      const teacherId = cls.teacherId || user.uid;
+      const payload = {
+        classId: scheduleClassId,
+        className: cls.title,
+        teacherName: cls.teacher,
+        teacherId,
+        dayOfWeek: scheduleDay,
+        startTime: scheduleStart,
+        endTime: scheduleEnd,
+        room: scheduleRoom,
+        updatedAt: Timestamp.now(),
+      };
+      if (existingScheduleId) {
+        await updateDoc(doc(db, 'schedule', existingScheduleId), payload);
+      } else {
+        await addDoc(collection(db, 'schedule'), {
+          ...payload,
+          capacity: 20,
+          bookedCount: 0,
+          createdAt: Timestamp.now(),
+        });
+      }
+      toast.success('Хуваарь хадгалагдлаа');
+      setScheduleDialogOpen(false);
+    } catch (error) {
+      console.error('Schedule save failed:', error);
+      toast.error('Хуваарь хадгалахад алдаа гарлаа');
+    } finally {
+      setScheduleSaving(false);
+    }
+  };
 
   return (
     <div className="pt-32 pb-32 min-h-screen bg-gray-50/30">
@@ -313,48 +415,125 @@ export const Profile: React.FC = () => {
                       </p>
                     ) : (
                       <div className="space-y-4">
-                        {teacherClasses.map((classItem) => (
-                          <div key={classItem.id} className="rounded-2xl border border-brand-ink/5 p-5">
-                            <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-                              <div className="flex-1">
-                                <p className="text-lg font-medium text-brand-ink">{classItem.title}</p>
-                                <p className="text-xs uppercase tracking-[0.2em] text-brand-ink/40">
-                                  {classItem.duration} • {classItem.sessionCount} хуваарь
+                        <Dialog open={scheduleDialogOpen} onOpenChange={setScheduleDialogOpen}>
+                          <DialogContent className="sm:max-w-md rounded-[2rem] p-6 sm:p-8" showCloseButton>
+                            <DialogHeader>
+                              <DialogTitle className="font-serif text-2xl text-brand-ink">Хуваарь засах</DialogTitle>
+                              <DialogDescription className="text-brand-ink/60">
+                                Хичээл, өдөр сонгоод цагийг өөрчлөнө үү.
+                              </DialogDescription>
+                            </DialogHeader>
+                            <div className="space-y-4 pt-2">
+                              <div className="space-y-2">
+                                <label className="text-xs font-black uppercase tracking-widest text-brand-ink/40">Хичээл</label>
+                                <select
+                                  value={scheduleClassId}
+                                  onChange={(e) => setScheduleClassId(e.target.value)}
+                                  className="h-11 w-full rounded-xl border border-input bg-background px-3 text-sm text-brand-ink focus:outline-none focus:ring-2 focus:ring-brand-icon/20"
+                                >
+                                  {teacherClasses.map((item) => (
+                                    <option key={item.id} value={item.id}>
+                                      {item.title}
+                                    </option>
+                                  ))}
+                                </select>
+                              </div>
+                              <div className="space-y-2">
+                                <label className="text-xs font-black uppercase tracking-widest text-brand-ink/40">Өдөр</label>
+                                <select
+                                  value={scheduleDay}
+                                  onChange={(e) => setScheduleDay(e.target.value)}
+                                  className="h-11 w-full rounded-xl border border-input bg-background px-3 text-sm text-brand-ink focus:outline-none focus:ring-2 focus:ring-brand-icon/20"
+                                >
+                                  {WEEK_DAYS.map((day) => (
+                                    <option key={day} value={day}>
+                                      {day}
+                                    </option>
+                                  ))}
+                                </select>
+                              </div>
+                              <div className="rounded-xl border border-brand-ink/10 bg-secondary/20 p-4">
+                                <p className="mb-3 text-xs font-bold uppercase tracking-[0.12em] text-brand-ink/50">
+                                  Одоогийн цаг
                                 </p>
-                                <div className="mt-4 rounded-xl bg-secondary/20 p-4">
-                                  <p className="mb-2 text-xs font-bold uppercase tracking-[0.14em] text-brand-ink/50">
-                                    Бүртгүүлсэн хүмүүс ({classItem.participantCount})
-                                  </p>
-                                  {classItem.participants.length === 0 ? (
-                                    <p className="text-sm text-brand-ink/45">Одоогоор бүртгэлгүй байна.</p>
-                                  ) : (
-                                    <div className="space-y-2">
-                                      {classItem.participants.map((person) => (
-                                        <div key={person.key} className="flex items-center justify-between rounded-lg bg-white px-3 py-2 text-sm">
-                                          <span className="font-medium text-brand-ink">{person.name}</span>
-                                          <span className="text-brand-ink/55">{person.email}</span>
-                                        </div>
-                                      ))}
-                                    </div>
-                                  )}
+                                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                                  <div className="space-y-1">
+                                    <span className="text-[10px] font-bold uppercase text-brand-ink/40">Эхлэх</span>
+                                    <Input
+                                      type="time"
+                                      value={scheduleStart}
+                                      onChange={(e) => setScheduleStart(e.target.value)}
+                                      className="rounded-xl"
+                                    />
+                                  </div>
+                                  <div className="space-y-1">
+                                    <span className="text-[10px] font-bold uppercase text-brand-ink/40">Дуусах</span>
+                                    <Input
+                                      type="time"
+                                      value={scheduleEnd}
+                                      onChange={(e) => setScheduleEnd(e.target.value)}
+                                      className="rounded-xl"
+                                    />
+                                  </div>
+                                </div>
+                                <div className="mt-3 space-y-1">
+                                  <span className="text-[10px] font-bold uppercase text-brand-ink/40">Өрөө / заал</span>
+                                  <Input
+                                    value={scheduleRoom}
+                                    onChange={(e) => setScheduleRoom(e.target.value)}
+                                    className="rounded-xl"
+                                    placeholder="Main Hall"
+                                  />
                                 </div>
                               </div>
-                              <div className="flex flex-wrap items-center gap-3">
-                                <div className="inline-flex items-center gap-2 rounded-full bg-brand-icon/10 px-4 py-2 text-xs font-bold text-brand-icon md:self-start">
-                                  <Users size={14} />
-                                  {classItem.participantCount} хүн бүртгэгдсэн
-                                </div>
+                              <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
                                 <Button
-                                  asChild
+                                  type="button"
                                   variant="outline"
-                                  className="rounded-full px-5 md:self-start"
+                                  className="rounded-full"
+                                  onClick={() => setScheduleDialogOpen(false)}
+                                  disabled={scheduleSaving}
                                 >
-                                  <Link to={`/teacher/schedule?classId=${classItem.id}`}>
-                                    <CalendarClock size={14} className="mr-2" />
-                                    Хуваарь засах
-                                  </Link>
+                                  Буцах
+                                </Button>
+                                <Button
+                                  type="button"
+                                  className="rounded-full bg-brand-ink text-white"
+                                  onClick={() => void handleSaveSchedule()}
+                                  disabled={scheduleSaving}
+                                >
+                                  {scheduleSaving ? 'Хадгалж байна...' : 'Хадгалах'}
                                 </Button>
                               </div>
+                            </div>
+                          </DialogContent>
+                        </Dialog>
+
+                        {teacherClasses.map((classItem) => (
+                          <div
+                            key={classItem.id}
+                            className="flex flex-col gap-4 rounded-2xl border border-brand-ink/5 p-5 sm:flex-row sm:items-center sm:justify-between"
+                          >
+                            <div className="min-w-0 flex-1">
+                              <p className="text-lg font-medium text-brand-ink">{classItem.title}</p>
+                              <p className="text-xs uppercase tracking-[0.2em] text-brand-ink/40">
+                                {classItem.duration} • {classItem.sessionCount} хуваарь
+                              </p>
+                            </div>
+                            <div className="flex w-full shrink-0 flex-row flex-wrap items-center justify-between gap-3 sm:w-auto sm:justify-end">
+                              <div className="inline-flex items-center gap-2 rounded-full bg-brand-icon/10 px-4 py-2.5 text-xs font-bold text-brand-icon">
+                                <Users size={14} className="shrink-0" />
+                                <span>{classItem.participantCount} хүн бүртгэгдсэн</span>
+                              </div>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                className="rounded-full px-5 whitespace-nowrap"
+                                onClick={() => openScheduleDialog(classItem.id)}
+                              >
+                                <CalendarClock size={14} className="mr-2" />
+                                Хуваарь засах
+                              </Button>
                             </div>
                           </div>
                         ))}
