@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { motion } from 'motion/react';
-import { User, Mail, Calendar, CreditCard, ShieldCheck, LogOut, Users, ClipboardCheck, CheckCircle2, XCircle, CalendarClock } from 'lucide-react';
+import { User, Mail, Calendar, CreditCard, ShieldCheck, LogOut, Users, ClipboardCheck, CalendarClock } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { auth } from '../firebase';
 import { signOut } from 'firebase/auth';
@@ -16,6 +16,11 @@ type TeacherClassSummary = {
   duration: string;
   participantCount: number;
   sessionCount: number;
+  participants: Array<{
+    key: string;
+    name: string;
+    email: string;
+  }>;
 };
 
 export const Profile: React.FC = () => {
@@ -108,23 +113,26 @@ export const Profile: React.FC = () => {
           );
         });
 
-        const participantKeys = new Set(
-          classBookings.map((booking) => {
-            return (
-              String(booking?.userId || '') ||
-              String(booking?.userEmail || '') ||
-              String(booking?.id || '')
-            );
-          })
-        );
+        const participantMap = new Map<string, { key: string; name: string; email: string }>();
+        classBookings.forEach((booking) => {
+          const key = String(booking?.userId || booking?.userEmail || booking?.id || '').trim();
+          if (!key || participantMap.has(key)) return;
+          participantMap.set(key, {
+            key,
+            name: String(booking?.userName || '').trim() || 'Хэрэглэгч',
+            email: String(booking?.userEmail || '').trim() || '—',
+          });
+        });
+        const participants = Array.from(participantMap.values());
 
         return {
           id: classId,
           title: String(classItem?.title || 'Untitled class'),
           teacher: String(classItem?.teacher || profile?.displayName || user?.displayName || 'Багш'),
           duration: String(classItem?.duration || '60 мин'),
-          participantCount: participantKeys.size,
+          participantCount: participants.length,
           sessionCount: classSchedules.length,
+          participants,
         };
       });
 
@@ -294,7 +302,7 @@ export const Profile: React.FC = () => {
                   <div className="mb-12 rounded-[2rem] border border-brand-ink/10 p-8">
                     <h3 className="mb-6 flex items-center gap-3 text-xl font-serif text-brand-ink">
                       <ClipboardCheck className="text-brand-icon" size={20} />
-                      Багшийн хичээлийн хяналт
+                      Миний бүртгэл
                     </h3>
 
                     {teacherLoading ? (
@@ -305,50 +313,41 @@ export const Profile: React.FC = () => {
                       </p>
                     ) : (
                       <div className="space-y-4">
-                        <div className="rounded-2xl border border-brand-icon/20 bg-brand-icon/5 p-5">
-                          <p className="text-sm text-brand-ink/70">
-                            Энгийн урсгал: <span className="font-semibold text-brand-ink">1) Хичээл сонгох</span> →{' '}
-                            <span className="font-semibold text-brand-ink">2) Ирсэн / Тасалсан</span> →{' '}
-                            <span className="font-semibold text-brand-ink">3) Хуваарь засах</span>
-                          </p>
-                        </div>
                         {teacherClasses.map((classItem) => (
                           <div key={classItem.id} className="rounded-2xl border border-brand-ink/5 p-5">
-                            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                              <div>
+                            <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+                              <div className="flex-1">
                                 <p className="text-lg font-medium text-brand-ink">{classItem.title}</p>
                                 <p className="text-xs uppercase tracking-[0.2em] text-brand-ink/40">
                                   {classItem.duration} • {classItem.sessionCount} хуваарь
                                 </p>
+                                <div className="mt-4 rounded-xl bg-secondary/20 p-4">
+                                  <p className="mb-2 text-xs font-bold uppercase tracking-[0.14em] text-brand-ink/50">
+                                    Бүртгүүлсэн хүмүүс ({classItem.participantCount})
+                                  </p>
+                                  {classItem.participants.length === 0 ? (
+                                    <p className="text-sm text-brand-ink/45">Одоогоор бүртгэлгүй байна.</p>
+                                  ) : (
+                                    <div className="space-y-2">
+                                      {classItem.participants.map((person) => (
+                                        <div key={person.key} className="flex items-center justify-between rounded-lg bg-white px-3 py-2 text-sm">
+                                          <span className="font-medium text-brand-ink">{person.name}</span>
+                                          <span className="text-brand-ink/55">{person.email}</span>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  )}
+                                </div>
                               </div>
                               <div className="flex flex-wrap items-center gap-3">
-                                <div className="inline-flex items-center gap-2 rounded-full bg-brand-icon/10 px-4 py-2 text-xs font-bold text-brand-icon">
+                                <div className="inline-flex items-center gap-2 rounded-full bg-brand-icon/10 px-4 py-2 text-xs font-bold text-brand-icon md:self-start">
                                   <Users size={14} />
                                   {classItem.participantCount} хүн бүртгэгдсэн
                                 </div>
                                 <Button
                                   asChild
-                                  className="rounded-full bg-green-600 px-5 text-white hover:bg-green-700"
-                                >
-                                  <Link to={`/teacher/attendance?classId=${classItem.id}`}>
-                                    <CheckCircle2 size={14} className="mr-2" />
-                                    Ирц (check/cross)
-                                  </Link>
-                                </Button>
-                                <Button
-                                  asChild
                                   variant="outline"
-                                  className="rounded-full border-red-200 px-5 text-red-600 hover:bg-red-50"
-                                >
-                                  <Link to={`/teacher/attendance?classId=${classItem.id}`}>
-                                    <XCircle size={14} className="mr-2" />
-                                    Тасалсан тэмдэглэх
-                                  </Link>
-                                </Button>
-                                <Button
-                                  asChild
-                                  variant="outline"
-                                  className="rounded-full px-5"
+                                  className="rounded-full px-5 md:self-start"
                                 >
                                   <Link to={`/teacher/schedule?classId=${classItem.id}`}>
                                     <CalendarClock size={14} className="mr-2" />
