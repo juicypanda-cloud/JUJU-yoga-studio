@@ -106,6 +106,12 @@ function hasPaidStatus(payload: unknown): boolean {
 }
 
 const normalizeClassDetail = (id: string, raw: any): ClassDetailItem => {
+  const normalizedCategory = (() => {
+    const categoryRaw = typeof raw?.category === 'string' ? raw.category.trim() : '';
+    if (!categoryRaw) return 'Yoga';
+    return categoryRaw.toLowerCase() === 'hatha' ? 'Yoga' : categoryRaw;
+  })();
+
   const scheduleSlots = Array.isArray(raw?.scheduleSlots) ? raw.scheduleSlots : [];
   const scheduleEntries = scheduleSlots
     .map((slot: any) => {
@@ -150,7 +156,7 @@ const normalizeClassDetail = (id: string, raw: any): ClassDetailItem => {
     audioUrl: typeof raw?.audioUrl === 'string' ? raw.audioUrl : '',
     createdAt: raw?.createdAt,
     image: typeof raw?.image === 'string' ? raw.image : 'https://picsum.photos/seed/class-detail/1200/900',
-    category: typeof raw?.category === 'string' ? raw.category : 'Yoga',
+    category: normalizedCategory,
     schedule,
     time,
     duration: typeof raw?.duration === 'string' ? raw.duration : '60 мин',

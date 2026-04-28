@@ -39,6 +39,13 @@ type ClassItem = BaseClassItem & {
 
 const CLASS_FALLBACK_IMAGE = 'https://picsum.photos/seed/class-fallback/1200/800';
 
+const normalizeCategory = (value?: string): string => {
+  const raw = String(value || '').trim();
+  if (!raw) return 'Class';
+  if (raw.toLowerCase() === 'hatha') return 'Yoga';
+  return raw;
+};
+
 const normalizeScheduleDays = (item: RawClassItem): string[] => {
   const slots = Array.isArray(item?.scheduleSlots) ? item.scheduleSlots : [];
   return slots
@@ -54,7 +61,7 @@ const normalizeClassItem = (raw: RawClassItem, fallbackId: string): ClassItem =>
   videoUrl: typeof raw?.videoUrl === 'string' ? raw.videoUrl : undefined,
   audioUrl: typeof raw?.audioUrl === 'string' ? raw.audioUrl : undefined,
   createdAt: raw?.createdAt,
-  category: typeof raw?.category === 'string' ? raw.category : 'Class',
+  category: normalizeCategory(raw?.category),
   teacherId: typeof raw?.teacherId === 'string' ? raw.teacherId : '',
   teacherName: typeof raw?.teacher === 'string' ? raw.teacher : 'Багш',
   scheduleDays: normalizeScheduleDays(raw),

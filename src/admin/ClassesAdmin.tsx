@@ -81,6 +81,12 @@ interface YogaClass {
   createdAt: any;
 }
 
+const normalizeClassCategory = (value?: string) => {
+  const raw = String(value || '').trim();
+  if (!raw) return 'Yoga';
+  return raw.toLowerCase() === 'hatha' ? 'Yoga' : raw;
+};
+
 export const ClassesAdmin: React.FC = () => {
   const weekDays = ['Даваа', 'Мягмар', 'Лхагва', 'Пүрэв', 'Баасан', 'Бямба', 'Ням'];
   const [classes, setClasses] = useState<YogaClass[]>([]);
@@ -98,7 +104,7 @@ export const ClassesAdmin: React.FC = () => {
     teacherId: '',
     teacher: '',
     image: '',
-    category: 'Hatha',
+    category: 'Yoga',
     price: 0,
     benefits: [''],
     scheduleSlots: [{ dayOfWeek: 'Даваа', startTime: '08:00', endTime: '09:00' }]
@@ -231,6 +237,7 @@ export const ClassesAdmin: React.FC = () => {
     const className = currentClass.title || '';
     const teacherName = selectedTeacher?.name || currentClass.teacher || '';
     const classPrice = Number(currentClass.price || 0);
+    const normalizedCategory = normalizeClassCategory(currentClass.category);
 
     setIsSaving(true);
     try {
@@ -242,6 +249,7 @@ export const ClassesAdmin: React.FC = () => {
           videoUrl: '',
           audioUrl: '',
           teacher: teacherName,
+          category: normalizedCategory,
           price: Number.isFinite(classPrice) ? classPrice : 0,
           benefits: validBenefits,
           scheduleSlots: validScheduleSlots,
@@ -256,6 +264,7 @@ export const ClassesAdmin: React.FC = () => {
           videoUrl: '',
           audioUrl: '',
           teacher: teacherName,
+          category: normalizedCategory,
           price: Number.isFinite(classPrice) ? classPrice : 0,
           benefits: validBenefits,
           scheduleSlots: validScheduleSlots,
@@ -276,7 +285,7 @@ export const ClassesAdmin: React.FC = () => {
         teacherId: '',
         teacher: '',
         image: '',
-        category: 'Hatha',
+        category: 'Yoga',
         price: 0,
         benefits: [''],
         scheduleSlots: [{ dayOfWeek: 'Даваа', startTime: '08:00', endTime: '09:00' }]
@@ -331,7 +340,7 @@ export const ClassesAdmin: React.FC = () => {
                 teacherId: '',
                 teacher: '',
                 image: '',
-                category: 'Hatha',
+                category: 'Yoga',
                 price: 0,
                 benefits: [''],
                 scheduleSlots: [{ dayOfWeek: 'Даваа', startTime: '08:00', endTime: '09:00' }]
@@ -393,8 +402,8 @@ export const ClassesAdmin: React.FC = () => {
               <label className="text-xs font-black uppercase tracking-widest text-black">Төрөл</label>
               <Input 
                 value={currentClass.category}
-                onChange={(e) => setCurrentClass({ ...currentClass, category: e.target.value })}
-                placeholder="Hatha, Vinyasa..."
+                onChange={(e) => setCurrentClass({ ...currentClass, category: normalizeClassCategory(e.target.value) })}
+                placeholder="Yoga эсвэл Meditation"
                 className="rounded-xl"
               />
             </div>
@@ -612,7 +621,7 @@ export const ClassesAdmin: React.FC = () => {
                 </div>
                 <div className="flex-grow min-w-0">
                   <div className="flex items-center gap-2 mb-1">
-                    <span className="text-[10px] font-black uppercase tracking-widest text-brand-icon">{item.category}</span>
+                    <span className="text-[10px] font-black uppercase tracking-widest text-brand-icon">{normalizeClassCategory(item.category)}</span>
                   </div>
                   <h3 className="text-lg font-serif text-brand-ink truncate mb-2">{item.title}</h3>
                   <div className="space-y-1 mb-4">
@@ -630,7 +639,7 @@ export const ClassesAdmin: React.FC = () => {
                   </div>
                   <div className="flex justify-between items-center">
                     <span className="text-sm font-bold text-brand-ink">
-                      {item.price && item.price > 0 ? `${item.price.toLocaleString()} ₮` : item.category}
+                      {item.price && item.price > 0 ? `${item.price.toLocaleString()} ₮` : normalizeClassCategory(item.category)}
                     </span>
                     <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                       {deleteId === item.id ? (
