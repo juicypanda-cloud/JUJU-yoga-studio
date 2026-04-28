@@ -27,6 +27,27 @@ type PaymentSession = {
   deeplink: string | null;
 };
 
+function buildFallbackQrUrl(value: string): string {
+  return `https://api.qrserver.com/v1/create-qr-code/?size=280x280&data=${encodeURIComponent(value)}`;
+}
+
+function waitForImageReady(src: string | null, timeoutMs = 12000): Promise<boolean> {
+  if (!src) return Promise.resolve(false);
+  return new Promise((resolve) => {
+    const img = new Image();
+    const timeout = window.setTimeout(() => resolve(false), timeoutMs);
+    img.onload = () => {
+      window.clearTimeout(timeout);
+      resolve(true);
+    };
+    img.onerror = () => {
+      window.clearTimeout(timeout);
+      resolve(false);
+    };
+    img.src = src;
+  });
+}
+
 async function readJsonSafe(response: Response): Promise<Record<string, unknown>> {
   const text = await response.text();
   if (!text.trim()) {
@@ -149,8 +170,18 @@ export const Checkout: React.FC = () => {
         throw new Error('invoice_id олдсонгүй. QPay response-оо шалгана уу.');
       }
 
+      const fallbackQrUrl = buildFallbackQrUrl(session.qrText ?? session.invoiceId);
+      const primaryReady = await waitForImageReady(session.qrImage);
+      const useFallback = !primaryReady;
+      if (useFallback) {
+        const fallbackReady = await waitForImageReady(fallbackQrUrl);
+        if (!fallbackReady) {
+          throw new Error('QR зураг ачаалагдсангүй. Дахин оролдоно уу.');
+        }
+      }
+
       setPaymentSession(session);
-      setUseQrFallback(false);
+      setUseQrFallback(useFallback);
       setIsQrModalOpen(true);
       toast.success('QPay QR амжилттай үүслээ');
     } catch (error) {
@@ -247,9 +278,7 @@ export const Checkout: React.FC = () => {
                   src={
                     !useQrFallback && paymentSession.qrImage
                       ? paymentSession.qrImage
-                      : `https://api.qrserver.com/v1/create-qr-code/?size=280x280&data=${encodeURIComponent(
-                          paymentSession.qrText ?? paymentSession.invoiceId
-                        )}`
+                      : buildFallbackQrUrl(paymentSession.qrText ?? paymentSession.invoiceId)
                   }
                   alt="QPay QR"
                   className="w-64 h-64 rounded-2xl bg-white p-2"

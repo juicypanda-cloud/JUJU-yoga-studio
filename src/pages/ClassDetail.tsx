@@ -50,6 +50,27 @@ type PaymentSession = {
   deeplink: string | null;
 };
 
+function buildFallbackQrUrl(value: string): string {
+  return `https://api.qrserver.com/v1/create-qr-code/?size=260x260&data=${encodeURIComponent(value)}`;
+}
+
+function waitForImageReady(src: string | null, timeoutMs = 12000): Promise<boolean> {
+  if (!src) return Promise.resolve(false);
+  return new Promise((resolve) => {
+    const img = new Image();
+    const timeout = window.setTimeout(() => resolve(false), timeoutMs);
+    img.onload = () => {
+      window.clearTimeout(timeout);
+      resolve(true);
+    };
+    img.onerror = () => {
+      window.clearTimeout(timeout);
+      resolve(false);
+    };
+    img.src = src;
+  });
+}
+
 async function readJsonSafe(response: Response): Promise<Record<string, unknown>> {
   const text = await response.text();
   if (!text.trim()) return {};
@@ -294,8 +315,16 @@ export const ClassDetail: React.FC = () => {
       };
       if (!session.invoiceId) throw new Error('invoice_id олдсонгүй');
 
+      const fallbackQrUrl = buildFallbackQrUrl(session.qrText ?? session.invoiceId);
+      const primaryReady = await waitForImageReady(session.qrImage);
+      const useFallback = !primaryReady;
+      if (useFallback) {
+        const fallbackReady = await waitForImageReady(fallbackQrUrl);
+        if (!fallbackReady) throw new Error('QR зураг ачаалагдсангүй');
+      }
+
       setBookingSession(session);
-      setUseQrFallback(false);
+      setUseQrFallback(useFallback);
       setIsQrModalOpen(true);
       toast.success('Төлбөрийн QR амжилттай үүслээ');
     } catch (error) {
@@ -378,9 +407,7 @@ export const ClassDetail: React.FC = () => {
                   src={
                     !useQrFallback && bookingSession.qrImage
                       ? bookingSession.qrImage
-                      : `https://api.qrserver.com/v1/create-qr-code/?size=260x260&data=${encodeURIComponent(
-                          bookingSession.qrText ?? bookingSession.invoiceId
-                        )}`
+                      : buildFallbackQrUrl(bookingSession.qrText ?? bookingSession.invoiceId)
                   }
                   alt="QPay QR"
                   className="h-56 w-56 rounded-xl bg-white p-2"
