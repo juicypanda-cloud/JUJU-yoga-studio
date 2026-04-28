@@ -29,6 +29,31 @@ type AttendanceRow = {
   classStartTime: Date | null;
 };
 
+function resolveAttendanceName(
+  booking: Record<string, unknown>,
+  profileInfo?: Record<string, unknown> | null
+): string {
+  const firstName = String(booking?.userFirstName || profileInfo?.firstName || '').trim();
+  const lastName = String(booking?.userLastName || profileInfo?.lastName || '').trim();
+  const fullName = `${firstName} ${lastName}`.trim();
+  const directName = String(
+    fullName ||
+      booking?.userName ||
+      profileInfo?.displayName ||
+      booking?.displayName ||
+      booking?.name ||
+      booking?.studentName ||
+      ''
+  ).trim();
+  if (directName) return directName;
+
+  const email = String(booking?.userEmail || profileInfo?.email || '').trim();
+  if (email.includes('@')) return email.split('@')[0].trim();
+  if (email) return email;
+
+  return String(booking?.userId || booking?.id || 'Unknown user').trim();
+}
+
 const formatBookedAt = (value: any) => {
   if (!value) return 'Тодорхойгүй';
   if (typeof value?.toDate === 'function') return value.toDate().toLocaleString();
@@ -159,7 +184,10 @@ export const TeacherAttendance: React.FC = () => {
           return {
             id: `${classId}-${String(booking?.id || bookingUserId || Math.random())}`,
             bookingId: String(booking?.id || ''),
-            name: String(booking?.userName || profileInfo?.displayName || 'Хэрэглэгч'),
+            name: resolveAttendanceName(
+              booking as Record<string, unknown>,
+              (profileInfo as Record<string, unknown> | null | undefined) ?? null
+            ),
             email: String(booking?.userEmail || profileInfo?.email || '—'),
             bookingStatus: String(booking?.status || 'confirmed'),
             attendanceStatus,

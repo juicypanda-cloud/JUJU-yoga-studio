@@ -6,7 +6,7 @@ import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { auth } from '../firebase';
 import { signOut } from 'firebase/auth';
-import { useNavigate, Link } from 'react-router-dom';
+import { Navigate, useNavigate, Link } from 'react-router-dom';
 import {
   addDoc,
   collection,
@@ -60,6 +60,28 @@ function mergeAttendance(a: RosterAttendance, b: RosterAttendance): RosterAttend
   return order[a] >= order[b] ? a : b;
 }
 
+function resolveDisplayName(record: Record<string, unknown>, fallbackEmail = '', fallbackName = ''): string {
+  const firstName = String(record?.userFirstName || '').trim();
+  const lastName = String(record?.userLastName || '').trim();
+  const fullName = `${firstName} ${lastName}`.trim();
+  const directName = String(
+    fullName ||
+      record?.userName ||
+      record?.displayName ||
+      record?.name ||
+      record?.studentName ||
+      fallbackName ||
+      ''
+  ).trim();
+  if (directName) return directName;
+
+  const email = String(record?.userEmail || record?.email || fallbackEmail || '').trim();
+  if (email.includes('@')) return email.split('@')[0].trim();
+  if (email) return email;
+
+  return String(record?.userId || fallbackName || 'Unknown user').trim();
+}
+
 type ScheduleRow = {
   id: string;
   classId?: string;
@@ -101,8 +123,7 @@ export const Profile: React.FC = () => {
   })();
 
   if (!user) {
-    navigate('/');
-    return null;
+    return <Navigate to="/" replace />;
   }
 
   const handleLogout = () => {
@@ -193,24 +214,12 @@ export const Profile: React.FC = () => {
           if (!key) return;
           const bookingId = String(b?.id || '').trim();
           const att = attendanceFromBooking(b);
-          const firstName = String(b?.userFirstName || '').trim();
-          const lastName = String(b?.userLastName || '').trim();
-          const fullName = `${firstName} ${lastName}`.trim();
           const email = String(b?.userEmail || b?.email || '').trim();
-          const emailName = email.includes('@') ? email.split('@')[0].trim() : '';
-          const name = String(
-            fullName ||
-              b?.userName ||
-              b?.displayName ||
-              b?.name ||
-              b?.studentName ||
-              emailName ||
-              'Суралцагч'
-          ).trim();
+          const name = resolveDisplayName(b, email);
           const existing = rosterByKey.get(key);
           if (!existing) {
             rosterByKey.set(key, {
-              name: name || 'Суралцагч',
+              name,
               email,
               attendance: att,
               bookingIds: bookingId ? [bookingId] : [],
