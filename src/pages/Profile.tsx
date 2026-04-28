@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { motion } from 'motion/react';
-import { User, Mail, Calendar, CreditCard, ShieldCheck, LogOut, Users, ClipboardCheck, CalendarClock } from 'lucide-react';
+import { User, Mail, Calendar, CreditCard, ShieldCheck, LogOut, ClipboardCheck, CalendarClock, ClipboardList } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { auth } from '../firebase';
@@ -32,6 +32,8 @@ type TeacherClassSummary = {
   teacherId: string;
   duration: string;
   participantCount: number;
+  /** Sum of capacity across schedule slots for this class (fallback if none). */
+  capacityTotal: number;
   sessionCount: number;
 };
 
@@ -154,6 +156,11 @@ export const Profile: React.FC = () => {
           if (key) participantKeys.add(key);
         });
 
+        const capacityTotal =
+          classSchedules.length > 0
+            ? classSchedules.reduce((sum, slot) => sum + (Number(slot?.capacity) || 20), 0)
+            : 20;
+
         return {
           id: classId,
           title: String(classItem?.title || 'Untitled class'),
@@ -161,6 +168,7 @@ export const Profile: React.FC = () => {
           teacherId: String(classItem?.teacherId || ''),
           duration: String(classItem?.duration || '60 мин'),
           participantCount: participantKeys.size,
+          capacityTotal,
           sessionCount: classSchedules.length,
         };
       });
@@ -520,20 +528,28 @@ export const Profile: React.FC = () => {
                                 {classItem.duration} • {classItem.sessionCount} хуваарь
                               </p>
                             </div>
-                            <div className="flex w-full shrink-0 flex-row flex-wrap items-center justify-between gap-3 sm:w-auto sm:justify-end">
-                              <div className="inline-flex items-center gap-2 rounded-full bg-brand-icon/10 px-4 py-2.5 text-xs font-bold text-brand-icon">
-                                <Users size={14} className="shrink-0" />
-                                <span>{classItem.participantCount} хүн бүртгэгдсэн</span>
+                            <div className="flex w-full shrink-0 flex-row flex-wrap items-center justify-end gap-x-4 gap-y-2 sm:w-auto sm:gap-x-5">
+                              <span className="text-sm tabular-nums tracking-tight text-brand-ink/55">
+                                {classItem.participantCount}/{classItem.capacityTotal}
+                              </span>
+                              <div className="flex flex-wrap items-center gap-2">
+                                <Button variant="outline" size="sm" className="rounded-full px-4 text-xs font-semibold" asChild>
+                                  <Link to={`/teacher/attendance?classId=${classItem.id}`}>
+                                    <ClipboardList size={14} className="mr-2" />
+                                    Ирц
+                                  </Link>
+                                </Button>
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  size="sm"
+                                  className="rounded-full px-4 text-xs font-semibold whitespace-nowrap"
+                                  onClick={() => openScheduleDialog(classItem.id)}
+                                >
+                                  <CalendarClock size={14} className="mr-2" />
+                                  Хуваарь засах
+                                </Button>
                               </div>
-                              <Button
-                                type="button"
-                                variant="outline"
-                                className="rounded-full px-5 whitespace-nowrap"
-                                onClick={() => openScheduleDialog(classItem.id)}
-                              >
-                                <CalendarClock size={14} className="mr-2" />
-                                Хуваарь засах
-                              </Button>
                             </div>
                           </div>
                         ))}
