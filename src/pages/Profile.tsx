@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { motion } from 'motion/react';
-import { User, Mail, Calendar, CreditCard, ShieldCheck, LogOut, ClipboardCheck, CalendarClock, ClipboardList } from 'lucide-react';
+import { User, Mail, Calendar, CreditCard, ShieldCheck, LogOut, ClipboardCheck, CalendarClock, ClipboardList, Plus } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { auth } from '../firebase';
@@ -97,19 +97,6 @@ type ScheduleRow = {
 
 const WEEK_DAYS = ['Даваа', 'Мягмар', 'Лхагва', 'Пүрэв', 'Баасан', 'Бямба', 'Ням'];
 
-function getScheduleDaysForClass(classId: string, rows: ScheduleRow[]) {
-  const days = Array.from(
-    new Set(
-      rows
-        .filter((row) => String(row.classId || '') === classId)
-        .map((row) => String(row.dayOfWeek || ''))
-        .filter(Boolean)
-    )
-  );
-
-  return WEEK_DAYS.filter((day) => days.includes(day));
-}
-
 export const Profile: React.FC = () => {
   const { user, profile, isSubscribed, isTeacher } = useAuth();
   const navigate = useNavigate();
@@ -118,11 +105,11 @@ export const Profile: React.FC = () => {
   const [scheduleRows, setScheduleRows] = useState<ScheduleRow[]>([]);
   const [scheduleDialogOpen, setScheduleDialogOpen] = useState(false);
   const [scheduleClassId, setScheduleClassId] = useState('');
-  const [scheduleDay, setScheduleDay] = useState('Даваа');
+  /** Firestore `schedule` doc id when editing; `null` = add new slot */
+  const [scheduleRowId, setScheduleRowId] = useState<string | null>(null);
   const [scheduleStart, setScheduleStart] = useState('08:00');
   const [scheduleEnd, setScheduleEnd] = useState('09:00');
   const [scheduleRoom, setScheduleRoom] = useState('Main Hall');
-  const [existingScheduleId, setExistingScheduleId] = useState<string | null>(null);
   const [scheduleSaving, setScheduleSaving] = useState(false);
   const [rosterDialogOpen, setRosterDialogOpen] = useState(false);
   const [rosterClassId, setRosterClassId] = useState('');
@@ -146,13 +133,14 @@ export const Profile: React.FC = () => {
     navigate('/');
   };
 
-  const scheduleDaysForSelectedClass = getScheduleDaysForClass(scheduleClassId, scheduleRows);
-  const scheduleEntriesForSelectedClass = scheduleRows
+  const scheduleRowsForSelectedClass = scheduleRows
     .filter((row) => String(row.classId || '') === scheduleClassId)
-    .sort(
-      (a, b) =>
-        WEEK_DAYS.indexOf(String(a.dayOfWeek || '')) - WEEK_DAYS.indexOf(String(b.dayOfWeek || ''))
-    );
+    .sort((a, b) => {
+      const da = WEEK_DAYS.indexOf(String(a.dayOfWeek || ''));
+      const db = WEEK_DAYS.indexOf(String(b.dayOfWeek || ''));
+      if (da !== db) return da - db;
+      return String(a.startTime || '').localeCompare(String(b.startTime || ''));
+    });
 
   useEffect(() => {
     if (!user || !isTeacher) {
@@ -380,40 +368,26 @@ export const Profile: React.FC = () => {
 
   useEffect(() => {
     if (!scheduleDialogOpen || !scheduleClassId) return;
-    const slot = scheduleRows.find(
-      (row) =>
-        String(row.classId || '') === scheduleClassId &&
-        String(row.dayOfWeek || '') === scheduleDay
-    );
-    if (slot) {
-      setExistingScheduleId(slot.id);
-      setScheduleStart(String(slot.startTime || '08:00'));
-      setScheduleEnd(String(slot.endTime || '09:00'));
-      setScheduleRoom(String(slot.room || 'Main Hall'));
+    if (scheduleRowId) {
+      const slot = scheduleRows.find(
+        (row) => row.id === scheduleRowId && String(row.classId || '') === scheduleClassId
+      );
+      if (slot) {
+        setScheduleStart(String(slot.startTime || '08:00'));
+        setScheduleEnd(String(slot.endTime || '09:00'));
+        setScheduleRoom(String(slot.room || 'Main Hall'));
+      }
     } else {
-      setExistingScheduleId(null);
       setScheduleStart('08:00');
       setScheduleEnd('09:00');
       setScheduleRoom('Main Hall');
     }
-  }, [scheduleDialogOpen, scheduleClassId, scheduleDay, scheduleRows]);
-
-  useEffect(() => {
-    if (!scheduleDialogOpen || !scheduleClassId) return;
-    const availableDays = getScheduleDaysForClass(scheduleClassId, scheduleRows);
-    if (availableDays.length === 0) {
-      if (scheduleDay !== 'Даваа') setScheduleDay('Даваа');
-      return;
-    }
-    if (!availableDays.includes(scheduleDay)) {
-      setScheduleDay(availableDays[0]);
-    }
-  }, [scheduleDialogOpen, scheduleClassId, scheduleDay, scheduleRows]);
+  }, [scheduleDialogOpen, scheduleClassId, scheduleRowId, scheduleRows]);
 
   const openScheduleDialog = (presetClassId: string) => {
-    const availableDays = getScheduleDaysForClass(presetClassId, scheduleRows);
+    const rows = scheduleRows.filter((row) => String(row.classId || '') === presetClassId);
     setScheduleClassId(presetClassId);
-    setScheduleDay(availableDays[0] || 'Даваа');
+    setScheduleRowId(rows[0]?.id ?? null);
     setScheduleDialogOpen(true);
   };
 
@@ -466,19 +440,23 @@ export const Profile: React.FC = () => {
     setScheduleSaving(true);
     try {
       const teacherId = cls.teacherId || user.uid;
+      const existingSlot = scheduleRowId
+        ? scheduleRows.find((row) => row.id === scheduleRowId)
+        : null;
+      const dayOfWeek = String(existingSlot?.dayOfWeek || 'Даваа');
       const payload = {
         classId: scheduleClassId,
         className: cls.title,
         teacherName: cls.teacher,
         teacherId,
-        dayOfWeek: scheduleDay,
+        dayOfWeek,
         startTime: scheduleStart,
         endTime: scheduleEnd,
         room: scheduleRoom,
         updatedAt: Timestamp.now(),
       };
-      if (existingScheduleId) {
-        await updateDoc(doc(db, 'schedule', existingScheduleId), payload);
+      if (scheduleRowId) {
+        await updateDoc(doc(db, 'schedule', scheduleRowId), payload);
       } else {
         await addDoc(collection(db, 'schedule'), {
           ...payload,
@@ -650,7 +628,7 @@ export const Profile: React.FC = () => {
                             <DialogHeader>
                               <DialogTitle className="font-serif text-2xl text-brand-ink">Хуваарь засах</DialogTitle>
                               <DialogDescription className="text-brand-ink/60">
-                                Хичээл, өдөр сонгоод цагийг өөрчлөнө үү.
+                                Хичээл сонгоод цаг, өрөөг тохируулна уу. Шинэ цаг нэмэх бол «Шинэ хуваарь нэмэх» дарна уу.
                               </DialogDescription>
                             </DialogHeader>
                             <div className="space-y-4 pt-2">
@@ -660,9 +638,11 @@ export const Profile: React.FC = () => {
                                   value={scheduleClassId}
                                   onChange={(e) => {
                                     const nextClassId = e.target.value;
-                                    const availableDays = getScheduleDaysForClass(nextClassId, scheduleRows);
+                                    const rows = scheduleRows.filter(
+                                      (row) => String(row.classId || '') === nextClassId
+                                    );
                                     setScheduleClassId(nextClassId);
-                                    setScheduleDay(availableDays[0] || 'Даваа');
+                                    setScheduleRowId(rows[0]?.id ?? null);
                                   }}
                                   className="h-11 w-full rounded-xl border border-input bg-background px-3 text-sm text-brand-ink focus:outline-none focus:ring-2 focus:ring-brand-icon/20"
                                 >
@@ -674,49 +654,47 @@ export const Profile: React.FC = () => {
                                 </select>
                               </div>
                               <div className="space-y-2">
-                                <label className="text-xs font-black uppercase tracking-widest text-brand-ink/40">Өдөр</label>
-                                <select
-                                  value={scheduleDay}
-                                  onChange={(e) => setScheduleDay(e.target.value)}
-                                  className="h-11 w-full rounded-xl border border-input bg-background px-3 text-sm text-brand-ink focus:outline-none focus:ring-2 focus:ring-brand-icon/20"
-                                >
-                                  {(scheduleDaysForSelectedClass.length > 0 ? scheduleDaysForSelectedClass : WEEK_DAYS).map((day) => (
-                                    <option key={day} value={day}>
-                                      {day}
-                                    </option>
-                                  ))}
-                                </select>
-                              </div>
-                              {scheduleEntriesForSelectedClass.length > 0 ? (
-                                <div className="space-y-2">
-                                  <label className="text-xs font-black uppercase tracking-widest text-brand-ink/40">
-                                    Боломжтой хуваариуд
-                                  </label>
-                                  <div className="flex flex-wrap gap-2">
-                                    {scheduleEntriesForSelectedClass.map((row) => {
-                                      const day = String(row.dayOfWeek || '');
-                                      const active = day === scheduleDay;
-                                      return (
-                                        <button
-                                          key={row.id}
-                                          type="button"
-                                          onClick={() => setScheduleDay(day)}
-                                          className={`rounded-full border px-3 py-2 text-xs font-semibold transition-colors ${
-                                            active
-                                              ? 'border-brand-icon bg-brand-icon text-white'
-                                              : 'border-brand-ink/10 bg-white text-brand-ink/70 hover:border-brand-icon/40'
-                                          }`}
-                                        >
-                                          {day} {row.startTime ? `• ${row.startTime}` : ''}
-                                        </button>
-                                      );
-                                    })}
-                                  </div>
-                                  <p className="text-xs text-brand-ink/45">
-                                    Олон өдөртэй хичээл бол өөрчлөх өдрөө эндээс сонгоно уу.
-                                  </p>
+                                <label className="text-xs font-black uppercase tracking-widest text-brand-ink/40">
+                                  Хуваарь
+                                </label>
+                                <div className="flex flex-wrap gap-2">
+                                  <button
+                                    type="button"
+                                    onClick={() => setScheduleRowId(null)}
+                                    className={`inline-flex items-center gap-2 rounded-full border px-3 py-2 text-xs font-semibold transition-colors ${
+                                      scheduleRowId === null
+                                        ? 'border-brand-icon bg-brand-icon text-white'
+                                        : 'border-brand-ink/10 bg-white text-brand-ink/70 hover:border-brand-icon/40'
+                                    }`}
+                                  >
+                                    <Plus size={14} />
+                                    Шинэ хуваарь нэмэх
+                                  </button>
+                                  {scheduleRowsForSelectedClass.map((row) => {
+                                    const active = scheduleRowId === row.id;
+                                    const label = [row.startTime, row.endTime].filter(Boolean).join('–');
+                                    return (
+                                      <button
+                                        key={row.id}
+                                        type="button"
+                                        onClick={() => setScheduleRowId(row.id)}
+                                        className={`rounded-full border px-3 py-2 text-xs font-semibold transition-colors ${
+                                          active
+                                            ? 'border-brand-icon bg-brand-icon text-white'
+                                            : 'border-brand-ink/10 bg-white text-brand-ink/70 hover:border-brand-icon/40'
+                                        }`}
+                                      >
+                                        {label || 'Цаг'} {row.room ? `· ${row.room}` : ''}
+                                      </button>
+                                    );
+                                  })}
                                 </div>
-                              ) : null}
+                                {scheduleRowId === null && scheduleRowsForSelectedClass.length === 0 ? (
+                                  <p className="text-xs text-brand-ink/45">
+                                    Эхний хуваариа доорх цаг, өрөөгөөр үүсгэнэ үү.
+                                  </p>
+                                ) : null}
+                              </div>
                               <div className="rounded-xl border border-brand-ink/10 bg-secondary/20 p-4">
                                 <p className="mb-3 text-xs font-bold uppercase tracking-[0.12em] text-brand-ink/50">
                                   Одоогийн цаг
