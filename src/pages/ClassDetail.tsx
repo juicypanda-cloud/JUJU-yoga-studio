@@ -1,14 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { motion } from 'motion/react';
-import { ArrowLeft, Clock, Calendar, CheckCircle2, Play, Lock, LogIn, Loader2, QrCode, Smartphone } from 'lucide-react';
+import { ArrowLeft, Clock, Calendar, CheckCircle2, Loader2, QrCode, Smartphone } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { classData } from '../data/classes';
 import { db } from '../firebase';
 import { addDoc, collection, doc, getDoc, getDocs, query, where } from 'firebase/firestore';
 import { useAuth } from '../context/AuthContext';
-import { canAccessOnlineContentType } from '../lib/access';
-import { getYouTubeVideoId, getYouTubePosterUrl } from '../lib/online-video-thumb';
 import type { ClassItem } from '../types/class';
 import { toast } from 'sonner';
 import {
@@ -30,18 +28,6 @@ type ClassDetailItem = ClassItem & {
   benefits: string[];
   image: string;
 };
-
-function getYouTubeEmbedUrl(url: string, autoplay = false) {
-  const videoId = getYouTubeVideoId(url);
-  if (!videoId) return '';
-  const autoplayParam = autoplay ? '&autoplay=1' : '';
-  return `https://www.youtube.com/embed/${videoId}?modestbranding=1&rel=0&showinfo=0&controls=1&disablekb=1${autoplayParam}`;
-}
-
-function getYouTubePosterForPreview(url: string) {
-  const videoId = getYouTubeVideoId(url);
-  return videoId ? getYouTubePosterUrl(videoId, 'list') : '';
-}
 
 type PaymentSession = {
   invoiceId: string;
@@ -172,9 +158,6 @@ export const ClassDetail: React.FC = () => {
   const { user, profile } = useAuth();
   const [classItem, setClassItem] = useState<ClassDetailItem | null>(null);
   const [loading, setLoading] = useState(true);
-  const [mediaLoaded, setMediaLoaded] = useState(false);
-  const [mediaLoadTimedOut, setMediaLoadTimedOut] = useState(false);
-  const [hasStartedPlayback, setHasStartedPlayback] = useState(false);
   const [showBookingPayment, setShowBookingPayment] = useState(false);
   const [bookingLoading, setBookingLoading] = useState(false);
   const [checkingPayment, setCheckingPayment] = useState(false);
@@ -183,19 +166,6 @@ export const ClassDetail: React.FC = () => {
   const [orderId, setOrderId] = useState('');
   const [useQrFallback, setUseQrFallback] = useState(false);
   const [isQrModalOpen, setIsQrModalOpen] = useState(false);
-  const mediaType = String(classItem?.type || '').trim().toLowerCase() === 'audio' ? 'audio' : 'video';
-  const hasContentAccess = Boolean(user) && canAccessOnlineContentType(profile, mediaType);
-
-  const mediaSourceUrl =
-    classItem?.type === 'online'
-      ? (classItem?.videoUrl || '')
-      : classItem?.type === 'audio'
-        ? (classItem?.audioUrl || '')
-        : '';
-  const embedUrl = getYouTubeEmbedUrl(mediaSourceUrl);
-  const autoplayEmbedUrl = getYouTubeEmbedUrl(mediaSourceUrl, true);
-  const mediaThumbnail = classItem?.image || getYouTubePosterForPreview(mediaSourceUrl);
-  const hasMediaType = classItem?.type === 'online' || classItem?.type === 'audio';
 
   useEffect(() => {
     const fetchClass = async () => {
@@ -225,18 +195,6 @@ export const ClassDetail: React.FC = () => {
 
     fetchClass().finally(() => setLoading(false));
   }, [id]);
-
-  useEffect(() => {
-    setMediaLoaded(false);
-    setMediaLoadTimedOut(false);
-    setHasStartedPlayback(false);
-  }, [classItem?.id, classItem?.videoUrl, classItem?.audioUrl, classItem?.type]);
-
-  useEffect(() => {
-    if (!hasStartedPlayback || mediaLoaded) return;
-    const timeoutId = window.setTimeout(() => setMediaLoadTimedOut(true), 2500);
-    return () => window.clearTimeout(timeoutId);
-  }, [mediaLoaded, embedUrl, hasStartedPlayback]);
 
   useEffect(() => {
     if (!user?.uid || !id) return;
@@ -551,120 +509,6 @@ export const ClassDetail: React.FC = () => {
                 ))}
               </div>
             </div>
-
-            {hasMediaType && mediaSourceUrl ? (
-            <div className="space-y-6">
-              <h3 className="text-2xl font-serif text-brand-ink">Class Content</h3>
-              {!embedUrl ? (
-                <p className="text-brand-ink/60">Invalid video link</p>
-              ) : !user ? (
-                <div className="rounded-[2rem] border border-brand-ink/10 bg-white p-10 text-center shadow-inner">
-                  <div className="mx-auto mb-6 flex h-14 w-14 items-center justify-center rounded-full bg-white text-brand-icon shadow-md">
-                    <LogIn size={26} />
-                  </div>
-                  <h4 className="font-serif text-xl text-brand-ink mb-2">Нэвтэрнэ үү</h4>
-                  <p className="text-sm text-brand-ink/60 font-light leading-relaxed mb-8">
-                    Энэхүү видео / аудио хэсгийг үзэхийн тулд эхлээд бүртгэлээрээ нэвтэрнэ үү.
-                  </p>
-                  <Link to="/login">
-                    <Button className="bg-brand-ink text-white hover:bg-brand-icon rounded-full px-10 py-6 text-[11px] font-black tracking-[0.2em] uppercase shadow-lg">
-                      Нэвтрэх
-                    </Button>
-                  </Link>
-                </div>
-              ) : !hasContentAccess ? (
-                <div className="rounded-[2rem] border border-brand-ink/10 bg-white p-10 text-center shadow-inner">
-                  <div className="mx-auto mb-6 flex h-14 w-14 items-center justify-center rounded-full bg-white text-brand-icon shadow-md">
-                    <Lock size={26} />
-                  </div>
-                  <h4 className="font-serif text-xl text-brand-ink mb-2">Гишүүнчлэл шаардлагатай</h4>
-                  <p className="text-sm text-brand-ink/60 font-light leading-relaxed mb-8">
-                    Энэ контентыг үзэхийн тулд тохирох гишүүнчлэл шаардлагатай.
-                  </p>
-                  <Link to="/pricing">
-                    <Button className="bg-brand-ink text-white hover:bg-brand-icon rounded-full px-10 py-6 text-[11px] font-black tracking-[0.2em] uppercase shadow-lg">
-                      Гишүүнчлэл сонгох
-                    </Button>
-                  </Link>
-                </div>
-              ) : classItem?.type === 'online' ? (
-                <div className="relative aspect-video overflow-hidden rounded-2xl shadow-lg shadow-brand-ink/10 bg-black">
-                  <div
-                    className={`absolute inset-0 transition-opacity duration-500 ${
-                      hasStartedPlayback ? 'opacity-0 pointer-events-none' : 'opacity-100'
-                    }`}
-                  >
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setMediaLoadTimedOut(false);
-                        setMediaLoaded(false);
-                        setHasStartedPlayback(true);
-                      }}
-                      className="relative h-full w-full overflow-hidden group"
-                    >
-                      {mediaThumbnail ? (
-                        <img
-                          src={mediaThumbnail}
-                          alt={`${classItem.title} cover`}
-                          className="absolute inset-0 h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
-                          loading="lazy"
-                          decoding="async"
-                        />
-                      ) : (
-                        <div className="h-full w-full bg-gray-200 animate-pulse" />
-                      )}
-                      <div className="pointer-events-none absolute inset-0 bg-black/25 transition-colors duration-300 group-hover:bg-black/40" />
-                      <div className="absolute inset-0 flex items-center justify-center">
-                        <span className="flex h-16 w-16 items-center justify-center rounded-full bg-white/90 text-brand-ink shadow-xl transition-transform duration-300 group-hover:scale-105">
-                          <Play size={26} className="ml-1" />
-                        </span>
-                      </div>
-                    </button>
-                  </div>
-                  {hasStartedPlayback && (
-                    <>
-                      {!mediaLoaded && !mediaLoadTimedOut && (
-                        <div className="absolute inset-0 animate-pulse bg-gray-200" />
-                      )}
-                      <iframe
-                        src={autoplayEmbedUrl}
-                        className={`h-full w-full transition-opacity duration-500 ${
-                          mediaLoaded || mediaLoadTimedOut ? 'opacity-100' : 'opacity-0'
-                        }`}
-                        allow="autoplay; encrypted-media"
-                        allowFullScreen
-                        loading="lazy"
-                        onLoad={() => setMediaLoaded(true)}
-                        title={`${classItem.title} ${classItem?.type}`}
-                      />
-                    </>
-                  )}
-                </div>
-              ) : (
-                <div
-                  className={`relative overflow-hidden rounded-2xl shadow-lg shadow-brand-ink/10 ${
-                    classItem?.type === 'audio' ? 'h-24' : 'aspect-video'
-                  }`}
-                >
-                  {!mediaLoaded && !mediaLoadTimedOut && (
-                    <div className="absolute inset-0 animate-pulse bg-gray-200" />
-                  )}
-                  <iframe
-                    src={embedUrl}
-                    className={`h-full w-full transition-opacity duration-500 ${
-                      mediaLoaded || mediaLoadTimedOut ? 'opacity-100' : 'opacity-0'
-                    }`}
-                    allow="autoplay; encrypted-media"
-                    allowFullScreen
-                    loading="lazy"
-                    onLoad={() => setMediaLoaded(true)}
-                    title={`${classItem.title} ${classItem?.type}`}
-                  />
-                </div>
-              )}
-            </div>
-            ) : null}
 
             <div className="pt-8 space-y-6">
               {classItem.type === 'offline' ? (
