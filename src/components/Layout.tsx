@@ -1,5 +1,6 @@
 import React from 'react';
 import { Navbar } from './Navbar';
+import { Logo } from './ui/Logo';
 import { Link } from 'react-router-dom';
 
 export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -12,7 +13,7 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
       <footer className="bg-brand-ink text-white py-24 px-6">
         <div className="container mx-auto grid grid-cols-1 md:grid-cols-4 gap-16">
           <div className="space-y-6">
-            <h3 className="text-xl font-serif tracking-tight">MYA WELLBEING</h3>
+            <Logo light className="[&_img]:h-8 [&_img]:md:h-10" />
             <p className="text-white/40 text-sm leading-relaxed font-light">
               Майндфүлнэс, йог болон цогц эрүүл мэндийн ариун дагшин газар. Манай нийгэмлэгт нэгдэж, өөрийгөө нээх аялалд гараарай.
             </p>
