@@ -10,7 +10,7 @@ import {
 } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '../firebase';
 import { Input } from '../components/ui/input';
-import { UserCheck, Search } from 'lucide-react';
+import { UserCheck, Search, ChevronDown, ChevronRight } from 'lucide-react';
 import { toast } from 'sonner';
 
 type ClassDoc = {
@@ -90,6 +90,19 @@ function isClassBooking(data: Record<string, unknown>): boolean {
   return Boolean(data?.classId || data?.itemId || data?.scheduleId);
 }
 
+function groupKeyForRow(row: AttendeeRow): string {
+  if (row.classId) return `class:${row.classId}`;
+  if (row.scheduleId) return `slot:${row.scheduleId}`;
+  return 'unknown';
+}
+
+type ClassGroup = {
+  key: string;
+  classTitle: string;
+  teacherName: string;
+  rows: AttendeeRow[];
+};
+
 export const ClassAttendanceAdmin: React.FC = () => {
   const [classesById, setClassesById] = useState<Map<string, ClassDoc>>(new Map());
   const [scheduleById, setScheduleById] = useState<Map<string, ScheduleDoc>>(new Map());
@@ -98,6 +111,7 @@ export const ClassAttendanceAdmin: React.FC = () => {
   const [teacherFilter, setTeacherFilter] = useState<string>('__all__');
   const [search, setSearch] = useState('');
   const [savingId, setSavingId] = useState<string | null>(null);
+  const [expandedKeys, setExpandedKeys] = useState<Set<string>>(() => new Set());
 
   useEffect(() => {
     const unsubClasses = onSnapshot(collection(db, 'classes'), (snap) => {
@@ -220,6 +234,36 @@ export const ClassAttendanceAdmin: React.FC = () => {
     });
   }, [rows, teacherFilter, search]);
 
+  const classGroups = useMemo(() => {
+    const map = new Map<string, ClassGroup>();
+    for (const r of filteredRows) {
+      const key = groupKeyForRow(r);
+      let g = map.get(key);
+      if (!g) {
+        g = { key, classTitle: r.classTitle, teacherName: r.teacherName, rows: [] };
+        map.set(key, g);
+      }
+      g.rows.push(r);
+    }
+    for (const g of map.values()) {
+      g.rows.sort((a, b) => a.attendeeName.localeCompare(b.attendeeName, 'mn'));
+    }
+    return Array.from(map.values()).sort((a, b) => {
+      const t = a.teacherName.localeCompare(b.teacherName, 'mn');
+      if (t !== 0) return t;
+      return a.classTitle.localeCompare(b.classTitle, 'mn');
+    });
+  }, [filteredRows]);
+
+  const toggleGroup = (key: string) => {
+    setExpandedKeys((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  };
+
   const setAttendance = async (bookingId: string, next: 'attended' | 'missed' | 'unknown') => {
     setSavingId(bookingId);
     try {
@@ -254,7 +298,7 @@ export const ClassAttendanceAdmin: React.FC = () => {
           </div>
           <h1 className="text-3xl font-light text-brand-ink">Бүх хичээлийн суралцагчид</h1>
           <p className="mt-2 max-w-2xl text-sm text-brand-ink/55">
-            Бүх багшийн хичээлд бүртгэлтэй суралцагчид, ирцийн төлөв. Багшаар шүүж, нэрээр хайна уу.
+            Хичээл бүрээр ангилсан. Хичээл дээр дарж суралцагчдын жагсаалт, ирцийг нээнэ. Багшаар шүүж, нэрээр хайна уу.
           </p>
         </div>
         <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:gap-4">
@@ -288,7 +332,8 @@ export const ClassAttendanceAdmin: React.FC = () => {
       </div>
 
       <div className="mb-4 text-sm text-brand-ink/50">
-        Нийт: <strong className="text-brand-ink">{filteredRows.length}</strong>
+        Нийт: <strong className="text-brand-ink">{filteredRows.length}</strong> суралцагч ·{' '}
+        <strong className="text-brand-ink">{classGroups.length}</strong> хичээл
         {teacherFilter !== '__all__' ? (
           <>
             {' '}
@@ -297,81 +342,111 @@ export const ClassAttendanceAdmin: React.FC = () => {
         ) : null}
       </div>
 
-      <div className="overflow-hidden rounded-3xl border border-brand-ink/10 bg-white shadow-sm">
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[880px] text-left border-collapse">
-            <thead>
-              <tr className="border-b border-brand-ink/10 bg-secondary/30">
-                <th className="px-4 py-3 text-[10px] font-black uppercase tracking-widest text-brand-ink/40">
-                  Суралцагч
-                </th>
-                <th className="px-4 py-3 text-[10px] font-black uppercase tracking-widest text-brand-ink/40">
-                  Имэйл
-                </th>
-                <th className="px-4 py-3 text-[10px] font-black uppercase tracking-widest text-brand-ink/40">
-                  Хичээл
-                </th>
-                <th className="px-4 py-3 text-[10px] font-black uppercase tracking-widest text-brand-ink/40">
-                  Багш
-                </th>
-                <th className="px-4 py-3 text-[10px] font-black uppercase tracking-widest text-brand-ink/40">
-                  Захиалал
-                </th>
-                <th className="px-4 py-3 text-[10px] font-black uppercase tracking-widest text-brand-ink/40">
-                  Ирц
-                </th>
-                <th className="px-4 py-3 text-[10px] font-black uppercase tracking-widest text-brand-ink/40">
-                  Огноо
-                </th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-brand-ink/5">
-              {filteredRows.length === 0 ? (
-                <tr>
-                  <td colSpan={7} className="px-6 py-16 text-center text-brand-ink/45">
-                    Суралцагчийн бүртгэл олдсонгүй.
-                  </td>
-                </tr>
-              ) : (
-                filteredRows.map((row) => (
-                  <tr key={row.bookingId} className="hover:bg-secondary/20 transition-colors">
-                    <td className="px-4 py-3 text-sm font-medium text-brand-ink">{row.attendeeName}</td>
-                    <td className="max-w-[200px] truncate px-4 py-3 text-xs text-brand-ink/60">{row.attendeeEmail}</td>
-                    <td className="px-4 py-3 text-sm text-brand-ink">{row.classTitle}</td>
-                    <td className="px-4 py-3 text-sm text-brand-ink/80">{row.teacherName}</td>
-                    <td className="px-4 py-3">
-                      <span className="rounded-full bg-secondary px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-brand-ink/70">
-                        {row.status}
+      <div className="space-y-3">
+        {classGroups.length === 0 ? (
+          <div className="rounded-3xl border border-brand-ink/10 bg-white px-6 py-16 text-center text-brand-ink/45 shadow-sm">
+            Суралцагчийн бүртгэл олдсонгүй.
+          </div>
+        ) : (
+          classGroups.map((group) => {
+            const open = expandedKeys.has(group.key);
+            return (
+              <div
+                key={group.key}
+                className="overflow-hidden rounded-3xl border border-brand-ink/10 bg-white shadow-sm"
+              >
+                <button
+                  type="button"
+                  onClick={() => toggleGroup(group.key)}
+                  aria-expanded={open}
+                  className="flex w-full items-center gap-3 px-4 py-4 text-left transition-colors hover:bg-secondary/30 sm:px-6"
+                >
+                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-brand-ink/10 bg-secondary/40 text-brand-ink/70">
+                    {open ? <ChevronDown size={18} /> : <ChevronRight size={18} />}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-base font-medium text-brand-ink">{group.classTitle}</p>
+                    <p className="mt-0.5 text-xs text-brand-ink/50">
+                      <span className="font-semibold text-brand-ink/70">{group.teacherName}</span>
+                      {' · '}
+                      <span>
+                        {group.rows.length}{' '}
+                        {group.rows.length === 1 ? 'суралцагч' : 'суралцагч'}
                       </span>
-                    </td>
-                    <td className="px-4 py-3">
-                      <select
-                        value={
-                          row.attendance === 'present'
-                            ? 'attended'
-                            : row.attendance === 'absent'
-                              ? 'missed'
-                              : row.attendance
-                        }
-                        disabled={savingId === row.bookingId}
-                        onChange={(e) => {
-                          const v = e.target.value as 'attended' | 'missed' | 'unknown';
-                          void setAttendance(row.bookingId, v);
-                        }}
-                        className="h-9 rounded-lg border border-input bg-background px-2 text-xs text-brand-ink"
-                      >
-                        <option value="unknown">Тодорхойгүй</option>
-                        <option value="attended">Ирсэн</option>
-                        <option value="missed">Ирээгүй</option>
-                      </select>
-                    </td>
-                    <td className="whitespace-nowrap px-4 py-3 text-xs text-brand-ink/50">{row.createdLabel}</td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
+                    </p>
+                  </div>
+                </button>
+                {open ? (
+                  <div className="border-t border-brand-ink/10">
+                    <div className="overflow-x-auto">
+                      <table className="w-full min-w-[640px] text-left border-collapse">
+                        <thead>
+                          <tr className="bg-secondary/20">
+                            <th className="px-4 py-2.5 text-[10px] font-black uppercase tracking-widest text-brand-ink/40">
+                              Суралцагч
+                            </th>
+                            <th className="px-4 py-2.5 text-[10px] font-black uppercase tracking-widest text-brand-ink/40">
+                              Имэйл
+                            </th>
+                            <th className="px-4 py-2.5 text-[10px] font-black uppercase tracking-widest text-brand-ink/40">
+                              Захиалал
+                            </th>
+                            <th className="px-4 py-2.5 text-[10px] font-black uppercase tracking-widest text-brand-ink/40">
+                              Ирц
+                            </th>
+                            <th className="px-4 py-2.5 text-[10px] font-black uppercase tracking-widest text-brand-ink/40">
+                              Огноо
+                            </th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-brand-ink/5">
+                          {group.rows.map((row) => (
+                            <tr key={row.bookingId} className="hover:bg-secondary/15 transition-colors">
+                              <td className="px-4 py-3 text-sm font-medium text-brand-ink">{row.attendeeName}</td>
+                              <td className="max-w-[220px] truncate px-4 py-3 text-xs text-brand-ink/60">
+                                {row.attendeeEmail}
+                              </td>
+                              <td className="px-4 py-3">
+                                <span className="rounded-full bg-secondary px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-brand-ink/70">
+                                  {row.status}
+                                </span>
+                              </td>
+                              <td className="px-4 py-3">
+                                <select
+                                  value={
+                                    row.attendance === 'present'
+                                      ? 'attended'
+                                      : row.attendance === 'absent'
+                                        ? 'missed'
+                                        : row.attendance
+                                  }
+                                  disabled={savingId === row.bookingId}
+                                  onChange={(e) => {
+                                    const v = e.target.value as 'attended' | 'missed' | 'unknown';
+                                    void setAttendance(row.bookingId, v);
+                                  }}
+                                  onClick={(e) => e.stopPropagation()}
+                                  className="h-9 rounded-lg border border-input bg-background px-2 text-xs text-brand-ink"
+                                >
+                                  <option value="unknown">Тодорхойгүй</option>
+                                  <option value="attended">Ирсэн</option>
+                                  <option value="missed">Ирээгүй</option>
+                                </select>
+                              </td>
+                              <td className="whitespace-nowrap px-4 py-3 text-xs text-brand-ink/50">
+                                {row.createdLabel}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+            );
+          })
+        )}
       </div>
 
       <p className="mt-6 text-xs text-brand-ink/40">
