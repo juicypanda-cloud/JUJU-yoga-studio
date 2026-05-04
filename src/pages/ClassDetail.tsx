@@ -16,6 +16,14 @@ import {
   DialogHeader,
   DialogTitle,
 } from '../components/ui/dialog';
+import {
+  type PaymentSession,
+  buildFallbackQrUrl,
+  hasPaidStatus,
+  pickString,
+  readJsonSafe,
+  waitForImageReady,
+} from '../lib/qpayHelpers';
 
 type ClassDetailItem = ClassItem & {
   category: string;
@@ -28,68 +36,6 @@ type ClassDetailItem = ClassItem & {
   benefits: string[];
   image: string;
 };
-
-type PaymentSession = {
-  invoiceId: string;
-  qrText: string | null;
-  qrImage: string | null;
-  deeplink: string | null;
-};
-
-function buildFallbackQrUrl(value: string): string {
-  return `https://api.qrserver.com/v1/create-qr-code/?size=260x260&data=${encodeURIComponent(value)}`;
-}
-
-function waitForImageReady(src: string | null, timeoutMs = 12000): Promise<boolean> {
-  if (!src) return Promise.resolve(false);
-  return new Promise((resolve) => {
-    const img = new Image();
-    const timeout = window.setTimeout(() => resolve(false), timeoutMs);
-    img.onload = () => {
-      window.clearTimeout(timeout);
-      resolve(true);
-    };
-    img.onerror = () => {
-      window.clearTimeout(timeout);
-      resolve(false);
-    };
-    img.src = src;
-  });
-}
-
-async function readJsonSafe(response: Response): Promise<Record<string, unknown>> {
-  const text = await response.text();
-  if (!text.trim()) return {};
-  try {
-    return JSON.parse(text) as Record<string, unknown>;
-  } catch {
-    return { message: text };
-  }
-}
-
-function pickString(value: unknown): string | null {
-  return typeof value === 'string' && value.trim() ? value : null;
-}
-
-function hasPaidStatus(payload: unknown): boolean {
-  if (!payload || typeof payload !== 'object') return false;
-  const stack: unknown[] = [payload];
-  while (stack.length) {
-    const current = stack.pop();
-    if (!current || typeof current !== 'object') continue;
-    for (const value of Object.values(current as Record<string, unknown>)) {
-      if (typeof value === 'string') {
-        const normalized = value.toUpperCase();
-        if (['PAID', 'SUCCESS', 'COMPLETED', 'SETTLED'].includes(normalized)) return true;
-      } else if (Array.isArray(value)) {
-        stack.push(...value);
-      } else if (value && typeof value === 'object') {
-        stack.push(value);
-      }
-    }
-  }
-  return false;
-}
 
 const normalizeClassDetail = (id: string, raw: any): ClassDetailItem => {
   const normalizedCategory = (() => {
@@ -229,6 +175,8 @@ export const ClassDetail: React.FC = () => {
       toast.error('Та энэ хичээлд аль хэдийн бүртгүүлсэн байна');
       return;
     }
+    setBookingLoading(true);
+    try {
     await addDoc(collection(db, 'bookings'), {
       userId: user.uid,
       classId: id,
@@ -241,6 +189,12 @@ export const ClassDetail: React.FC = () => {
     });
     setBookingSuccess(true);
     toast.success('Хичээл таны хуваарьт нэмэгдлээ');
+    } catch (error) {
+      console.error(error);
+      toast.error('Бүртгүүлэхэд алдаа гарлаа');
+    } finally {
+      setBookingLoading(false);
+    }
   };
 
   const createBookingInvoice = async () => {
@@ -528,16 +482,40 @@ export const ClassDetail: React.FC = () => {
                       {bookingSuccess ? (
                         <div className="text-center space-y-4">
                           <h4 className="text-xl font-serif text-brand-ink">Бүртгэл амжилттай</h4>
-                          <p className="text-sm text-brand-ink/60">Төлбөр баталгаажлаа. Хичээл таны хуваарьт нэмэгдлээ.</p>
+                          <p className="text-sm text-brand-ink/60">
+                            {typeof classItem.price === 'number' && classItem.price > 0
+                              ? 'Төлбөр баталгаажлаа. Хичээл таны хуваарьт нэмэгдлээ.'
+                              : 'Хичээл таны хуваарьт нэмэгдлээ.'}
+                          </p>
                           <Link to="/schedule">
                             <Button className="rounded-full bg-brand-ink px-8 text-white hover:bg-brand-icon">Миний хуваарь руу очих</Button>
                           </Link>
+                        </div>
+                      ) : !(typeof classItem.price === 'number' && classItem.price > 0) ? (
+                        <div className="space-y-4">
+                          <h4 className="text-xl font-serif text-brand-ink">Төлбөргүй бүртгэл</h4>
+                          <p className="text-sm text-brand-ink/60">
+                            Энэ хичээл төлбөргүй. Доорх товч дарж бүртгэлээ баталгаажуулна уу.
+                          </p>
+                          <Button
+                            onClick={() => void finalizeClassBooking()}
+                            disabled={bookingLoading}
+                            className="w-full rounded-full bg-brand-ink py-6 text-[11px] font-black uppercase tracking-[0.2em] text-white hover:bg-brand-icon"
+                          >
+                            {bookingLoading ? (
+                              <span className="inline-flex items-center gap-2">
+                                <Loader2 size={14} className="animate-spin" /> Бүртгэж байна...
+                              </span>
+                            ) : (
+                              'Бүртгүүлэх'
+                            )}
+                          </Button>
                         </div>
                       ) : !bookingSession ? (
                         <div className="space-y-4">
                           <h4 className="text-xl font-serif text-brand-ink">Хичээлийн төлбөр</h4>
                           <p className="text-sm text-brand-ink/60">
-                            Үнэ: {Number(classItem.price || 0).toLocaleString()} ₮. Төлбөрөө хийсний дараа хичээл таны хуваарьт нэмэгдэнэ.
+                            Үнэ: {Number(classItem.price || 0).toLocaleString()} ₮. Төлбөр баталгаажсаны дараа л хичээл таны хуваарьт нэмэгдэнэ.
                           </p>
                           <Button
                             onClick={createBookingInvoice}

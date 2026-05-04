@@ -14,80 +14,19 @@ import {
   DialogHeader,
   DialogTitle,
 } from '../components/ui/dialog';
+import {
+  type PaymentSession,
+  buildFallbackQrUrl,
+  hasPaidStatus,
+  pickString,
+  readJsonSafe,
+  waitForImageReady,
+} from '../lib/qpayHelpers';
 
 const plans = {
   'online-video': { name: 'Online Video', price: 100, contentType: 'video' as const },
   'online-audio': { name: 'Online Audio', price: 200, contentType: 'audio' as const },
 };
-
-type PaymentSession = {
-  invoiceId: string;
-  qrText: string | null;
-  qrImage: string | null;
-  deeplink: string | null;
-};
-
-function buildFallbackQrUrl(value: string): string {
-  return `https://api.qrserver.com/v1/create-qr-code/?size=280x280&data=${encodeURIComponent(value)}`;
-}
-
-function waitForImageReady(src: string | null, timeoutMs = 12000): Promise<boolean> {
-  if (!src) return Promise.resolve(false);
-  return new Promise((resolve) => {
-    const img = new Image();
-    const timeout = window.setTimeout(() => resolve(false), timeoutMs);
-    img.onload = () => {
-      window.clearTimeout(timeout);
-      resolve(true);
-    };
-    img.onerror = () => {
-      window.clearTimeout(timeout);
-      resolve(false);
-    };
-    img.src = src;
-  });
-}
-
-async function readJsonSafe(response: Response): Promise<Record<string, unknown>> {
-  const text = await response.text();
-  if (!text.trim()) {
-    return {};
-  }
-  try {
-    return JSON.parse(text) as Record<string, unknown>;
-  } catch {
-    return { message: text };
-  }
-}
-
-function pickString(value: unknown): string | null {
-  return typeof value === 'string' && value.trim() ? value : null;
-}
-
-function hasPaidStatus(payload: unknown): boolean {
-  if (!payload || typeof payload !== 'object') return false;
-  const stack: unknown[] = [payload];
-
-  while (stack.length) {
-    const current = stack.pop();
-    if (!current || typeof current !== 'object') continue;
-
-    for (const value of Object.values(current as Record<string, unknown>)) {
-      if (typeof value === 'string') {
-        const normalized = value.toUpperCase();
-        if (['PAID', 'SUCCESS', 'COMPLETED', 'SETTLED'].includes(normalized)) {
-          return true;
-        }
-      } else if (Array.isArray(value)) {
-        stack.push(...value);
-      } else if (value && typeof value === 'object') {
-        stack.push(value);
-      }
-    }
-  }
-
-  return false;
-}
 
 export const Checkout: React.FC = () => {
   const [searchParams] = useSearchParams();
@@ -170,7 +109,7 @@ export const Checkout: React.FC = () => {
         throw new Error('invoice_id олдсонгүй. QPay response-оо шалгана уу.');
       }
 
-      const fallbackQrUrl = buildFallbackQrUrl(session.qrText ?? session.invoiceId);
+      const fallbackQrUrl = buildFallbackQrUrl(session.qrText ?? session.invoiceId, 280);
       const primaryReady = await waitForImageReady(session.qrImage);
       const useFallback = !primaryReady;
       if (useFallback) {
@@ -278,7 +217,7 @@ export const Checkout: React.FC = () => {
                   src={
                     !useQrFallback && paymentSession.qrImage
                       ? paymentSession.qrImage
-                      : buildFallbackQrUrl(paymentSession.qrText ?? paymentSession.invoiceId)
+                      : buildFallbackQrUrl(paymentSession.qrText ?? paymentSession.invoiceId, 280)
                   }
                   alt="QPay QR"
                   className="w-64 h-64 rounded-2xl bg-white p-2"

@@ -96,6 +96,16 @@ function groupKeyForRow(row: AttendeeRow): string {
   return 'unknown';
 }
 
+function rowMatchesSearch(r: AttendeeRow, q: string): boolean {
+  const ql = q.toLowerCase();
+  return (
+    r.attendeeName.toLowerCase().includes(ql) ||
+    r.attendeeEmail.toLowerCase().includes(ql) ||
+    r.classTitle.toLowerCase().includes(ql) ||
+    r.teacherName.toLowerCase().includes(ql)
+  );
+}
+
 type ClassGroup = {
   key: string;
   classTitle: string;
@@ -214,46 +224,116 @@ export const ClassAttendanceAdmin: React.FC = () => {
 
   const teacherOptions = useMemo(() => {
     const set = new Set<string>();
+    classesById.forEach((c) => {
+      if (c.teacher && c.teacher !== '—') set.add(c.teacher);
+    });
     rows.forEach((r) => {
       if (r.teacherName && r.teacherName !== '—') set.add(r.teacherName);
     });
     return Array.from(set).sort((a, b) => a.localeCompare(b, 'mn'));
+  }, [rows, classesById]);
+
+  /** Bookings with a Firestore class id → grouped for merging into catalog cards */
+  const rowsByClassId = useMemo(() => {
+    const m = new Map<string, AttendeeRow[]>();
+    for (const r of rows) {
+      if (!r.classId) continue;
+      const list = m.get(r.classId);
+      if (list) list.push(r);
+      else m.set(r.classId, [r]);
+    }
+    for (const list of m.values()) {
+      list.sort((a, b) => a.attendeeName.localeCompare(b.attendeeName, 'mn'));
+    }
+    return m;
   }, [rows]);
 
-  const filteredRows = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    return rows.filter((r) => {
-      if (teacherFilter !== '__all__' && r.teacherName !== teacherFilter) return false;
-      if (!q) return true;
-      return (
-        r.attendeeName.toLowerCase().includes(q) ||
-        r.attendeeEmail.toLowerCase().includes(q) ||
-        r.classTitle.toLowerCase().includes(q) ||
-        r.teacherName.toLowerCase().includes(q)
-      );
-    });
-  }, [rows, teacherFilter, search]);
-
   const classGroups = useMemo(() => {
-    const map = new Map<string, ClassGroup>();
-    for (const r of filteredRows) {
+    const q = search.trim().toLowerCase();
+    const out: ClassGroup[] = [];
+
+    const sortedClasses = Array.from(classesById.values()).sort((a, b) => {
+      const t = a.teacher.localeCompare(b.teacher, 'mn');
+      if (t !== 0) return t;
+      return a.title.localeCompare(b.title, 'mn');
+    });
+
+    for (const cls of sortedClasses) {
+      if (teacherFilter !== '__all__' && cls.teacher !== teacherFilter) continue;
+
+      const allForClass = rowsByClassId.get(cls.id) ?? [];
+      let displayRows = allForClass;
+
+      if (q) {
+        const metaMatch =
+          cls.title.toLowerCase().includes(q) || cls.teacher.toLowerCase().includes(q);
+        const studentMatches = allForClass.filter((r) => rowMatchesSearch(r, q));
+        if (!metaMatch && studentMatches.length === 0) continue;
+        displayRows = metaMatch ? allForClass : studentMatches;
+      }
+
+      out.push({
+        key: `class:${cls.id}`,
+        classTitle: cls.title,
+        teacherName: cls.teacher,
+        rows: displayRows,
+      });
+    }
+
+    /** Bookings whose classId no longer exists in `classes` */
+    const ghostClassIds = new Set<string>();
+    for (const r of rows) {
+      if (r.classId && !classesById.has(r.classId)) ghostClassIds.add(r.classId);
+    }
+    for (const ghostId of ghostClassIds) {
+      const ghostRows = rows.filter(
+        (x) =>
+          x.classId === ghostId &&
+          (teacherFilter === '__all__' || x.teacherName === teacherFilter) &&
+          (!q || rowMatchesSearch(x, q))
+      );
+      if (ghostRows.length === 0) continue;
+      ghostRows.sort((a, b) => a.attendeeName.localeCompare(b.attendeeName, 'mn'));
+      const first = ghostRows[0];
+      out.push({
+        key: `ghost:${ghostId}`,
+        classTitle: first.classTitle,
+        teacherName: first.teacherName,
+        rows: ghostRows,
+      });
+    }
+
+    /** No class id (e.g. schedule-only edge): keep grouped cards */
+    const orphanMap = new Map<string, ClassGroup>();
+    for (const r of rows) {
+      if (r.classId) continue;
+      if (teacherFilter !== '__all__' && r.teacherName !== teacherFilter) continue;
+      if (q && !rowMatchesSearch(r, q)) continue;
       const key = groupKeyForRow(r);
-      let g = map.get(key);
+      let g = orphanMap.get(key);
       if (!g) {
         g = { key, classTitle: r.classTitle, teacherName: r.teacherName, rows: [] };
-        map.set(key, g);
+        orphanMap.set(key, g);
       }
       g.rows.push(r);
     }
-    for (const g of map.values()) {
+    for (const g of orphanMap.values()) {
       g.rows.sort((a, b) => a.attendeeName.localeCompare(b.attendeeName, 'mn'));
+      out.push(g);
     }
-    return Array.from(map.values()).sort((a, b) => {
+
+    out.sort((a, b) => {
       const t = a.teacherName.localeCompare(b.teacherName, 'mn');
       if (t !== 0) return t;
       return a.classTitle.localeCompare(b.classTitle, 'mn');
     });
-  }, [filteredRows]);
+    return out;
+  }, [rows, rowsByClassId, classesById, teacherFilter, search]);
+
+  const totalAttendeeRowsInView = useMemo(
+    () => classGroups.reduce((acc, g) => acc + g.rows.length, 0),
+    [classGroups]
+  );
 
   const toggleGroup = (key: string) => {
     setExpandedKeys((prev) => {
@@ -298,7 +378,7 @@ export const ClassAttendanceAdmin: React.FC = () => {
           </div>
           <h1 className="text-3xl font-light text-brand-ink">Бүх хичээлийн суралцагчид</h1>
           <p className="mt-2 max-w-2xl text-sm text-brand-ink/55">
-            Хичээл бүрээр ангилсан. Хичээл дээр дарж суралцагчдын жагсаалт, ирцийг нээнэ. Багшаар шүүж, нэрээр хайна уу.
+            Бүх хичээл харагдана (бүртгэлгүй ч гэсэн). Хичээл дээр дарж суралцагчдын жагсаалт, ирцийг нээнэ. Багшаар шүүж, нэрээр хайна уу.
           </p>
         </div>
         <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:gap-4">
@@ -332,7 +412,7 @@ export const ClassAttendanceAdmin: React.FC = () => {
       </div>
 
       <div className="mb-4 text-sm text-brand-ink/50">
-        Нийт: <strong className="text-brand-ink">{filteredRows.length}</strong> суралцагч ·{' '}
+        Нийт: <strong className="text-brand-ink">{totalAttendeeRowsInView}</strong> суралцагч ·{' '}
         <strong className="text-brand-ink">{classGroups.length}</strong> хичээл
         {teacherFilter !== '__all__' ? (
           <>
@@ -345,7 +425,7 @@ export const ClassAttendanceAdmin: React.FC = () => {
       <div className="space-y-3">
         {classGroups.length === 0 ? (
           <div className="rounded-3xl border border-brand-ink/10 bg-white px-6 py-16 text-center text-brand-ink/45 shadow-sm">
-            Суралцагчийн бүртгэл олдсонгүй.
+            Хичээл олдсонгүй. Хайлт эсвэл багшийн шүүлтийг өөрчилнө үү.
           </div>
         ) : (
           classGroups.map((group) => {
@@ -378,69 +458,75 @@ export const ClassAttendanceAdmin: React.FC = () => {
                 </button>
                 {open ? (
                   <div className="border-t border-brand-ink/10">
-                    <div className="overflow-x-auto">
-                      <table className="w-full min-w-[640px] text-left border-collapse">
-                        <thead>
-                          <tr className="bg-secondary/20">
-                            <th className="px-4 py-2.5 text-[10px] font-black uppercase tracking-widest text-brand-ink/40">
-                              Суралцагч
-                            </th>
-                            <th className="px-4 py-2.5 text-[10px] font-black uppercase tracking-widest text-brand-ink/40">
-                              Имэйл
-                            </th>
-                            <th className="px-4 py-2.5 text-[10px] font-black uppercase tracking-widest text-brand-ink/40">
-                              Захиалал
-                            </th>
-                            <th className="px-4 py-2.5 text-[10px] font-black uppercase tracking-widest text-brand-ink/40">
-                              Ирц
-                            </th>
-                            <th className="px-4 py-2.5 text-[10px] font-black uppercase tracking-widest text-brand-ink/40">
-                              Огноо
-                            </th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-brand-ink/5">
-                          {group.rows.map((row) => (
-                            <tr key={row.bookingId} className="hover:bg-secondary/15 transition-colors">
-                              <td className="px-4 py-3 text-sm font-medium text-brand-ink">{row.attendeeName}</td>
-                              <td className="max-w-[220px] truncate px-4 py-3 text-xs text-brand-ink/60">
-                                {row.attendeeEmail}
-                              </td>
-                              <td className="px-4 py-3">
-                                <span className="rounded-full bg-secondary px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-brand-ink/70">
-                                  {row.status}
-                                </span>
-                              </td>
-                              <td className="px-4 py-3">
-                                <select
-                                  value={
-                                    row.attendance === 'present'
-                                      ? 'attended'
-                                      : row.attendance === 'absent'
-                                        ? 'missed'
-                                        : row.attendance
-                                  }
-                                  disabled={savingId === row.bookingId}
-                                  onChange={(e) => {
-                                    const v = e.target.value as 'attended' | 'missed' | 'unknown';
-                                    void setAttendance(row.bookingId, v);
-                                  }}
-                                  onClick={(e) => e.stopPropagation()}
-                                  className="h-9 rounded-lg border border-input bg-background px-2 text-xs text-brand-ink"
-                                >
-                                  <option value="unknown">Тодорхойгүй</option>
-                                  <option value="attended">Ирсэн</option>
-                                  <option value="missed">Ирээгүй</option>
-                                </select>
-                              </td>
-                              <td className="whitespace-nowrap px-4 py-3 text-xs text-brand-ink/50">
-                                {row.createdLabel}
-                              </td>
+                    {group.rows.length === 0 ? (
+                      <div className="px-6 py-10 text-center text-sm text-brand-ink/45">
+                        Энэ хичээлд одоогоор бүртгэгдсэн суралцагч байхгүй.
+                      </div>
+                    ) : (
+                      <div className="overflow-x-auto">
+                        <table className="w-full min-w-[640px] text-left border-collapse">
+                          <thead>
+                            <tr className="bg-secondary/20">
+                              <th className="px-4 py-2.5 text-[10px] font-black uppercase tracking-widest text-brand-ink/40">
+                                Суралцагч
+                              </th>
+                              <th className="px-4 py-2.5 text-[10px] font-black uppercase tracking-widest text-brand-ink/40">
+                                Имэйл
+                              </th>
+                              <th className="px-4 py-2.5 text-[10px] font-black uppercase tracking-widest text-brand-ink/40">
+                                Захиалал
+                              </th>
+                              <th className="px-4 py-2.5 text-[10px] font-black uppercase tracking-widest text-brand-ink/40">
+                                Ирц
+                              </th>
+                              <th className="px-4 py-2.5 text-[10px] font-black uppercase tracking-widest text-brand-ink/40">
+                                Огноо
+                              </th>
                             </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
+                          </thead>
+                          <tbody className="divide-y divide-brand-ink/5">
+                            {group.rows.map((row) => (
+                              <tr key={row.bookingId} className="hover:bg-secondary/15 transition-colors">
+                                <td className="px-4 py-3 text-sm font-medium text-brand-ink">{row.attendeeName}</td>
+                                <td className="max-w-[220px] truncate px-4 py-3 text-xs text-brand-ink/60">
+                                  {row.attendeeEmail}
+                                </td>
+                                <td className="px-4 py-3">
+                                  <span className="rounded-full bg-secondary px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-brand-ink/70">
+                                    {row.status}
+                                  </span>
+                                </td>
+                                <td className="px-4 py-3">
+                                  <select
+                                    value={
+                                      row.attendance === 'present'
+                                        ? 'attended'
+                                        : row.attendance === 'absent'
+                                          ? 'missed'
+                                          : row.attendance
+                                    }
+                                    disabled={savingId === row.bookingId}
+                                    onChange={(e) => {
+                                      const v = e.target.value as 'attended' | 'missed' | 'unknown';
+                                      void setAttendance(row.bookingId, v);
+                                    }}
+                                    onClick={(e) => e.stopPropagation()}
+                                    className="h-9 rounded-lg border border-input bg-background px-2 text-xs text-brand-ink"
+                                  >
+                                    <option value="unknown">Тодорхойгүй</option>
+                                    <option value="attended">Ирсэн</option>
+                                    <option value="missed">Ирээгүй</option>
+                                  </select>
+                                </td>
+                                <td className="whitespace-nowrap px-4 py-3 text-xs text-brand-ink/50">
+                                  {row.createdLabel}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
                   </div>
                 ) : null}
               </div>

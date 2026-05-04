@@ -1,5 +1,14 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { addDoc, collection, doc, increment, onSnapshot, orderBy, query, updateDoc, where } from 'firebase/firestore';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import {
+  collection,
+  doc,
+  increment,
+  onSnapshot,
+  orderBy,
+  query,
+  runTransaction,
+  where,
+} from 'firebase/firestore';
 import { db } from '../firebase';
 import { useAuth } from '../context/AuthContext';
 import { Button } from '../components/ui/button';
@@ -7,9 +16,24 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '.
 import { Badge } from '../components/ui/badge';
 import { toast } from 'sonner';
 import { motion } from 'motion/react';
-import { Calendar as CalendarIcon, Clock, User } from 'lucide-react';
+import { Calendar as CalendarIcon, Clock, Loader2, QrCode, Smartphone, User } from 'lucide-react';
 import { ErrorBoundary } from '../components/ErrorBoundary';
 import type { ClassItem } from '../types/class';
+import {
+  type PaymentSession,
+  buildFallbackQrUrl,
+  hasPaidStatus,
+  pickString,
+  readJsonSafe,
+  waitForImageReady,
+} from '../lib/qpayHelpers';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '../components/ui/dialog';
 
 type ClassLookupItem = {
   id: string;
@@ -19,6 +43,7 @@ type ClassLookupItem = {
   videoUrl?: string;
   audioUrl?: string;
   createdAt?: any;
+  price?: number;
 };
 
 type TeacherLookupItem = {
@@ -92,6 +117,12 @@ const normalizeScheduleItem = (id: string, raw: any): ScheduleItem => ({
   bookedCount: Number(raw?.bookedCount || 0),
 });
 
+function getSlotPrice(item: ScheduleItem, classesMap: Record<string, ClassLookupItem>): number {
+  const rec = classesMap[item.classId];
+  const p = rec?.price;
+  return typeof p === 'number' && p > 0 ? p : 0;
+}
+
 export const Schedule: React.FC = () => {
   const [schedule, setSchedule] = useState<ScheduleItem[]>([]);
   const [classes, setClasses] = useState<Record<string, ClassLookupItem>>({});
@@ -99,8 +130,20 @@ export const Schedule: React.FC = () => {
   const [myRecurringBookedScheduleIds, setMyRecurringBookedScheduleIds] = useState<Set<string>>(new Set());
   const [myWeeklyBookedScheduleIds, setMyWeeklyBookedScheduleIds] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const currentWeekKey = useMemo(() => getCurrentWeekKey(), []);
+
+  const [payTarget, setPayTarget] = useState<ScheduleItem | null>(null);
+  const payTargetRef = useRef<ScheduleItem | null>(null);
+  payTargetRef.current = payTarget;
+
+  const [scheduleOrderId, setScheduleOrderId] = useState('');
+  const [scheduleBookingSession, setScheduleBookingSession] = useState<PaymentSession | null>(null);
+  const [scheduleBookingLoading, setScheduleBookingLoading] = useState(false);
+  const [scheduleCheckingPayment, setScheduleCheckingPayment] = useState(false);
+  const [scheduleBookingSuccess, setScheduleBookingSuccess] = useState(false);
+  const [scheduleUseQrFallback, setScheduleUseQrFallback] = useState(false);
+  const [schedulePayDialogOpen, setSchedulePayDialogOpen] = useState(false);
 
   useEffect(() => {
     const unsubscribeClasses = onSnapshot(collection(db, 'classes'), (snapshot) => {
@@ -115,6 +158,7 @@ export const Schedule: React.FC = () => {
           videoUrl: typeof raw.videoUrl === 'string' ? raw.videoUrl : undefined,
           audioUrl: typeof raw.audioUrl === 'string' ? raw.audioUrl : undefined,
           createdAt: raw.createdAt,
+          price: typeof raw.price === 'number' ? raw.price : undefined,
         };
       });
       setClasses(lookup);
@@ -209,6 +253,159 @@ export const Schedule: React.FC = () => {
     return myRecurringBookedScheduleIds.has(id) || myWeeklyBookedScheduleIds.has(id);
   };
 
+  const resetSchedulePaymentUi = () => {
+    setPayTarget(null);
+    setScheduleBookingSession(null);
+    setScheduleBookingSuccess(false);
+    setScheduleUseQrFallback(false);
+    setScheduleBookingLoading(false);
+    setScheduleCheckingPayment(false);
+  };
+
+  const finalizeScheduleBooking = async (item: ScheduleItem, opts?: { fromPaidFlow?: boolean }) => {
+    if (!user?.uid) {
+      toast.error('Хичээл захиалахын тулд нэвтэрнэ үү');
+      return;
+    }
+    if (isSlotAlreadyBooked(item.id)) {
+      toast.error('Та энэ хичээлд аль хэдийн бүртгүүлсэн байна');
+      return;
+    }
+    if ((item.bookedCount || 0) >= (item.capacity || 0)) {
+      toast.error('Хичээл дүүрсэн байна');
+      return;
+    }
+
+    try {
+      await runTransaction(db, async (transaction) => {
+        const schedRef = doc(db, 'schedule', item.id);
+        const schedSnap = await transaction.get(schedRef);
+        if (!schedSnap.exists()) {
+          throw new Error('NO_SCHEDULE');
+        }
+        const raw = schedSnap.data() as Record<string, unknown>;
+        const cap = Number(raw?.capacity ?? 0);
+        const booked = Number(raw?.bookedCount ?? 0);
+        if (booked >= cap) {
+          throw new Error('FULL');
+        }
+        const bookingRef = doc(collection(db, 'bookings'));
+        transaction.set(bookingRef, {
+          userId: user.uid,
+          scheduleId: item.id,
+          type: 'class',
+          status: 'booked',
+          weekKey: currentWeekKey,
+          createdAt: new Date().toISOString(),
+        });
+        transaction.update(schedRef, { bookedCount: increment(1) });
+      });
+      toast.success('Хичээл амжилттай захиалагдлаа!');
+      if (opts?.fromPaidFlow) setScheduleBookingSuccess(true);
+    } catch (error) {
+      console.error('Booking error:', error);
+      const code = error instanceof Error ? error.message : '';
+      if (code === 'FULL') toast.error('Хичээл дүүрсэн байна');
+      else toast.error('Хичээл захиалахад алдаа гарлаа');
+    }
+  };
+
+  const createScheduleInvoice = async () => {
+    const item = payTargetRef.current;
+    if (!user || !item) return;
+    const amount = getSlotPrice(item, classes);
+    if (amount <= 0) return;
+
+    setScheduleBookingLoading(true);
+    try {
+      const classTitle = getClassInfo(item).title;
+      const payload = {
+        amount,
+        orderId: scheduleOrderId || `sched-${item.id}-${user.uid}-${Date.now()}`,
+        description: `${classTitle} — хуваарийн захиалга`,
+        receiverCode: 'terminal',
+        senderBranchCode: 'SCHEDULE',
+        receiverData: {
+          name: pickString(profile?.displayName) ?? pickString(user.displayName) ?? 'JUJU user',
+          email: pickString(user.email),
+        },
+      };
+
+      const response = await fetch('/api/qpay/invoice', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const data = await readJsonSafe(response);
+      if (!response.ok) {
+        throw new Error(pickString(data?.error) ?? 'QPay invoice үүсгэхэд алдаа гарлаа');
+      }
+
+      const links = Array.isArray(data?.urls) ? data.urls : [];
+      const deeplinkFromUrls = links
+        .map((linkItem: unknown) =>
+          linkItem && typeof linkItem === 'object' ? (linkItem as Record<string, unknown>).link : null
+        )
+        .find((v: unknown) => typeof v === 'string' && v.startsWith('qpay://'));
+
+      const session: PaymentSession = {
+        invoiceId: pickString(data?.invoice_id) ?? pickString(data?.invoiceId) ?? pickString(data?.id) ?? '',
+        qrText: pickString(data?.qr_text) ?? pickString(data?.qrText) ?? pickString(data?.qrcode),
+        qrImage: pickString(data?.qr_image) ?? pickString(data?.qr_image_url) ?? pickString(data?.qrImage),
+        deeplink: pickString(data?.deeplink) ?? (deeplinkFromUrls as string | null),
+      };
+      if (!session.invoiceId) throw new Error('invoice_id олдсонгүй');
+
+      const fallbackQrUrl = buildFallbackQrUrl(session.qrText ?? session.invoiceId);
+      const primaryReady = await waitForImageReady(session.qrImage);
+      const useFallback = !primaryReady;
+      if (useFallback) {
+        const fallbackReady = await waitForImageReady(fallbackQrUrl);
+        if (!fallbackReady) throw new Error('QR зураг ачаалагдсангүй');
+      }
+
+      setScheduleBookingSession(session);
+      setScheduleUseQrFallback(useFallback);
+      toast.success('Төлбөрийн QR амжилттай үүслээ');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Төлбөр үүсгэхэд алдаа гарлаа');
+    } finally {
+      setScheduleBookingLoading(false);
+    }
+  };
+
+  const checkSchedulePayment = async (silent = false) => {
+    const item = payTargetRef.current;
+    if (!scheduleBookingSession?.invoiceId || scheduleBookingSuccess || !item) return;
+    if (!silent && scheduleCheckingPayment) return;
+    if (!silent) setScheduleCheckingPayment(true);
+    try {
+      const response = await fetch('/api/qpay/payment/check', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ invoiceId: scheduleBookingSession.invoiceId }),
+      });
+      const data = await readJsonSafe(response);
+      if (!response.ok) throw new Error(pickString(data?.error) ?? 'Төлбөр шалгах үед алдаа гарлаа');
+
+      if (hasPaidStatus(data)) {
+        await finalizeScheduleBooking(item, { fromPaidFlow: true });
+      }
+    } catch (error) {
+      if (!silent) toast.error(error instanceof Error ? error.message : 'Төлбөр шалгахад алдаа гарлаа');
+    } finally {
+      if (!silent) setScheduleCheckingPayment(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!scheduleBookingSession?.invoiceId || scheduleBookingSuccess) return;
+    const timer = window.setInterval(() => {
+      void checkSchedulePayment(true);
+    }, 8000);
+    return () => window.clearInterval(timer);
+  }, [scheduleBookingSession?.invoiceId, scheduleBookingSuccess]);
+
   const handleBook = async (item: ScheduleItem) => {
     if (!user) {
       toast.error('Хичээл захиалахын тулд нэвтэрнэ үү');
@@ -225,25 +422,18 @@ export const Schedule: React.FC = () => {
       return;
     }
 
-    try {
-      await addDoc(collection(db, 'bookings'), {
-        userId: user.uid,
-        scheduleId: item?.id,
-        type: 'class',
-        status: 'booked',
-        weekKey: currentWeekKey,
-        createdAt: new Date().toISOString(),
-      });
-
-      await updateDoc(doc(db, 'schedule', item?.id), {
-        bookedCount: increment(1),
-      });
-
-      toast.success('Хичээл амжилттай захиалагдлаа!');
-    } catch (error) {
-      console.error('Booking error:', error);
-      toast.error('Хичээл захиалахад алдаа гарлаа');
+    const amount = getSlotPrice(item, classes);
+    if (amount <= 0) {
+      await finalizeScheduleBooking(item);
+      return;
     }
+
+    setScheduleBookingSuccess(false);
+    setScheduleBookingSession(null);
+    setScheduleUseQrFallback(false);
+    setPayTarget(item);
+    setScheduleOrderId(`sched-${item.id}-${user.uid}-${Date.now()}`);
+    setSchedulePayDialogOpen(true);
   };
 
   const getClassInfo = (item: ScheduleItem) => {
@@ -282,12 +472,114 @@ export const Schedule: React.FC = () => {
 
   return (
     <ErrorBoundary>
+      <Dialog
+        open={schedulePayDialogOpen && Boolean(payTarget)}
+        onOpenChange={(open) => {
+          setSchedulePayDialogOpen(open);
+          if (!open) resetSchedulePaymentUi();
+        }}
+      >
+        <DialogContent className="sm:max-w-md rounded-[2rem] p-8">
+          <DialogHeader className="gap-2">
+            <DialogTitle className="flex items-center gap-2 font-serif text-2xl text-brand-ink">
+              <QrCode className="text-brand-icon" size={22} />
+              Хичээлийн төлбөр
+            </DialogTitle>
+            <DialogDescription className="text-brand-ink/60">
+              {payTarget ? (
+                <>
+                  {getClassInfo(payTarget).title} — {payTarget.day} {payTarget.time}
+                </>
+              ) : null}
+            </DialogDescription>
+          </DialogHeader>
+
+          {payTarget && scheduleBookingSuccess ? (
+            <div className="space-y-4 text-center">
+              <p className="text-sm text-brand-ink/70">Төлбөр баталгаажлаа. Захиалга амжилттай үүслээ.</p>
+              <Button
+                type="button"
+                className="rounded-full bg-brand-ink px-8 text-white hover:bg-brand-icon"
+                onClick={() => {
+                  resetSchedulePaymentUi();
+                  setSchedulePayDialogOpen(false);
+                }}
+              >
+                Хаах
+              </Button>
+            </div>
+          ) : payTarget && !scheduleBookingSession ? (
+            <div className="space-y-4">
+              <p className="text-sm text-brand-ink/60">
+                Үнэ: {getSlotPrice(payTarget, classes).toLocaleString()} ₮. Төлбөр баталгаажсаны дараа л суудал таньд тоологдоно.
+              </p>
+              <Button
+                type="button"
+                onClick={() => void createScheduleInvoice()}
+                disabled={scheduleBookingLoading}
+                className="w-full rounded-full bg-brand-ink py-6 text-[11px] font-black uppercase tracking-[0.2em] text-white hover:bg-brand-icon"
+              >
+                {scheduleBookingLoading ? (
+                  <span className="inline-flex items-center justify-center gap-2">
+                    <Loader2 size={14} className="animate-spin" /> QR үүсгэж байна...
+                  </span>
+                ) : (
+                  `QPay QR үүсгэх: ${getSlotPrice(payTarget, classes).toLocaleString()}₮`
+                )}
+              </Button>
+            </div>
+          ) : scheduleBookingSession ? (
+            <div className="space-y-5">
+              <div className="rounded-2xl border border-brand-ink/10 bg-gray-50 p-4 flex flex-col items-center">
+                <img
+                  src={
+                    !scheduleUseQrFallback && scheduleBookingSession.qrImage
+                      ? scheduleBookingSession.qrImage
+                      : buildFallbackQrUrl(scheduleBookingSession.qrText ?? scheduleBookingSession.invoiceId)
+                  }
+                  alt="QPay QR"
+                  className="h-56 w-56 rounded-xl bg-white p-2"
+                  onError={() => {
+                    if (!scheduleUseQrFallback) setScheduleUseQrFallback(true);
+                  }}
+                />
+              </div>
+              {scheduleBookingSession.deeplink ? (
+                <a
+                  href={scheduleBookingSession.deeplink}
+                  className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-brand-icon py-3 text-[11px] font-black uppercase tracking-[0.2em] text-white"
+                >
+                  <Smartphone size={14} />
+                  QPay апп-аар нээх
+                </a>
+              ) : null}
+              <Button
+                type="button"
+                onClick={() => void checkSchedulePayment(false)}
+                disabled={scheduleCheckingPayment}
+                className="w-full rounded-full bg-brand-ink py-6 text-[11px] font-black uppercase tracking-[0.2em] text-white hover:bg-brand-icon"
+              >
+                {scheduleCheckingPayment ? (
+                  <span className="inline-flex items-center gap-2">
+                    <Loader2 size={14} className="animate-spin" /> Төлбөр шалгаж байна...
+                  </span>
+                ) : (
+                  'Төлбөр шалгах'
+                )}
+              </Button>
+            </div>
+          ) : null}
+        </DialogContent>
+      </Dialog>
+
       <div className="pt-32 pb-20 min-h-screen bg-white">
         <div className="container mx-auto px-4">
           <div className="max-w-4xl mx-auto">
             <div className="text-center mb-16">
               <h1 className="text-5xl font-light tracking-tight mb-4">Хичээлийн хуваарь</h1>
-              <p className="text-accent/60">Дасгал сургуулилт хийх тохиромжтой цагаа олоорой. Бүх хичээлийг захиалах боломжтой.</p>
+              <p className="text-accent/60">
+                Дасгал сургуулилт хийх тохиромжтой цагаа олоорой. Төлбөртэй хичээлийг QPay-ээр төлсний дараа л захиалга баталгаажина.
+              </p>
             </div>
 
             {loading ? (
