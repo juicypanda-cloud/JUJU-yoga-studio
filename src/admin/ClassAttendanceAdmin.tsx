@@ -257,9 +257,11 @@ export const ClassAttendanceAdmin: React.FC = () => {
             Бүх багшийн хичээлд бүртгэлтэй суралцагчид, ирцийн төлөв. Багшаар шүүж, нэрээр хайна уу.
           </p>
         </div>
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-          <div className="space-y-1">
-            <label className="text-[10px] font-black uppercase tracking-widest text-brand-ink/40">Багш</label>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:gap-4">
+          <div className="flex flex-col gap-2.5">
+            <label className="text-[10px] font-black uppercase tracking-widest text-brand-ink/40">
+              Багш
+            </label>
             <select
               value={teacherFilter}
               onChange={(e) => setTeacherFilter(e.target.value)}
