@@ -59,7 +59,16 @@ export const AdminLayout: React.FC = () => {
   const location = useLocation();
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
 
-  if (loading) return <div className="pt-32 text-center">Уншиж байна...</div>;
+  if (loading) {
+    return (
+      <div className="admin-panel flex min-h-screen items-center justify-center bg-gradient-to-br from-stone-100 via-white to-violet-50/50">
+        <div className="flex flex-col items-center gap-4 rounded-3xl border border-brand-ink/5 bg-white/80 px-12 py-10 shadow-[0_20px_50px_-20px_rgba(26,26,26,0.15)] backdrop-blur-sm">
+          <div className="h-10 w-10 animate-spin rounded-full border-2 border-brand-icon/20 border-t-brand-icon" aria-hidden />
+          <p className="text-[10px] font-black uppercase tracking-[0.25em] text-brand-ink/40">Уншиж байна</p>
+        </div>
+      </div>
+    );
+  }
   if (!isAdmin) return <Navigate to="/" />;
 
   useEffect(() => {
@@ -75,13 +84,20 @@ export const AdminLayout: React.FC = () => {
     setMobileSidebarOpen(false);
   };
 
+  const linkBase =
+    'flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-[11px] font-bold uppercase tracking-widest transition-all duration-200';
+  const linkInactive =
+    'text-zinc-400 hover:bg-zinc-800/70 hover:text-white';
+  const linkActive =
+    'bg-gradient-to-r from-brand-icon to-brand-icon/85 text-white shadow-lg shadow-brand-icon/30 ring-1 ring-white/10';
+
   return (
-    <div className="admin-panel flex h-screen bg-white">
+    <div className="admin-panel flex h-screen bg-gradient-to-br from-stone-100 via-white to-violet-50/40">
       {/* Mobile Sidebar Toggle */}
       <button
         type="button"
         onClick={() => setMobileSidebarOpen(true)}
-        className="md:hidden fixed left-4 top-24 z-40 rounded-full border border-brand-ink/10 bg-white p-2 text-brand-ink shadow-sm"
+        className="md:hidden fixed left-4 top-24 z-40 rounded-2xl border border-brand-ink/10 bg-white/90 p-2.5 text-brand-ink shadow-[0_8px_30px_-8px_rgba(26,26,26,0.2)] backdrop-blur-md"
         aria-label="Open admin sidebar"
       >
         <Menu size={18} />
@@ -91,41 +107,49 @@ export const AdminLayout: React.FC = () => {
       {mobileSidebarOpen ? (
         <button
           type="button"
-          className="fixed inset-0 z-40 bg-brand-ink/20 md:hidden"
+          className="fixed inset-0 z-40 bg-zinc-950/40 backdrop-blur-[2px] md:hidden"
           onClick={() => setMobileSidebarOpen(false)}
           aria-label="Close admin sidebar overlay"
         />
       ) : null}
 
       {/* Sidebar */}
-      <aside className="w-64 h-screen bg-white border-r border-brand-ink/5 hidden md:flex flex-col pt-20">
-        <ScrollArea className="flex-grow py-6 overscroll-contain">
-          <div className="px-6 mb-8">
-            <h2 className="text-[10px] font-black uppercase tracking-[0.2em] text-brand-ink/30">Удирдлага</h2>
+      <aside className="relative z-10 hidden h-screen w-64 flex-col border-r border-zinc-800/80 bg-zinc-950 pt-20 shadow-[8px_0_40px_-20px_rgba(0,0,0,0.45)] md:flex">
+        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_90%_50%_at_50%_-10%,rgba(122,106,189,0.18),transparent_55%)]" />
+        <ScrollArea className="relative flex-grow overscroll-contain py-6">
+          <div className="mb-8 px-6">
+            <p className="text-[10px] font-black uppercase tracking-[0.28em] text-zinc-500">JUJU</p>
+            <h2 className="mt-1 font-serif text-lg font-medium tracking-tight text-white">Удирдлага</h2>
+            <div className="mt-3 h-px w-10 bg-gradient-to-r from-brand-icon to-transparent" />
           </div>
-          <nav className="px-3 space-y-1">
+          <nav className="space-y-0.5 px-3">
             {sidebarLinks.map((link) => {
               const isActive = location.pathname === link.path;
               return (
                 <Link
                   key={link.path}
                   to={link.path}
-                  className={`flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-bold uppercase tracking-widest transition-all duration-300 ${
-                    isActive 
-                      ? 'bg-brand-ink text-white shadow-lg shadow-brand-ink/10' 
-                      : 'text-brand-ink/50 hover:bg-white hover:text-brand-ink'
-                  }`}
+                  className={`group ${linkBase} ${isActive ? linkActive : linkInactive}`}
                 >
-                  <link.icon size={16} />
-                  {link.name}
+                  <span
+                    className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg transition-colors ${
+                      isActive ? 'bg-white/15 text-white' : 'bg-zinc-800/80 text-zinc-400 group-hover:text-white'
+                    }`}
+                  >
+                    <link.icon size={15} strokeWidth={isActive ? 2.25 : 2} />
+                  </span>
+                  <span className="min-w-0 leading-snug">{link.name}</span>
                 </Link>
               );
             })}
           </nav>
         </ScrollArea>
-        <Separator className="bg-brand-ink/5" />
-        <div className="p-6">
-          <Link to="/" className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-brand-ink/30 hover:text-brand-icon transition-colors">
+        <Separator className="relative bg-zinc-800/80" />
+        <div className="relative p-5">
+          <Link
+            to="/"
+            className="flex items-center justify-center gap-2 rounded-xl border border-zinc-700/80 bg-zinc-900/50 py-3 text-[10px] font-black uppercase tracking-widest text-zinc-400 transition-colors hover:border-brand-icon/40 hover:text-brand-icon"
+          >
             <Settings size={14} /> Сайт руу буцах
           </Link>
         </div>
@@ -133,23 +157,27 @@ export const AdminLayout: React.FC = () => {
 
       {/* Mobile Sidebar Drawer */}
       <aside
-        className={`fixed left-0 top-0 h-screen z-50 w-72 bg-white border-r border-brand-ink/5 flex flex-col pt-20 transition-transform duration-300 md:hidden ${
+        className={`fixed left-0 top-0 z-50 flex h-screen w-[min(20rem,88vw)] flex-col border-r border-zinc-800 bg-zinc-950 pt-20 shadow-2xl transition-transform duration-300 md:hidden ${
           mobileSidebarOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
-        <div className="flex items-center justify-between px-6 py-4 border-b border-brand-ink/5">
-          <h2 className="text-[10px] font-black uppercase tracking-[0.2em] text-brand-ink/30">Удирдлага</h2>
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_90%_40%_at_50%_0%,rgba(122,106,189,0.2),transparent_50%)] pointer-events-none" />
+        <div className="relative flex items-center justify-between border-b border-zinc-800 px-5 py-4">
+          <div>
+            <p className="text-[10px] font-black uppercase tracking-[0.28em] text-zinc-500">JUJU</p>
+            <h2 className="font-serif text-base font-medium text-white">Удирдлага</h2>
+          </div>
           <button
             type="button"
             onClick={() => setMobileSidebarOpen(false)}
-            className="rounded-full p-1 text-brand-ink/60 hover:text-brand-ink"
+            className="rounded-xl p-2 text-zinc-400 transition-colors hover:bg-zinc-800 hover:text-white"
             aria-label="Close admin sidebar"
           >
-            <X size={16} />
+            <X size={18} />
           </button>
         </div>
-        <ScrollArea className="flex-grow py-4 overscroll-contain">
-          <nav className="px-3 space-y-1">
+        <ScrollArea className="relative flex-grow overscroll-contain py-4">
+          <nav className="space-y-0.5 px-3">
             {sidebarLinks.map((link) => {
               const isActive = location.pathname === link.path;
               return (
@@ -157,25 +185,27 @@ export const AdminLayout: React.FC = () => {
                   key={link.path}
                   to={link.path}
                   onClick={handleMobileNavigate}
-                  className={`flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-bold uppercase tracking-widest transition-all duration-300 ${
-                    isActive
-                      ? 'bg-brand-ink text-white shadow-lg shadow-brand-ink/10'
-                      : 'text-brand-ink/50 hover:bg-white hover:text-brand-ink'
-                  }`}
+                  className={`group ${linkBase} ${isActive ? linkActive : linkInactive}`}
                 >
-                  <link.icon size={16} />
-                  {link.name}
+                  <span
+                    className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg transition-colors ${
+                      isActive ? 'bg-white/15 text-white' : 'bg-zinc-800/80 text-zinc-400 group-hover:text-white'
+                    }`}
+                  >
+                    <link.icon size={15} strokeWidth={isActive ? 2.25 : 2} />
+                  </span>
+                  <span className="min-w-0 leading-snug">{link.name}</span>
                 </Link>
               );
             })}
           </nav>
         </ScrollArea>
-        <Separator className="bg-brand-ink/5" />
-        <div className="p-6">
+        <Separator className="relative bg-zinc-800" />
+        <div className="relative p-5">
           <Link
             to="/"
             onClick={handleMobileNavigate}
-            className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-brand-ink/30 hover:text-brand-icon transition-colors"
+            className="flex items-center justify-center gap-2 rounded-xl border border-zinc-700/80 bg-zinc-900/50 py-3 text-[10px] font-black uppercase tracking-widest text-zinc-400 transition-colors hover:border-brand-icon/40 hover:text-brand-icon"
           >
             <Settings size={14} /> Сайт руу буцах
           </Link>
@@ -183,7 +213,14 @@ export const AdminLayout: React.FC = () => {
       </aside>
 
       {/* Main Content */}
-      <main className="flex-grow overflow-auto pt-20">
+      <main className="relative flex-grow overflow-auto pt-20">
+        <div
+          className="pointer-events-none absolute inset-0 opacity-[0.35]"
+          style={{
+            backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%231A1A1A' fill-opacity='0.03'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`,
+          }}
+        />
+        <div className="relative">
         <Routes>
           <Route path="/" element={<Dashboard />} />
           <Route path="/home-hero" element={<HomeHeroAdmin />} />
@@ -199,8 +236,20 @@ export const AdminLayout: React.FC = () => {
           <Route path="/class-attendees" element={<ClassAttendanceAdmin />} />
           <Route path="/schedule" element={<ScheduleAdmin />} />
           <Route path="/mindfulness" element={<MindfulnessAdmin />} />
-          <Route path="*" element={<div className="p-8">Энэ хэсэг удахгүй нэмэгдэнэ...</div>} />
+          <Route
+            path="*"
+            element={
+              <div className="flex min-h-[50vh] items-center justify-center p-8">
+                <div className="max-w-md rounded-3xl border border-brand-ink/8 bg-white/90 px-10 py-12 text-center shadow-[0_20px_50px_-24px_rgba(26,26,26,0.2)] backdrop-blur-sm">
+                  <p className="text-[10px] font-black uppercase tracking-[0.25em] text-brand-icon">Удахгүй</p>
+                  <p className="mt-3 font-serif text-xl text-brand-ink">Энэ хэсэг хөгжүүлэгдэж байна</p>
+                  <p className="mt-2 text-sm text-brand-ink/50">Түр хүлээнэ үү.</p>
+                </div>
+              </div>
+            }
+          />
         </Routes>
+        </div>
       </main>
     </div>
   );
