@@ -13,7 +13,8 @@ import {
   Brain,
   Grid,
   Menu,
-  X
+  X,
+  UserCheck,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { ScrollArea } from '../components/ui/scroll-area';
@@ -29,6 +30,7 @@ import { RetreatsAdmin } from './RetreatsAdmin';
 import { TeachersAdmin } from './TeachersAdmin';
 import { GalleryAdmin } from './GalleryAdmin';
 import { BookingsAdmin } from './BookingsAdmin';
+import { ClassAttendanceAdmin } from './ClassAttendanceAdmin';
 import { ScheduleAdmin } from './ScheduleAdmin';
 import { MindfulnessAdmin } from './MindfulnessAdmin';
 import { HomeHeroAdmin } from './HomeHeroAdmin';
@@ -49,6 +51,7 @@ const sidebarLinks = [
   { name: 'Майндфүлнэс', icon: Brain, path: '/admin/mindfulness' },
   { name: 'Хэрэглэгчид', icon: Users, path: '/admin/users' },
   { name: 'Захиалгууд', icon: BookOpen, path: '/admin/bookings' },
+  { name: 'Хичээлийн ирц', icon: UserCheck, path: '/admin/class-attendees' },
 ];
 
 export const AdminLayout: React.FC = () => {
@@ -193,6 +196,7 @@ export const AdminLayout: React.FC = () => {
           <Route path="/teachers" element={<TeachersAdmin />} />
           <Route path="/gallery" element={<GalleryAdmin />} />
           <Route path="/bookings" element={<BookingsAdmin />} />
+          <Route path="/class-attendees" element={<ClassAttendanceAdmin />} />
           <Route path="/schedule" element={<ScheduleAdmin />} />
           <Route path="/mindfulness" element={<MindfulnessAdmin />} />
           <Route path="*" element={<div className="p-8">Энэ хэсэг удахгүй нэмэгдэнэ...</div>} />

@@ -41,7 +41,12 @@ const megaMenus = [
     path: '/online',
     links: [
       { name: 'Видео сан', desc: 'Бүх хичээлүүд', icon: Play, path: '/online' },
-      { name: 'Бясалгал', desc: 'Сэтгэл амар амгалан', icon: Wind, path: '/mindfulness' },
+      {
+        name: 'Оксфордын Майндфүлнэс',
+        desc: 'Албан ёсны хөтөлбөр, практик',
+        icon: Sparkles,
+        path: '/mindfulness',
+      },
       { name: 'Блог', desc: 'Зөвлөгөө, нийтлэл', icon: PenTool, path: '/blog' },
     ]
   }

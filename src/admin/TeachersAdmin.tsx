@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { 
   collection, 
   onSnapshot, 
-  addDoc, 
+  addDoc,
   updateDoc, 
   deleteDoc, 
   doc, 
@@ -24,7 +24,7 @@ import {
   User,
   Mail,
   Instagram,
-  Facebook
+  Facebook,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -35,6 +35,8 @@ interface Teacher {
   bio: string;
   image: string;
   email?: string;
+  /** Firebase Auth uid if manually linked (optional; «Миний бүртгэл» matches by имэйл too) */
+  userId?: string;
   instagram?: string;
   facebook?: string;
   specialties: string[];
@@ -58,6 +60,19 @@ export const TeachersAdmin: React.FC = () => {
 
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+
+  const resetTeacherForm = () => {
+    setCurrentTeacher({
+      name: '',
+      role: 'Багш',
+      bio: '',
+      image: '',
+      email: '',
+      instagram: '',
+      facebook: '',
+      specialties: [],
+    });
+  };
 
   useEffect(() => {
     const q = query(collection(db, 'teachers'), orderBy('createdAt', 'desc'));
@@ -91,33 +106,31 @@ export const TeachersAdmin: React.FC = () => {
     setIsSaving(true);
     try {
       if (currentTeacher.id) {
-        const { id, ...rest } = currentTeacher as any;
-        const teacherRef = doc(db, 'teachers', id);
+        const { id, ...rest } = currentTeacher as Record<string, unknown>;
+        const teacherRef = doc(db, 'teachers', id as string);
         await updateDoc(teacherRef, {
           ...rest,
-          updatedAt: Timestamp.now()
+          updatedAt: Timestamp.now(),
         });
         toast.success('Багшийн мэдээлэл амжилттай шинэчлэгдлээ');
       } else {
-        const { id: _omit, ...payload } = currentTeacher as any;
+        const email = String(currentTeacher.email || '').trim().toLowerCase();
+        if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+          toast.error('Шинэ багш нэмэхэд зөв имэйл заавал оруулна уу');
+          setIsSaving(false);
+          return;
+        }
+        const { id: _omit, ...payload } = currentTeacher as Record<string, unknown>;
         await addDoc(collection(db, 'teachers'), {
           ...payload,
+          email,
           createdAt: Timestamp.now(),
-          updatedAt: Timestamp.now()
+          updatedAt: Timestamp.now(),
         });
-        toast.success('Шинэ багш амжилттай нэмэгдлээ');
+        toast.success('Багшийн мэдээлэл хадгалагдлаа');
       }
       setIsEditing(false);
-      setCurrentTeacher({
-        name: '',
-        role: 'Багш',
-        bio: '',
-        image: '',
-        email: '',
-        instagram: '',
-        facebook: '',
-        specialties: []
-      });
+      resetTeacherForm();
     } catch (error) {
       console.error('Error saving teacher:', error);
       try {
@@ -157,16 +170,7 @@ export const TeachersAdmin: React.FC = () => {
         {!isEditing && (
           <Button 
             onClick={() => {
-              setCurrentTeacher({
-                name: '',
-                role: 'Багш',
-                bio: '',
-                image: '',
-                email: '',
-                instagram: '',
-                facebook: '',
-                specialties: []
-              });
+              resetTeacherForm();
               setIsEditing(true);
             }}
             className="bg-brand-ink text-white rounded-full px-6"
@@ -184,6 +188,14 @@ export const TeachersAdmin: React.FC = () => {
               <X size={20} />
             </Button>
           </div>
+
+          {!currentTeacher.id ? (
+            <p className="rounded-xl border border-brand-icon/20 bg-brand-icon/5 px-4 py-3 text-sm text-brand-ink/80 leading-relaxed">
+              Нэвтрэх эрхийг энд үүсгэхгүй. Багш өөрөө сайтын «Бүртгүүлэх» хуудаснаас{' '}
+              <strong>энэхүү ижил имэйлээр</strong> бүртгэл үүсгэнэ. Дараа нь админ «Хэрэглэгчид» хэсэгт очиж тухайн
+              хэрэглэгчийн <strong>эрхийг «teacher»</strong> болгоно (эсвэл Firebase Console-оор хэрэглэгч нэмж болно).
+            </p>
+          ) : null}
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="space-y-2">
@@ -224,12 +236,17 @@ export const TeachersAdmin: React.FC = () => {
               onChange={(url) => setCurrentTeacher({ ...currentTeacher, image: url })}
             />
             <div className="space-y-2">
-              <label className="text-xs font-black uppercase tracking-widest text-accent/40">Имэйл</label>
-              <Input 
+              <label className="text-xs font-black uppercase tracking-widest text-accent/40">
+                Имэйл{!currentTeacher.id ? ' (бүртгэлийн имэйлтэй тааруулна)' : ''}
+              </label>
+              <Input
+                type="email"
+                autoComplete="off"
                 value={currentTeacher.email}
                 onChange={(e) => setCurrentTeacher({ ...currentTeacher, email: e.target.value })}
-                placeholder="example@mail.com"
+                placeholder="teacher@example.com"
                 className="rounded-xl"
+                required={!currentTeacher.id}
               />
             </div>
           </div>

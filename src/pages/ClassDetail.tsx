@@ -5,7 +5,7 @@ import { ArrowLeft, Clock, Calendar, CheckCircle2, Loader2, QrCode, Smartphone }
 import { Button } from '../components/ui/button';
 import { classData } from '../data/classes';
 import { db } from '../firebase';
-import { addDoc, collection, doc, getDoc, getDocs, query, where } from 'firebase/firestore';
+import { addDoc, collection, doc, getDocs, onSnapshot, query, where } from 'firebase/firestore';
 import { useAuth } from '../context/AuthContext';
 import type { ClassItem } from '../types/class';
 import { toast } from 'sonner';
@@ -168,32 +168,42 @@ export const ClassDetail: React.FC = () => {
   const [isQrModalOpen, setIsQrModalOpen] = useState(false);
 
   useEffect(() => {
-    const fetchClass = async () => {
-      if (!id) {
-        setLoading(false);
-        return;
-      }
+    if (!id) {
+      setClassItem(null);
+      setLoading(false);
+      return;
+    }
 
-      try {
-        const classDoc = await getDoc(doc(db, 'classes', id));
+    setLoading(true);
+    const classRef = doc(db, 'classes', id);
+    const unsubscribe = onSnapshot(
+      classRef,
+      (classDoc) => {
         if (classDoc.exists()) {
           setClassItem(normalizeClassDetail(classDoc.id, classDoc.data()));
-          return;
+        } else {
+          const staticItem = classData.find((item) => item.id === id);
+          if (staticItem) {
+            setClassItem(normalizeClassDetail(staticItem.id, staticItem));
+          } else {
+            setClassItem(null);
+          }
         }
-      } catch (error) {
-        console.error('[ClassDetail] Failed to fetch class from Firestore:', error);
+        setLoading(false);
+      },
+      (error) => {
+        console.error('[ClassDetail] Class subscription error:', error);
+        const staticItem = classData.find((item) => item.id === id);
+        if (staticItem) {
+          setClassItem(normalizeClassDetail(staticItem.id, staticItem));
+        } else {
+          setClassItem(null);
+        }
+        setLoading(false);
       }
+    );
 
-      const staticItem = classData.find((item) => item.id === id);
-      if (staticItem) {
-        setClassItem(normalizeClassDetail(staticItem.id, staticItem));
-      } else {
-        setClassItem(null);
-      }
-      setLoading(false);
-    };
-
-    fetchClass().finally(() => setLoading(false));
+    return () => unsubscribe();
   }, [id]);
 
   useEffect(() => {

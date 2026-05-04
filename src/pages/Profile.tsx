@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { motion } from 'motion/react';
-import { User, Mail, Calendar, CreditCard, ShieldCheck, LogOut, ClipboardCheck, CalendarClock, ClipboardList, Plus } from 'lucide-react';
+import { User, Mail, Calendar, CreditCard, ShieldCheck, LogOut, ClipboardCheck, CalendarClock, ClipboardList, Plus, Trash2 } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
+import { Textarea } from '../components/ui/textarea';
 import { auth } from '../firebase';
 import { signOut } from 'firebase/auth';
 import { Navigate, useNavigate, Link } from 'react-router-dom';
@@ -11,11 +12,13 @@ import {
   addDoc,
   collection,
   doc,
+  getDocs,
   onSnapshot,
   query,
   Timestamp,
   updateDoc,
   where,
+  writeBatch,
 } from 'firebase/firestore';
 import { db } from '../firebase';
 import {
@@ -115,6 +118,29 @@ export const Profile: React.FC = () => {
   const [rosterClassId, setRosterClassId] = useState('');
   const [rosterOverride, setRosterOverride] = useState<Record<string, RosterAttendance>>({});
   const [rosterSavingKey, setRosterSavingKey] = useState<string>('');
+  const [teacherClassDialogOpen, setTeacherClassDialogOpen] = useState(false);
+  const [newClassTitle, setNewClassTitle] = useState('');
+  const [newClassDescription, setNewClassDescription] = useState('');
+  const [newClassDuration, setNewClassDuration] = useState('60 мин');
+  const [newClassCategory, setNewClassCategory] = useState('Yoga');
+  const [newClassPrice, setNewClassPrice] = useState('');
+  const [newClassImage, setNewClassImage] = useState('');
+  const [newClassDay, setNewClassDay] = useState('Даваа');
+  const [newClassStart, setNewClassStart] = useState('08:00');
+  const [newClassEnd, setNewClassEnd] = useState('09:00');
+  const [creatingClass, setCreatingClass] = useState(false);
+
+  const resetNewClassForm = () => {
+    setNewClassTitle('');
+    setNewClassDescription('');
+    setNewClassDuration('60 мин');
+    setNewClassCategory('Yoga');
+    setNewClassPrice('');
+    setNewClassImage('');
+    setNewClassDay('Даваа');
+    setNewClassStart('08:00');
+    setNewClassEnd('09:00');
+  };
 
   const subscriptionPlanLabel = (() => {
     const plan = String(profile?.subscriptionPlan || '').trim().toLowerCase();
@@ -217,38 +243,36 @@ export const Profile: React.FC = () => {
     };
 
     const recompute = () => {
-      const displayNameCandidates = new Set(
-        [profile?.displayName, user?.displayName]
-          .map((name) => String(name || '').trim())
+      const uid = String(user?.uid || '').trim();
+      const emailCandidates = new Set(
+        [user?.email, profile?.email]
+          .map((e) => String(e || '').trim().toLowerCase())
           .filter(Boolean)
-          .map((name) => name.toLowerCase())
       );
-      const emailCandidate = String(user?.email || '').trim().toLowerCase();
 
-      const matchedTeachers = teachers.filter((teacher) => {
-        const teacherName = String(teacher?.name || '').trim().toLowerCase();
+      /** Firestore `teachers/{id}` doc ids explicitly tied to this signed-in account */
+      const myTeacherDocIds = new Set<string>();
+      for (const teacher of teachers) {
+        const docId = String(teacher?.id || '').trim();
+        if (!docId) continue;
         const teacherEmail = String(teacher?.email || '').trim().toLowerCase();
-        return (
-          String(teacher?.id || '') === user.uid ||
-          (teacherEmail && teacherEmail === emailCandidate) ||
-          (teacherName && displayNameCandidates.has(teacherName))
-        );
-      });
-
-      const matchedTeacherIds = new Set(matchedTeachers.map((teacher) => String(teacher?.id || '')));
-      const matchedTeacherNames = new Set(
-        matchedTeachers.map((teacher) => String(teacher?.name || '').trim().toLowerCase()).filter(Boolean)
-      );
-      displayNameCandidates.forEach((name) => matchedTeacherNames.add(name));
+        if (teacherEmail && emailCandidates.has(teacherEmail)) {
+          myTeacherDocIds.add(docId);
+        }
+        if (docId === uid) {
+          myTeacherDocIds.add(docId);
+        }
+        const raw = teacher as Record<string, unknown>;
+        const linkedUid = String(raw?.userId || raw?.accountId || raw?.authUid || '').trim();
+        if (linkedUid && linkedUid === uid) {
+          myTeacherDocIds.add(docId);
+        }
+      }
 
       const teacherOwnedClasses = classes.filter((classItem) => {
-        const classTeacherId = String(classItem?.teacherId || '');
-        const classTeacherName = String(classItem?.teacher || '').trim().toLowerCase();
-        return (
-          classTeacherId === user.uid ||
-          matchedTeacherIds.has(classTeacherId) ||
-          (classTeacherName && matchedTeacherNames.has(classTeacherName))
-        );
+        const classTeacherId = String(classItem?.teacherId || '').trim();
+        if (!classTeacherId) return false;
+        return classTeacherId === uid || myTeacherDocIds.has(classTeacherId);
       });
 
       const teacherClassIds = teacherOwnedClasses.map((cls) => String(cls?.id || '')).filter(Boolean);
@@ -364,7 +388,7 @@ export const Profile: React.FC = () => {
       unsubSchedules();
       clearBookingListeners();
     };
-  }, [isTeacher, profile?.displayName, user]);
+  }, [isTeacher, profile?.displayName, profile?.email, user]);
 
   useEffect(() => {
     if (!scheduleDialogOpen || !scheduleClassId) return;
@@ -472,6 +496,81 @@ export const Profile: React.FC = () => {
       toast.error('Хуваарь хадгалахад алдаа гарлаа');
     } finally {
       setScheduleSaving(false);
+    }
+  };
+
+  const handleCreateTeacherClass = async () => {
+    if (!user) return;
+    const title = newClassTitle.trim();
+    if (!title) {
+      toast.error('Хичээлийн нэр заавал');
+      return;
+    }
+    setCreatingClass(true);
+    try {
+      const teacherName = String(profile?.displayName || user.displayName || 'Багш').trim();
+      const priceNum = Math.max(0, Number(newClassPrice) || 0);
+      const image =
+        newClassImage.trim() ||
+        'https://images.unsplash.com/photo-1544367567-0f2fcb51e627?auto=format&fit=crop&w=1200&q=80';
+      const classPayload = {
+        title,
+        description: newClassDescription.trim() || 'Тайлбар удахгүй нэмэгдэнэ.',
+        duration: newClassDuration.trim() || '60 мин',
+        teacherId: user.uid,
+        teacher: teacherName,
+        type: 'offline' as const,
+        category: newClassCategory,
+        image,
+        price: priceNum,
+        benefits: ['Сунгалт, амьсгал, төвлөрөл сайжруулна'],
+        scheduleSlots: [{ dayOfWeek: newClassDay, startTime: newClassStart, endTime: newClassEnd }],
+        videoUrl: '',
+        audioUrl: '',
+        createdAt: Timestamp.now(),
+        updatedAt: Timestamp.now(),
+      };
+      const classRef = await addDoc(collection(db, 'classes'), classPayload);
+      await addDoc(collection(db, 'schedule'), {
+        classId: classRef.id,
+        className: title,
+        teacherName,
+        dayOfWeek: newClassDay,
+        startTime: newClassStart,
+        endTime: newClassEnd,
+        capacity: 20,
+        bookedCount: 0,
+        createdAt: Timestamp.now(),
+        updatedAt: Timestamp.now(),
+      });
+      toast.success('Хичээл нэмэгдлээ');
+      setTeacherClassDialogOpen(false);
+      resetNewClassForm();
+    } catch (error) {
+      console.error('Create teacher class failed:', error);
+      toast.error('Хичээл үүсгэхэд алдаа гарлаа');
+    } finally {
+      setCreatingClass(false);
+    }
+  };
+
+  const handleDeleteTeacherClass = async (classId: string) => {
+    if (!user) return;
+    if (!teacherClasses.some((c) => c.id === classId)) return;
+    if (!window.confirm('Энэ хичээлийг устгах уу? Холбогдох хуваарийн бичлэгүүд хамт устгагдана.')) return;
+    try {
+      const scheduleQuery = query(collection(db, 'schedule'), where('classId', '==', classId));
+      const scheduleSnap = await getDocs(scheduleQuery);
+      const batch = writeBatch(db);
+      scheduleSnap.docs.forEach((d) => batch.delete(d.ref));
+      batch.delete(doc(db, 'classes', classId));
+      await batch.commit();
+      toast.success('Хичээл устгагдлаа');
+      if (scheduleClassId === classId) setScheduleDialogOpen(false);
+      if (rosterClassId === classId) setRosterDialogOpen(false);
+    } catch (error) {
+      console.error('Delete teacher class failed:', error);
+      toast.error('Устгахад алдаа гарлаа');
     }
   };
 
@@ -610,19 +709,164 @@ export const Profile: React.FC = () => {
               <div className="mt-12 border-t border-brand-ink/10 pt-12">
                 {isTeacher && (
                   <div className="mb-12 rounded-2xl border border-brand-ink/10 p-4 sm:rounded-[2rem] sm:p-8">
-                    <h3 className="mb-6 flex items-center gap-3 text-xl font-serif text-brand-ink">
-                      <ClipboardCheck className="text-brand-icon" size={20} />
-                      Миний бүртгэл
-                    </h3>
+                    <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                      <h3 className="flex items-center gap-3 text-xl font-serif text-brand-ink">
+                        <ClipboardCheck className="text-brand-icon" size={20} />
+                        Миний бүртгэл
+                      </h3>
+                      {!teacherLoading ? (
+                        <Button
+                          type="button"
+                          className="shrink-0 rounded-full bg-brand-ink px-5 text-white hover:bg-brand-icon"
+                          onClick={() => {
+                            resetNewClassForm();
+                            setTeacherClassDialogOpen(true);
+                          }}
+                        >
+                          <Plus size={16} className="mr-2" />
+                          Шинэ хичээл нэмэх
+                        </Button>
+                      ) : null}
+                    </div>
+
+                    <Dialog open={teacherClassDialogOpen} onOpenChange={setTeacherClassDialogOpen}>
+                      <DialogContent className="sm:max-w-lg rounded-[2rem] p-6 sm:p-8" showCloseButton>
+                        <DialogHeader>
+                          <DialogTitle className="font-serif text-2xl text-brand-ink">Шинэ хичээл</DialogTitle>
+                          <DialogDescription className="text-brand-ink/60">
+                            Үүссэн хичээл «Хичээлүүд» болон тухайн хичээлийн дэлгэрэнгүй хуудсанд шууд харагдана.
+                          </DialogDescription>
+                        </DialogHeader>
+                        <div className="max-h-[min(70vh,32rem)] space-y-4 overflow-y-auto pr-1 pt-2">
+                          <div className="space-y-2">
+                            <label className="text-xs font-black uppercase tracking-widest text-brand-ink/40">Гарчиг</label>
+                            <Input
+                              value={newClassTitle}
+                              onChange={(e) => setNewClassTitle(e.target.value)}
+                              placeholder="Жишээ: Өглөөний Vinyasa"
+                              className="rounded-xl"
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <label className="text-xs font-black uppercase tracking-widest text-brand-ink/40">Тайлбар</label>
+                            <Textarea
+                              value={newClassDescription}
+                              onChange={(e) => setNewClassDescription(e.target.value)}
+                              placeholder="Хичээлийн товч агуулга..."
+                              className="min-h-[88px] rounded-xl"
+                            />
+                          </div>
+                          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                            <div className="space-y-2">
+                              <label className="text-xs font-black uppercase tracking-widest text-brand-ink/40">Хугацаа</label>
+                              <Input
+                                value={newClassDuration}
+                                onChange={(e) => setNewClassDuration(e.target.value)}
+                                placeholder="60 мин"
+                                className="rounded-xl"
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <label className="text-xs font-black uppercase tracking-widest text-brand-ink/40">Төрөл</label>
+                              <select
+                                value={newClassCategory}
+                                onChange={(e) => setNewClassCategory(e.target.value)}
+                                className="h-11 w-full rounded-xl border border-input bg-background px-3 text-sm text-brand-ink focus:outline-none focus:ring-2 focus:ring-brand-icon/20"
+                              >
+                                <option value="Yoga">Yoga</option>
+                                <option value="Meditation">Meditation</option>
+                                <option value="Hatha">Hatha</option>
+                              </select>
+                            </div>
+                          </div>
+                          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                            <div className="space-y-2">
+                              <label className="text-xs font-black uppercase tracking-widest text-brand-ink/40">Үнэ (₮)</label>
+                              <Input
+                                type="number"
+                                min={0}
+                                value={newClassPrice}
+                                onChange={(e) => setNewClassPrice(e.target.value)}
+                                placeholder="0"
+                                className="rounded-xl"
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <label className="text-xs font-black uppercase tracking-widest text-brand-ink/40">Зураг URL</label>
+                              <Input
+                                value={newClassImage}
+                                onChange={(e) => setNewClassImage(e.target.value)}
+                                placeholder="Хоосон бол өгөгдмөл зураг"
+                                className="rounded-xl"
+                              />
+                            </div>
+                          </div>
+                          <div className="rounded-xl border border-brand-ink/10 bg-secondary/20 p-4">
+                            <p className="mb-3 text-xs font-bold uppercase tracking-[0.12em] text-brand-ink/50">
+                              Эхний хуваарь
+                            </p>
+                            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                              <div className="space-y-1">
+                                <span className="text-[10px] font-bold uppercase text-brand-ink/40">Өдөр</span>
+                                <select
+                                  value={newClassDay}
+                                  onChange={(e) => setNewClassDay(e.target.value)}
+                                  className="h-11 w-full rounded-xl border border-input bg-background px-3 text-sm text-brand-ink"
+                                >
+                                  {WEEK_DAYS.map((d) => (
+                                    <option key={d} value={d}>
+                                      {d}
+                                    </option>
+                                  ))}
+                                </select>
+                              </div>
+                              <div className="space-y-1">
+                                <span className="text-[10px] font-bold uppercase text-brand-ink/40">Эхлэх</span>
+                                <Input
+                                  type="time"
+                                  value={newClassStart}
+                                  onChange={(e) => setNewClassStart(e.target.value)}
+                                  className="rounded-xl"
+                                />
+                              </div>
+                              <div className="space-y-1">
+                                <span className="text-[10px] font-bold uppercase text-brand-ink/40">Дуусах</span>
+                                <Input
+                                  type="time"
+                                  value={newClassEnd}
+                                  onChange={(e) => setNewClassEnd(e.target.value)}
+                                  className="rounded-xl"
+                                />
+                              </div>
+                            </div>
+                          </div>
+                          <div className="flex flex-col gap-2 pt-2 sm:flex-row sm:justify-end">
+                            <Button
+                              type="button"
+                              variant="outline"
+                              className="rounded-full"
+                              onClick={() => setTeacherClassDialogOpen(false)}
+                              disabled={creatingClass}
+                            >
+                              Буцах
+                            </Button>
+                            <Button
+                              type="button"
+                              className="rounded-full bg-brand-ink text-white"
+                              onClick={() => void handleCreateTeacherClass()}
+                              disabled={creatingClass}
+                            >
+                              {creatingClass ? 'Үүсгэж байна...' : 'Үүсгэх'}
+                            </Button>
+                          </div>
+                        </div>
+                      </DialogContent>
+                    </Dialog>
 
                     {teacherLoading ? (
                       <p className="text-sm text-brand-ink/50">Хичээлийн мэдээлэл ачаалж байна...</p>
-                    ) : teacherClasses.length === 0 ? (
-                      <p className="text-sm text-brand-ink/50">
-                        Танд оноогдсон хичээл олдсонгүй. Админ хэсэгт багштай холболтоо шалгана уу.
-                      </p>
                     ) : (
-                      <div className="space-y-4">
+                      <>
                         <Dialog open={scheduleDialogOpen} onOpenChange={setScheduleDialogOpen}>
                           <DialogContent className="sm:max-w-md rounded-[2rem] p-6 sm:p-8" showCloseButton>
                             <DialogHeader>
@@ -823,7 +1067,9 @@ export const Profile: React.FC = () => {
                           </DialogContent>
                         </Dialog>
 
-                        {teacherClasses.map((classItem) => (
+                        {teacherClasses.length > 0 ? (
+                          <div className="mt-4 space-y-4">
+                            {teacherClasses.map((classItem) => (
                           <div
                             key={classItem.id}
                             className="flex flex-col gap-4 rounded-2xl border border-brand-ink/5 p-5 sm:flex-row sm:items-center sm:justify-between"
@@ -863,11 +1109,32 @@ export const Profile: React.FC = () => {
                                   <CalendarClock size={14} className="mr-2" />
                                   Хуваарь засах
                                 </Button>
+                                <Button type="button" variant="outline" size="sm" asChild className="rounded-full px-4 text-xs font-semibold">
+                                  <Link to={`/classes/${classItem.id}`}>Дэлгэрэнгүй</Link>
+                                </Button>
+                                {user?.uid && classItem.teacherId === user.uid ? (
+                                  <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    className="rounded-full border-red-200 px-4 text-xs font-semibold text-red-600 hover:bg-red-50"
+                                    onClick={() => void handleDeleteTeacherClass(classItem.id)}
+                                  >
+                                    <Trash2 size={14} className="mr-2" />
+                                    Устгах
+                                  </Button>
+                                ) : null}
                               </div>
                             </div>
                           </div>
-                        ))}
-                      </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="rounded-2xl border border-dashed border-brand-ink/15 p-6 text-center text-sm text-brand-ink/50">
+                            Жагсаалт хоосон. «Шинэ хичээл нэмэх» товчоор өөрийн хичээлээ үүсгэнэ үү. Админаар оноогдсон хичээлүүд энд бас харагдана.
+                          </p>
+                        )}
+                      </>
                     )}
                   </div>
                 )}

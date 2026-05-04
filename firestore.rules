@@ -101,9 +101,22 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
     
-    match /classes/{id} {
+    match /classes/{classId} {
       allow read: if true;
-      allow write: if isAdmin();
+      // Admins manage all classes; teachers may create/update/delete only classes they own (teacherId == auth uid).
+      allow create: if isAdmin() || (
+        isTeacher() &&
+        request.resource.data.teacherId == request.auth.uid
+      );
+      allow update: if isAdmin() || (
+        isTeacher() &&
+        resource.data.teacherId == request.auth.uid &&
+        request.resource.data.teacherId == request.auth.uid
+      );
+      allow delete: if isAdmin() || (
+        isTeacher() &&
+        resource.data.teacherId == request.auth.uid
+      );
     }
     
     match /retreats/{id} {

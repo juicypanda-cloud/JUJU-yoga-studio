@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { ArrowUpRight, ChevronsLeftRight, Clock } from 'lucide-react';
 import { classData as staticClassData } from '../data/classes';
-import { collection, getDocs, onSnapshot, query, orderBy } from 'firebase/firestore';
+import { collection, onSnapshot, query, orderBy } from 'firebase/firestore';
 import { db } from '../firebase';
 import { ErrorBoundary } from '../components/ErrorBoundary';
 import type { ClassItem as BaseClassItem } from '../types/class';
@@ -78,10 +78,11 @@ export const Classes: React.FC = () => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const fetchClasses = async () => {
-      try {
-        const q = query(collection(db, 'classes'), orderBy('createdAt', 'desc'));
-        const querySnapshot = await getDocs(q);
+    setLoading(true);
+    const q = query(collection(db, 'classes'), orderBy('createdAt', 'desc'));
+    const unsubscribe = onSnapshot(
+      q,
+      (querySnapshot) => {
         const firestoreClasses = querySnapshot.docs.map((classDoc) =>
           normalizeClassItem({ id: classDoc.id, ...(classDoc.data() as RawClassItem) }, classDoc.id)
         );
@@ -94,17 +95,18 @@ export const Classes: React.FC = () => {
               );
 
         setClasses(normalizedData);
-      } catch (error) {
-        console.error('Error fetching classes:', error);
+        setLoading(false);
+      },
+      (error) => {
+        console.error('Error subscribing to classes:', error);
         setClasses((staticClassData as RawClassItem[]).map((item, index) =>
           normalizeClassItem({ ...item, id: String(item?.id || `static-${index}`) }, `static-${index}`)
         ));
-      } finally {
         setLoading(false);
       }
-    };
+    );
 
-    fetchClasses();
+    return () => unsubscribe();
   }, []);
 
   useEffect(() => {
