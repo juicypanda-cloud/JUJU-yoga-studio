@@ -134,11 +134,7 @@
   @apply text-lg;
 }
 
-/* Admin panel text defaults */
-.admin-panel,
-.admin-panel * {
-  color: #000 !important;
-}
+/* Admin: do not force a global text color — sidebar uses dark bg + light text via utilities. */
 
 /* Keep contrast on dark/black surfaces */
 .admin-panel .bg-black,

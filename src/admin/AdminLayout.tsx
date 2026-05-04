@@ -213,7 +213,7 @@ export const AdminLayout: React.FC = () => {
       </aside>
 
       {/* Main Content */}
-      <main className="relative flex-grow overflow-auto pt-20">
+      <main className="relative flex-grow overflow-auto pt-20 text-brand-ink">
         <div
           className="pointer-events-none absolute inset-0 opacity-[0.35]"
           style={{
