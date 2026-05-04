@@ -499,15 +499,14 @@ export const Profile: React.FC = () => {
 
   return (
     <div className="pt-32 pb-32 min-h-screen bg-gray-50/30">
-      <div className="container mx-auto px-6">
-        <div className="max-w-4xl mx-auto">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="bg-white rounded-[3rem] shadow-2xl shadow-brand-ink/5 border border-brand-ink/5 overflow-hidden"
-          >
+      <div className="mx-auto w-full max-w-4xl px-3 sm:px-6">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="bg-white rounded-2xl shadow-2xl shadow-brand-ink/5 border border-brand-ink/5 overflow-hidden sm:rounded-[3rem]"
+        >
             {/* Profile Header */}
-            <div className="bg-brand-ink p-12 text-white relative overflow-hidden">
+            <div className="bg-brand-ink p-6 text-white relative overflow-hidden sm:p-10 md:p-12">
               <div className="absolute top-0 right-0 w-64 h-64 bg-brand-icon/10 rounded-full -translate-y-1/2 translate-x-1/2 blur-3xl" />
               <div className="relative z-10 flex flex-col md:flex-row items-center gap-8">
                 <div className="relative h-24 w-24 shrink-0 rounded-full border-4 border-white/10 overflow-hidden bg-secondary/25">
@@ -536,8 +535,8 @@ export const Profile: React.FC = () => {
             </div>
 
             {/* Profile Content */}
-            <div className="p-12">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
+            <div className="p-4 sm:p-8 md:p-12">
+              <div className="grid grid-cols-1 gap-8 md:grid-cols-2 md:gap-12">
                 {/* Subscription Info */}
                 <div className="space-y-8">
                   <h3 className="text-xl font-serif text-brand-ink flex items-center gap-3">
@@ -545,7 +544,7 @@ export const Profile: React.FC = () => {
                     Гишүүнчлэлийн төлөв
                   </h3>
                   
-                  <div className={`p-8 rounded-[2rem] border transition-all duration-500 ${
+                  <div className={`rounded-[2rem] border p-5 transition-all duration-500 sm:p-8 ${
                     isSubscribed 
                       ? 'bg-green-50/50 border-green-100' 
                       : 'bg-gray-50 border-brand-ink/5'
@@ -632,7 +631,7 @@ export const Profile: React.FC = () => {
 
               <div className="mt-12 border-t border-brand-ink/10 pt-12">
                 {isTeacher && (
-                  <div className="mb-12 rounded-[2rem] border border-brand-ink/10 p-8">
+                  <div className="mb-12 rounded-2xl border border-brand-ink/10 p-4 sm:rounded-[2rem] sm:p-8">
                     <h3 className="mb-6 flex items-center gap-3 text-xl font-serif text-brand-ink">
                       <ClipboardCheck className="text-brand-icon" size={20} />
                       Миний бүртгэл
@@ -898,7 +897,6 @@ export const Profile: React.FC = () => {
               </div>
             </div>
           </motion.div>
-        </div>
       </div>
     </div>
   );
