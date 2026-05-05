@@ -1,4 +1,4 @@
-import { assertMethod, jsonResponse, qpayRequest } from '../_lib.js';
+import { assertMethod, jsonResponse, qpayRequest } from '../_lib';
 
 export const config = {
   runtime: 'nodejs',

@@ -1,6 +1,6 @@
-import { assertQPayInvoiceConfig, getQPayInvoiceConfig, qpayRequest } from '../../api/qpay/_lib.ts';
-import { getServerAuth } from './firebaseAdmin.ts';
-import { extractInvoiceIdFromQPayInvoiceResponse, savePendingQPayEvent, type PaymentIntent } from './qpayWebhookCore.ts';
+import { assertQPayInvoiceConfig, getQPayInvoiceConfig, qpayRequest } from '../../api/qpay/_lib';
+import { getServerAuth } from './firebaseAdmin';
+import { extractInvoiceIdFromQPayInvoiceResponse, savePendingQPayEvent, type PaymentIntent } from './qpayWebhookCore';
 
 function parseIntent(raw: unknown): PaymentIntent | null {
   if (!raw || typeof raw !== 'object') return null;
