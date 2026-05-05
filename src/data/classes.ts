@@ -16,7 +16,7 @@ export interface ClassType {
 export const classData: ClassType[] = [
   {
     id: 'hatha-yoga',
-    title: 'Хата Йог',
+    title: 'Хата Иог',
     type: 'offline',
     category: 'Yoga',
     schedule: 'Дав, Лха, Баа',
@@ -33,7 +33,7 @@ export const classData: ClassType[] = [
   },
   {
     id: 'vinyasa-yoga',
-    title: 'Виньяса Йог',
+    title: 'Виньяса Иог',
     type: 'offline',
     category: 'Yoga',
     schedule: 'Мяг, Пүр, Бям',
@@ -50,7 +50,7 @@ export const classData: ClassType[] = [
   },
   {
     id: 'yin-yoga',
-    title: 'Инь Йог',
+    title: 'Инь Иог',
     type: 'offline',
     category: 'Yoga',
     schedule: 'Лха, Баа',

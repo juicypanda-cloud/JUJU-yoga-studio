@@ -64,7 +64,7 @@ export const OnlineContentCard: React.FC<OnlineContentCardProps> = ({ content, o
       <div className="px-2">
         <div className="flex items-center gap-3 mb-3">
           <span className="text-[10px] font-black uppercase tracking-[0.2em] text-brand-icon">
-            {content.category === 'Yoga' ? 'Йог' : 'Бясалгал'}
+            {content.category === 'Yoga' ? 'Иог' : 'Бясалгал'}
           </span>
         </div>
         <h3 className="text-2xl font-serif text-brand-ink mb-3 group-hover:text-brand-icon transition-colors duration-150 leading-tight">

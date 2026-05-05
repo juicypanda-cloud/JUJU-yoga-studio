@@ -316,7 +316,7 @@ export const OnlineClasses: React.FC = () => {
               <div className="max-w-4xl">
                 <div className="flex items-center gap-4 mb-8">
                   <span className="text-[10px] font-black uppercase tracking-[0.2em] text-brand-icon">
-                    {selectedContent.category === 'Yoga' ? 'Йог' : 'Бясалгал'}
+                    {selectedContent.category === 'Yoga' ? 'Иог' : 'Бясалгал'}
                   </span>
                 </div>
                 <h1 className="text-5xl font-serif text-brand-ink mb-8 leading-tight">{selectedContent.title}</h1>
@@ -355,7 +355,7 @@ export const OnlineClasses: React.FC = () => {
                 <div className="flex flex-wrap justify-center gap-4">
                   {[
                     { id: 'All', label: 'Бүгд' },
-                    { id: 'Yoga', label: 'Йог' },
+                    { id: 'Yoga', label: 'Иог' },
                     { id: 'Meditation', label: 'Бясалгал' }
                   ].map((cat) => (
                     <button

@@ -248,7 +248,7 @@ export const OnlineContentAdmin: React.FC = () => {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="Yoga">Йог</SelectItem>
+                      <SelectItem value="Yoga">Иог</SelectItem>
                       <SelectItem value="Meditation">Бясалгал</SelectItem>
                     </SelectContent>
                   </Select>

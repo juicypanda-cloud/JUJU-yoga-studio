@@ -401,7 +401,7 @@ export const ClassDetail: React.FC = () => {
               <div className="absolute top-8 left-8">
                 <span className="bg-white/90 backdrop-blur-md px-6 py-2 rounded-full text-[10px] font-black uppercase tracking-widest text-brand-icon shadow-xl">
                   {classItem.category === 'Yoga'
-                    ? 'Йог'
+                    ? 'Иог'
                     : classItem.category === 'Meditation'
                       ? 'Оксфордын майндфүлнэс бясалгал'
                       : classItem.category || 'Хичээл'}

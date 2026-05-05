@@ -31,7 +31,7 @@ const megaMenus = [
     path: '/classes',
     links: [
       { name: 'Бүх хичээл', desc: 'Нийт хөтөлбөрүүд', icon: Book, path: '/classes' },
-      { name: 'Йог', desc: 'Бие махбодийн тэнцвэр', icon: Flame, path: '/classes?category=Yoga' },
+      { name: 'Иог', desc: 'Бие махбодийн тэнцвэр', icon: Flame, path: '/classes?category=Yoga' },
       { name: 'Бясалгал', desc: 'Сэтгэл амар амгалан', icon: Wind, path: '/classes?category=Meditation' },
       { name: 'Миний хуваарь', desc: 'Бүртгэлтэй хичээл, огноо', icon: Calendar, path: '/schedule' },
     ]

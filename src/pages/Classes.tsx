@@ -170,7 +170,7 @@ export const Classes: React.FC = () => {
           <div className="flex flex-wrap justify-center gap-4">
             {[
               { id: 'All', label: 'Бүгд' },
-              { id: 'Yoga', label: 'Йог' },
+              { id: 'Yoga', label: 'Иог' },
               { id: 'Meditation', label: 'Оксфордын майндфүлнэс бясалгал' }
             ].map((cat) => (
               <button
@@ -251,7 +251,7 @@ export const Classes: React.FC = () => {
               const scheduleDays = item?.scheduleDays || [];
               const categoryLabel =
                 item?.category === 'Yoga'
-                  ? 'Йог'
+                  ? 'Иог'
                   : item?.category === 'Meditation'
                     ? 'Оксфордын майндфүлнэс бясалгал'
                     : item?.category || 'Хичээл';

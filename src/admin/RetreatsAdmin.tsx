@@ -328,7 +328,7 @@ export const RetreatsAdmin: React.FC = () => {
               <Textarea
                 value={currentRetreat.whatToBring || ''}
                 onChange={(e) => setCurrentRetreat({ ...currentRetreat, whatToBring: e.target.value })}
-                placeholder={'Мөр мөрөөр бичнэ:\nЙогийн гудас\nБиед эвтэйхэн хувцас\nТэмдэглэлийн дэвтэр'}
+                placeholder={'Мөр мөрөөр бичнэ:\nИогийн гудас\nБиед эвтэйхэн хувцас\nТэмдэглэлийн дэвтэр'}
                 className="rounded-xl min-h-[140px]"
               />
               <p className="text-[11px] text-accent/40">Жагсаалтын нэг мөр = нэг item</p>

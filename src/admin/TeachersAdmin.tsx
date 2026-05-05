@@ -212,7 +212,7 @@ export const TeachersAdmin: React.FC = () => {
               <Input 
                 value={currentTeacher.role}
                 onChange={(e) => setCurrentTeacher({ ...currentTeacher, role: e.target.value })}
-                placeholder="Йогийн багш, Бясалгалын хөтөч..."
+                placeholder="Иогийн багш, Бясалгалын хөтөч..."
                 className="rounded-xl"
               />
             </div>
