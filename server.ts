@@ -3,6 +3,8 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { createServer as createViteServer } from 'vite';
 import dotenv from 'dotenv';
+import { handleCreateInvoiceRequest } from './lib/server/qpayCreateInvoice.ts';
+import { processQPayWebhook } from './lib/server/qpayWebhookCore.ts';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -91,28 +93,6 @@ async function getQPayToken(forceRefresh = false): Promise<string> {
   } finally {
     tokenFetchInFlight = null;
   }
-}
-
-function extractInvoiceId(payload: unknown): string | null {
-  if (!payload || typeof payload !== 'object') {
-    return null;
-  }
-  const data = payload as Record<string, unknown>;
-  const payment = (data.payment ?? {}) as Record<string, unknown>;
-  const candidates = [
-    data.invoice_id,
-    data.object_id,
-    data.invoiceId,
-    payment.invoice_id,
-    payment.object_id,
-  ];
-
-  for (const candidate of candidates) {
-    if (typeof candidate === 'string' && candidate.trim()) {
-      return candidate;
-    }
-  }
-  return null;
 }
 
 async function checkInvoicePayment(invoiceId: string, pageNumber = 1, pageLimit = 100) {
@@ -210,46 +190,8 @@ async function startServer() {
 
   app.post('/api/qpay/invoice', async (req, res) => {
     try {
-      if (!QPAY_INVOICE_CODE) {
-        return res.status(500).json({ error: 'Missing QPAY_INVOICE_CODE in environment' });
-      }
-      if (!QPAY_CALLBACK_URL) {
-        return res.status(500).json({ error: 'Missing QPAY_CALLBACK_URL in environment' });
-      }
-
-      const {
-        amount,
-        orderId,
-        description,
-        receiverCode = 'terminal',
-        senderBranchCode = 'ONLINE',
-        receiverData,
-      } = req.body ?? {};
-
-      if (!amount || Number(amount) <= 0) {
-        return res.status(400).json({ error: 'amount must be a positive number' });
-      }
-      if (!orderId) {
-        return res.status(400).json({ error: 'orderId is required' });
-      }
-
-      const payload = {
-        invoice_code: QPAY_INVOICE_CODE,
-        sender_invoice_no: String(orderId),
-        invoice_receiver_code: receiverCode,
-        sender_branch_code: senderBranchCode,
-        invoice_description: description ?? `Order ${orderId}`,
-        amount: Number(amount),
-        callback_url: `${QPAY_CALLBACK_URL}?orderId=${encodeURIComponent(String(orderId))}`,
-        ...(receiverData ? { invoice_receiver_data: receiverData } : {}),
-      };
-
-      const data = await qpayRequest('/v2/invoice', {
-        method: 'POST',
-        body: JSON.stringify(payload),
-      });
-
-      return res.json(data);
+      const { status, payload } = await handleCreateInvoiceRequest((req.body ?? {}) as Record<string, unknown>);
+      return res.status(status).json(payload);
     } catch (error) {
       return res.status(500).json({ error: (error as Error).message });
     }
@@ -284,23 +226,8 @@ async function startServer() {
   app.post('/api/qpay/webhook', async (req, res) => {
     try {
       console.log('QPay callback received:', req.body);
-      const invoiceId = extractInvoiceId(req.body);
-
-      if (!invoiceId) {
-        return res.status(200).json({
-          ok: true,
-          checked: false,
-          reason: 'invoice_id not found in callback payload',
-        });
-      }
-
-      const paymentCheck = await checkInvoicePayment(invoiceId);
-      return res.status(200).json({
-        ok: true,
-        checked: true,
-        invoiceId,
-        paymentCheck,
-      });
+      const { status, json } = await processQPayWebhook(req.body);
+      return res.status(status).json(json);
     } catch (error) {
       return res.status(500).json({ error: (error as Error).message });
     }

@@ -4,7 +4,7 @@ import { motion } from 'motion/react';
 import { ArrowLeft, Loader2, CheckCircle2, QrCode, Smartphone } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { useAuth } from '../context/AuthContext';
-import { doc, updateDoc } from 'firebase/firestore';
+import { doc, onSnapshot } from 'firebase/firestore';
 import { db } from '../firebase';
 import { toast } from 'sonner';
 import {
@@ -17,7 +17,6 @@ import {
 import {
   type PaymentSession,
   buildFallbackQrUrl,
-  hasPaidStatus,
   pickString,
   readJsonSafe,
   waitForImageReady,
@@ -36,7 +35,6 @@ export const Checkout: React.FC = () => {
   const plan = plans[planId] || plans['online-video'];
 
   const [loading, setLoading] = useState(false);
-  const [checkingPayment, setCheckingPayment] = useState(false);
   const [success, setSuccess] = useState(false);
   const [paymentCompleteMessage, setPaymentCompleteMessage] = useState('');
   const [paymentSession, setPaymentSession] = useState<PaymentSession | null>(null);
@@ -53,23 +51,12 @@ export const Checkout: React.FC = () => {
     setOrderId(`${user.uid}-${Date.now()}`);
   }, [user, navigate]);
 
-  const activateSubscription = async () => {
-    if (!user) return;
-    await updateDoc(doc(db, 'users', user.uid), {
-      subscriptionStatus: 'active',
-      subscriptionPlan: planId,
-      subscriptionStartDate: new Date().toISOString(),
-      subscriptionEndDate: new Date(
-        Date.now() + 30 * 24 * 60 * 60 * 1000
-      ).toISOString(),
-    });
-  };
-
   const createInvoice = async () => {
     if (!user) return;
     setLoading(true);
 
     try {
+      const idToken = await user.getIdToken();
       const payload = {
         amount: plan.price,
         orderId,
@@ -79,6 +66,12 @@ export const Checkout: React.FC = () => {
         receiverData: {
           name: pickString(profile?.displayName) ?? pickString(user.displayName) ?? 'JUJU user',
           email: pickString(user.email),
+        },
+        idToken,
+        paymentIntent: {
+          kind: 'subscription',
+          planId,
+          durationDays: 30,
         },
       };
 
@@ -131,41 +124,19 @@ export const Checkout: React.FC = () => {
     }
   };
 
-  const checkPayment = async (opts?: { silent?: boolean }) => {
-    const silent = Boolean(opts?.silent);
-    if (!paymentSession?.invoiceId || success) return;
-    if (!silent && checkingPayment) return;
-    if (!silent) setCheckingPayment(true);
-    try {
-      const response = await fetch('/api/qpay/payment/check', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ invoiceId: paymentSession.invoiceId }),
-      });
-      const data = await readJsonSafe(response);
-      if (!response.ok) {
-        throw new Error(pickString(data?.error) ?? 'Төлбөр шалгах үед алдаа гарлаа');
-      }
-
-      if (hasPaidStatus(data)) {
-        await activateSubscription();
-        setSuccess(true);
-        setPaymentCompleteMessage('Payment complete');
-        toast.success('Payment complete');
-      }
-    } catch (error) {
-      console.error('Payment check error:', error);
-    } finally {
-      if (!silent) setCheckingPayment(false);
-    }
-  };
-
   useEffect(() => {
     if (!paymentSession?.invoiceId || success) return;
-    const interval = setInterval(() => {
-      void checkPayment({ silent: true });
-    }, 8000);
-    return () => clearInterval(interval);
+    const ref = doc(db, 'qpayEvents', paymentSession.invoiceId);
+    const unsub = onSnapshot(ref, (snap) => {
+      if (!snap.exists()) return;
+      const d = snap.data() as Record<string, unknown>;
+      if (d.processed === true && String(d.status || '') === 'paid') {
+        setSuccess(true);
+        setPaymentCompleteMessage('Төлбөр баталгаажлаа.');
+        toast.success('Гишүүнчлэл идэвхжлээ.');
+      }
+    });
+    return () => unsub();
   }, [paymentSession?.invoiceId, success]);
 
   if (success) {
@@ -206,7 +177,7 @@ export const Checkout: React.FC = () => {
               QPay QR
             </DialogTitle>
             <DialogDescription className="text-brand-ink/60">
-              QR уншуулж төлбөрөө хийгээд дараа нь төлбөр шалгана уу.
+              QR уншуулж төлбөрөө хийгээрэй. Төлбөр баталгаажмагц эрх автоматаар идэвхжинэ.
             </DialogDescription>
           </DialogHeader>
 
@@ -238,20 +209,9 @@ export const Checkout: React.FC = () => {
                 </a>
               ) : null}
 
-              <Button
-                onClick={() => void checkPayment()}
-                disabled={checkingPayment}
-                className="w-full bg-brand-ink text-white hover:bg-brand-icon rounded-full py-6 text-[11px] font-black tracking-[0.2em] uppercase transition-all duration-500 shadow-xl"
-              >
-                {checkingPayment ? (
-                  <span className="flex items-center gap-2">
-                    <Loader2 className="animate-spin" size={16} />
-                    Төлбөр шалгаж байна...
-                  </span>
-                ) : (
-                  'Төлбөр шалгах'
-                )}
-              </Button>
+              <p className="text-center text-sm text-brand-ink/60">
+                Баталгаажуулалт сервер дээр хийгдэнэ. Хуудсыг хааж болно.
+              </p>
             </div>
           ) : null}
         </DialogContent>
@@ -317,23 +277,8 @@ export const Checkout: React.FC = () => {
                     </Button>
                   </div>
 
-                  <Button
-                    onClick={() => void checkPayment()}
-                    disabled={checkingPayment}
-                    className="w-full bg-brand-ink text-white hover:bg-brand-icon rounded-full py-8 text-[11px] font-black tracking-[0.2em] uppercase transition-all duration-500 shadow-xl"
-                  >
-                    {checkingPayment ? (
-                      <span className="flex items-center gap-2">
-                        <Loader2 className="animate-spin" size={16} />
-                        Төлбөр шалгаж байна...
-                      </span>
-                    ) : (
-                      'Төлбөр шалгах'
-                    )}
-                  </Button>
-
-                  <p className="text-center text-xs text-brand-ink/40 font-light">
-                    Төлбөр төлөгдсөний дараа эрх автоматаар идэвхжинэ.
+                  <p className="text-center text-sm text-brand-ink/60">
+                    Төлбөр баталгаажмагц гишүүнчлэл автоматаар идэвхжинэ. Хүлээгээрэй.
                   </p>
                 </div>
               )}

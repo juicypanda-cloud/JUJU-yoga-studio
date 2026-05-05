@@ -9,6 +9,8 @@ import { addDoc, collection, doc, getDocs, onSnapshot, query, where } from 'fire
 import { useAuth } from '../context/AuthContext';
 import type { ClassItem } from '../types/class';
 import { toast } from 'sonner';
+import { format } from 'date-fns';
+import { monthKeyValid } from '../lib/bookingScheduleDisplay';
 import {
   Dialog,
   DialogContent,
@@ -19,7 +21,6 @@ import {
 import {
   type PaymentSession,
   buildFallbackQrUrl,
-  hasPaidStatus,
   pickString,
   readJsonSafe,
   waitForImageReady,
@@ -106,7 +107,6 @@ export const ClassDetail: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [showBookingPayment, setShowBookingPayment] = useState(false);
   const [bookingLoading, setBookingLoading] = useState(false);
-  const [checkingPayment, setCheckingPayment] = useState(false);
   const [bookingSuccess, setBookingSuccess] = useState(false);
   const [bookingSession, setBookingSession] = useState<PaymentSession | null>(null);
   const [orderId, setOrderId] = useState('');
@@ -157,15 +157,35 @@ export const ClassDetail: React.FC = () => {
     setOrderId(`class-${id}-${user.uid}-${Date.now()}`);
   }, [id, user?.uid]);
 
+  const currentMonthKey = () => format(new Date(), 'yyyy-MM');
+
   const ensureNotAlreadyBooked = async () => {
     if (!user?.uid || !id) return false;
-    const q = query(
-      collection(db, 'bookings'),
-      where('userId', '==', user.uid),
-      where('classId', '==', id)
-    );
+    const mkTarget = currentMonthKey();
+    const q = query(collection(db, 'bookings'), where('userId', '==', user.uid));
     const snapshot = await getDocs(q);
-    return snapshot.docs.some((item) => String(item.data()?.status || '').toLowerCase() !== 'cancelled');
+    return snapshot.docs.some((item) => {
+      const d = item.data() as Record<string, unknown>;
+      if (String(d?.status || '').toLowerCase() === 'cancelled') return false;
+      const cid = String(d?.classId || '').trim();
+      const iid = String(d?.itemId || '').trim();
+      if (cid !== id && iid !== id) return false;
+      const mkDoc = String(d?.monthKey || '').trim();
+      if (monthKeyValid(mkDoc) && mkDoc === mkTarget) return true;
+      if (String(d?.type || '') === 'class' && !monthKeyValid(mkDoc)) {
+        const c = d?.createdAt;
+        let created = new Date();
+        if (c && typeof (c as { toDate?: () => Date }).toDate === 'function') {
+          created = (c as { toDate: () => Date }).toDate();
+        } else if (typeof c === 'string') {
+          const t = new Date(c);
+          if (!Number.isNaN(t.getTime())) created = t;
+        }
+        const mkLegacy = format(created, 'yyyy-MM');
+        return mkLegacy === mkTarget;
+      }
+      return false;
+    });
   };
 
   const finalizeClassBooking = async () => {
@@ -177,12 +197,14 @@ export const ClassDetail: React.FC = () => {
     }
     setBookingLoading(true);
     try {
+    const monthKey = currentMonthKey();
     await addDoc(collection(db, 'bookings'), {
       userId: user.uid,
       classId: id,
       itemId: id,
-      type: 'class',
-      status: 'booked',
+      type: 'class_month',
+      monthKey,
+      status: 'confirmed',
       source: 'class-detail',
       amountPaid: Number(classItem.price || 0),
       createdAt: new Date().toISOString(),
@@ -208,6 +230,7 @@ export const ClassDetail: React.FC = () => {
 
     setBookingLoading(true);
     try {
+      const idToken = await user.getIdToken();
       const payload = {
         amount: Number(classItem.price || 0),
         orderId: orderId || `class-${id}-${Date.now()}`,
@@ -218,6 +241,8 @@ export const ClassDetail: React.FC = () => {
           name: pickString(profile?.displayName) ?? pickString(user.displayName) ?? 'JUJU user',
           email: pickString(user.email),
         },
+        idToken,
+        paymentIntent: { kind: 'class_month', classId: id, monthKey: currentMonthKey() },
       };
 
       const response = await fetch('/api/qpay/invoice', {
@@ -262,36 +287,20 @@ export const ClassDetail: React.FC = () => {
     }
   };
 
-  const checkClassPayment = async (silent = false) => {
-    if (!bookingSession?.invoiceId || bookingSuccess) return;
-    if (!silent && checkingPayment) return;
-    if (!silent) setCheckingPayment(true);
-    try {
-      const response = await fetch('/api/qpay/payment/check', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ invoiceId: bookingSession.invoiceId }),
-      });
-      const data = await readJsonSafe(response);
-      if (!response.ok) throw new Error(pickString(data?.error) ?? 'Төлбөр шалгах үед алдаа гарлаа');
-
-      if (hasPaidStatus(data)) {
-        await finalizeClassBooking();
-      }
-    } catch (error) {
-      if (!silent) toast.error(error instanceof Error ? error.message : 'Төлбөр шалгахад алдаа гарлаа');
-    } finally {
-      if (!silent) setCheckingPayment(false);
-    }
-  };
-
   useEffect(() => {
     if (!bookingSession?.invoiceId || bookingSuccess) return;
-    const timer = window.setInterval(() => {
-      void checkClassPayment(true);
-    }, 8000);
-    return () => window.clearInterval(timer);
-  }, [bookingSession?.invoiceId, bookingSuccess]);
+    if (!(typeof classItem?.price === 'number' && classItem.price > 0)) return;
+    const ref = doc(db, 'qpayEvents', bookingSession.invoiceId);
+    const unsub = onSnapshot(ref, (snap) => {
+      if (!snap.exists()) return;
+      const d = snap.data() as Record<string, unknown>;
+      if (d.processed === true && String(d.status || '') === 'paid') {
+        setBookingSuccess(true);
+        toast.success('Төлбөр баталгаажлаа. Хичээл таны хуваарьт нэмэгдлээ.');
+      }
+    });
+    return () => unsub();
+  }, [bookingSession?.invoiceId, bookingSuccess, classItem?.price]);
 
   if (loading) {
     return (
@@ -324,7 +333,7 @@ export const ClassDetail: React.FC = () => {
               QPay QR
             </DialogTitle>
             <DialogDescription className="text-brand-ink/60">
-              QR уншуулж төлбөрөө хийгээд дараа нь төлбөр шалгана уу.
+              QR уншуулж төлбөрөө хийгээрэй. Төлбөр баталгаажмагц бүртгэл автоматаар үүснэ (таб хаасан ч ажиллана).
             </DialogDescription>
           </DialogHeader>
 
@@ -353,17 +362,6 @@ export const ClassDetail: React.FC = () => {
                   QPay апп-аар нээх
                 </a>
               ) : null}
-              <Button
-                onClick={() => void checkClassPayment(false)}
-                disabled={checkingPayment}
-                className="w-full rounded-full bg-brand-ink py-6 text-[11px] font-black uppercase tracking-[0.2em] text-white hover:bg-brand-icon"
-              >
-                {checkingPayment ? (
-                  <span className="inline-flex items-center gap-2"><Loader2 size={14} className="animate-spin" /> Төлбөр шалгаж байна...</span>
-                ) : (
-                  'Төлбөр шалгах'
-                )}
-              </Button>
             </div>
           ) : null}
         </DialogContent>
@@ -451,8 +449,13 @@ export const ClassDetail: React.FC = () => {
                 {classItem.title}
               </h1>
               {typeof classItem.price === 'number' && classItem.price > 0 && (
-                <p className="text-base font-semibold text-brand-ink mb-6">
-                  Үнэ: {classItem.price.toLocaleString()} ₮
+                <p className="text-base font-semibold text-brand-ink mb-2">
+                  Сарын эрх: {classItem.price.toLocaleString()} ₮ / {currentMonthKey()}
+                </p>
+              )}
+              {typeof classItem.price === 'number' && classItem.price > 0 && (
+                <p className="text-sm text-brand-ink/55 mb-6">
+                  Нэг удаагийн төлбөрөөр сонгосон сард тухайн хичээлийн бүх суудлын хуваарь таны &quot;Миний хуваарь&quot; хуудсанд харагдана.
                 </p>
               )}
               <p className="text-base text-brand-ink/60 font-light leading-relaxed">
@@ -515,7 +518,8 @@ export const ClassDetail: React.FC = () => {
                         <div className="space-y-4">
                           <h4 className="text-xl font-serif text-brand-ink">Хичээлийн төлбөр</h4>
                           <p className="text-sm text-brand-ink/60">
-                            Үнэ: {Number(classItem.price || 0).toLocaleString()} ₮. Төлбөр баталгаажсаны дараа л хичээл таны хуваарьт нэмэгдэнэ.
+                            Сарын төлбөр: {Number(classItem.price || 0).toLocaleString()} ₮ ({currentMonthKey()}). Төлбөр
+                            баталгаажсаны дараа сарын бүх суудал таны хуваарьд орно.
                           </p>
                           <Button
                             onClick={createBookingInvoice}
@@ -542,17 +546,9 @@ export const ClassDetail: React.FC = () => {
                               QR дахин нээх
                             </Button>
                           </div>
-                          <Button
-                            onClick={() => void checkClassPayment(false)}
-                            disabled={checkingPayment}
-                            className="w-full rounded-full bg-brand-ink py-6 text-[11px] font-black uppercase tracking-[0.2em] text-white hover:bg-brand-icon"
-                          >
-                            {checkingPayment ? (
-                              <span className="inline-flex items-center gap-2"><Loader2 size={14} className="animate-spin" /> Төлбөр шалгаж байна...</span>
-                            ) : (
-                              'Төлбөр шалгах'
-                            )}
-                          </Button>
+                          <p className="text-center text-xs text-brand-ink/45">
+                            Төлбөр баталгаажмагц энд амжилттай гэж гарна. Хуудсыг нээлттэй үлдээх шаардлагагүй.
+                          </p>
                         </div>
                       )}
                     </div>
@@ -577,9 +573,9 @@ export const ClassDetail: React.FC = () => {
                 </>
               ) : (
                 <div className="flex justify-center">
-                  <Link to="/schedule">
+                  <Link to="/classes">
                     <Button className="bg-brand-ink text-white hover:bg-brand-icon rounded-full px-12 py-8 text-[11px] font-black tracking-[0.2em] uppercase transition-all duration-500 shadow-xl w-full sm:w-auto">
-                      Одоо бүртгүүлэх
+                      Хичээлүүд рүү очих
                     </Button>
                   </Link>
                 </div>

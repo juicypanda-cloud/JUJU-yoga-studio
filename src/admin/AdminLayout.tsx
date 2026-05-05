@@ -15,6 +15,7 @@ import {
   Menu,
   X,
   UserCheck,
+  TrendingUp,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { ScrollArea } from '../components/ui/scroll-area';
@@ -34,11 +35,13 @@ import { ClassAttendanceAdmin } from './ClassAttendanceAdmin';
 import { ScheduleAdmin } from './ScheduleAdmin';
 import { MindfulnessAdmin } from './MindfulnessAdmin';
 import { HomeHeroAdmin } from './HomeHeroAdmin';
+import { RevenueAdmin } from './RevenueAdmin';
 
 // Admin Pages (to be implemented)
 
 const sidebarLinks = [
   { name: 'Хянах самбар', icon: LayoutDashboard, path: '/admin' },
+  { name: 'Орлого', icon: TrendingUp, path: '/admin/revenue' },
   { name: 'Нүүр Hero', icon: ImageIcon, path: '/admin/home-hero' },
   { name: 'Медиа сан', icon: ImageIcon, path: '/admin/media' },
   { name: 'Блог', icon: BookOpen, path: '/admin/blog' },
@@ -124,7 +127,10 @@ export const AdminLayout: React.FC = () => {
           </div>
           <nav className="space-y-0.5 px-3">
             {sidebarLinks.map((link) => {
-              const isActive = location.pathname === link.path;
+              const isActive =
+                link.path === '/admin'
+                  ? location.pathname === '/admin'
+                  : location.pathname === link.path || location.pathname.startsWith(`${link.path}/`);
               return (
                 <Link
                   key={link.path}
@@ -179,7 +185,10 @@ export const AdminLayout: React.FC = () => {
         <ScrollArea className="relative flex-grow overscroll-contain py-4">
           <nav className="space-y-0.5 px-3">
             {sidebarLinks.map((link) => {
-              const isActive = location.pathname === link.path;
+              const isActive =
+                link.path === '/admin'
+                  ? location.pathname === '/admin'
+                  : location.pathname === link.path || location.pathname.startsWith(`${link.path}/`);
               return (
                 <Link
                   key={link.path}
@@ -223,6 +232,7 @@ export const AdminLayout: React.FC = () => {
         <div className="relative">
         <Routes>
           <Route path="/" element={<Dashboard />} />
+          <Route path="/revenue" element={<RevenueAdmin />} />
           <Route path="/home-hero" element={<HomeHeroAdmin />} />
           <Route path="/media" element={<MediaLibrary />} />
           <Route path="/online" element={<OnlineContentAdmin />} />

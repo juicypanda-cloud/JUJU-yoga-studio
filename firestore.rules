@@ -190,6 +190,12 @@ service cloud.firestore {
       allow update: if isOwner(userId) || isAdmin();
     }
 
+    // QPay payment events (Admin SDK writes; clients read own row for UI; admins read all)
+    match /qpayEvents/{invoiceId} {
+      allow read: if isAdmin() || (isAuthenticated() && resource.data.userId == request.auth.uid);
+      allow create, update, delete: if false;
+    }
+
     // Bookings
     match /bookings/{id} {
       allow read: if isAuthenticated() && (

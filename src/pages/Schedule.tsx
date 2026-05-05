@@ -1,39 +1,23 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
-import {
-  collection,
-  doc,
-  increment,
-  onSnapshot,
-  orderBy,
-  query,
-  runTransaction,
-  where,
-} from 'firebase/firestore';
+import React, { useEffect, useMemo, useState } from 'react';
+import { collection, onSnapshot, orderBy, query, Timestamp, where } from 'firebase/firestore';
+import { Link } from 'react-router-dom';
 import { db } from '../firebase';
 import { useAuth } from '../context/AuthContext';
 import { Button } from '../components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table';
 import { Badge } from '../components/ui/badge';
-import { toast } from 'sonner';
 import { motion } from 'motion/react';
-import { Calendar as CalendarIcon, Clock, Loader2, QrCode, Smartphone, User } from 'lucide-react';
+import { format } from 'date-fns';
+import { Calendar as CalendarIcon, Clock, User } from 'lucide-react';
 import { ErrorBoundary } from '../components/ErrorBoundary';
 import type { ClassItem } from '../types/class';
 import {
-  type PaymentSession,
-  buildFallbackQrUrl,
-  hasPaidStatus,
-  pickString,
-  readJsonSafe,
-  waitForImageReady,
-} from '../lib/qpayHelpers';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from '../components/ui/dialog';
+  formatDisplayDateMn,
+  listOccurrencesInMonth,
+  monthKeyValid,
+  sessionDateFromWeekKey,
+  upcomingDatesForWeekday,
+} from '../lib/bookingScheduleDisplay';
 
 type ClassLookupItem = {
   id: string;
@@ -48,18 +32,6 @@ type ClassLookupItem = {
 
 type TeacherLookupItem = {
   name?: string;
-};
-
-const getCurrentWeekKey = (now: Date = new Date()) => {
-  const d = new Date(now);
-  const day = d.getDay(); // 0=Sun ... 6=Sat
-  const diffToMonday = day === 0 ? -6 : 1 - day;
-  d.setDate(d.getDate() + diffToMonday);
-  d.setHours(0, 0, 0, 0);
-  const year = d.getFullYear();
-  const month = String(d.getMonth() + 1).padStart(2, '0');
-  const date = String(d.getDate()).padStart(2, '0');
-  return `${year}-${month}-${date}`;
 };
 
 type ScheduleItem = {
@@ -86,8 +58,6 @@ const dayMap: Record<string, string> = {
   Saturday: 'Бямба',
   Sunday: 'Ням',
 };
-
-const dayOrder = ['Даваа', 'Мягмар', 'Лхагва', 'Пүрэв', 'Баасан', 'Бямба', 'Ням'];
 
 const normalizeDay = (rawDay?: string) => {
   const safeDay = String(rawDay || '').trim();
@@ -117,33 +87,174 @@ const normalizeScheduleItem = (id: string, raw: any): ScheduleItem => ({
   bookedCount: Number(raw?.bookedCount || 0),
 });
 
-function getSlotPrice(item: ScheduleItem, classesMap: Record<string, ClassLookupItem>): number {
-  const rec = classesMap[item.classId];
-  const p = rec?.price;
-  return typeof p === 'number' && p > 0 ? p : 0;
+type BookingSnap = { id: string; data: Record<string, unknown> };
+
+type ScheduleDisplayRow = {
+  key: string;
+  sortMs: number;
+  date: Date;
+  dateLabel: string;
+  classTitle: string;
+  time: string;
+  teacherName: string;
+  badge: string;
+};
+
+function monthKeyFromBookingData(b: Record<string, unknown>): string {
+  const mk = String(b.monthKey || '').trim();
+  if (monthKeyValid(mk)) return mk;
+  const c = b.createdAt;
+  if (c && typeof (c as { toDate?: () => Date }).toDate === 'function') {
+    const d = (c as Timestamp).toDate();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+  }
+  if (typeof c === 'string') {
+    const d = new Date(c);
+    if (!Number.isNaN(d.getTime())) {
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    }
+  }
+  const n = new Date();
+  return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}`;
+}
+
+function buildMyScheduleRows(
+  bookings: BookingSnap[],
+  scheduleItems: ScheduleItem[],
+  classes: Record<string, ClassLookupItem>,
+  teachers: Record<string, TeacherLookupItem>,
+  now: Date
+): ScheduleDisplayRow[] {
+  const scheduleById = new Map(scheduleItems.map((s) => [s.id, s]));
+  const slotsByClass = new Map<string, ScheduleItem[]>();
+  scheduleItems.forEach((s) => {
+    const cid = String(s.classId || '').trim();
+    if (!cid) return;
+    slotsByClass.set(cid, [...(slotsByClass.get(cid) || []), s]);
+  });
+
+  const rows: ScheduleDisplayRow[] = [];
+
+  const classTitle = (classId: string, slot?: ScheduleItem) => {
+    const rec = classes[classId];
+    if (typeof rec?.title === 'string' && rec.title.trim()) return rec.title.trim();
+    if (slot && typeof slot.className === 'string' && slot.className.trim()) return slot.className.trim();
+    return 'Хичээл';
+  };
+
+  const teacherName = (slot?: ScheduleItem) => {
+    const tid = String(slot?.teacherId || '').trim();
+    const fromTeachers = tid ? teachers[tid]?.name : undefined;
+    if (typeof fromTeachers === 'string' && fromTeachers.trim()) return fromTeachers.trim();
+    if (slot && typeof slot.teacherName === 'string' && slot.teacherName.trim()) return slot.teacherName.trim();
+    return 'Багш';
+  };
+
+  for (const { id: bookingId, data: b } of bookings) {
+    const status = String(b?.status || '').toLowerCase();
+    if (status === 'cancelled') continue;
+
+    const scheduleId = String(b?.scheduleId || '').trim();
+    const weekKey = String(b?.weekKey || '').trim();
+    const classId = String(b?.classId || b?.itemId || '').trim();
+    const typ = String(b?.type || '');
+    const monthKeyStored = String(b?.monthKey || '').trim();
+
+    if (scheduleId && weekKey) {
+      const slot = scheduleById.get(scheduleId);
+      if (!slot) continue;
+      const d = sessionDateFromWeekKey(weekKey, slot.day);
+      if (!d) continue;
+      rows.push({
+        key: `${bookingId}-${scheduleId}-${weekKey}`,
+        sortMs: d.getTime(),
+        date: d,
+        dateLabel: formatDisplayDateMn(d),
+        classTitle: classTitle(slot.classId, slot),
+        time: slot.time,
+        teacherName: teacherName(slot),
+        badge: 'Нэг удаагийн захиалга',
+      });
+      continue;
+    }
+
+    if (scheduleId && !weekKey) {
+      const slot = scheduleById.get(scheduleId);
+      if (!slot) continue;
+      const dates = upcomingDatesForWeekday(now, slot.day, 8);
+      dates.forEach((d, idx) => {
+        rows.push({
+          key: `${bookingId}-${scheduleId}-r${idx}-${d.getTime()}`,
+          sortMs: d.getTime(),
+          date: d,
+          dateLabel: formatDisplayDateMn(d),
+          classTitle: classTitle(slot.classId, slot),
+          time: slot.time,
+          teacherName: teacherName(slot),
+          badge: 'Давтамжит',
+        });
+      });
+      continue;
+    }
+
+    if (classId && (typ === 'class_month' || monthKeyValid(monthKeyStored))) {
+      const mk = monthKeyValid(monthKeyStored) ? monthKeyStored : monthKeyFromBookingData(b);
+      const slots = slotsByClass.get(classId) || [];
+      const occ = listOccurrencesInMonth(
+        mk,
+        slots.map((s) => ({ id: s.id, classId: s.classId, day: s.day, time: s.time }))
+      );
+      occ.forEach((o) => {
+        const slot = scheduleById.get(o.scheduleId);
+        rows.push({
+          key: `${bookingId}-${o.scheduleId}-${o.date.getTime()}`,
+          sortMs: o.date.getTime(),
+          date: o.date,
+          dateLabel: formatDisplayDateMn(o.date),
+          classTitle: classTitle(classId, slot),
+          time: o.time,
+          teacherName: teacherName(slot),
+          badge: `${mk} сарын эрх`,
+        });
+      });
+      continue;
+    }
+
+    if (classId && typ === 'class' && !scheduleId) {
+      const mk = monthKeyFromBookingData(b);
+      const slots = slotsByClass.get(classId) || [];
+      const occ = listOccurrencesInMonth(
+        mk,
+        slots.map((s) => ({ id: s.id, classId: s.classId, day: s.day, time: s.time }))
+      );
+      occ.forEach((o) => {
+        const slot = scheduleById.get(o.scheduleId);
+        rows.push({
+          key: `${bookingId}-legacy-${o.scheduleId}-${o.date.getTime()}`,
+          sortMs: o.date.getTime(),
+          date: o.date,
+          dateLabel: formatDisplayDateMn(o.date),
+          classTitle: classTitle(classId, slot),
+          time: o.time,
+          teacherName: teacherName(slot),
+          badge: `${mk} (өмнөх бүртгэл)`,
+        });
+      });
+    }
+  }
+
+  rows.sort((a, b) => a.sortMs - b.sortMs);
+  return rows;
 }
 
 export const Schedule: React.FC = () => {
   const [schedule, setSchedule] = useState<ScheduleItem[]>([]);
   const [classes, setClasses] = useState<Record<string, ClassLookupItem>>({});
   const [teachers, setTeachers] = useState<Record<string, TeacherLookupItem>>({});
-  const [myRecurringBookedScheduleIds, setMyRecurringBookedScheduleIds] = useState<Set<string>>(new Set());
-  const [myWeeklyBookedScheduleIds, setMyWeeklyBookedScheduleIds] = useState<Set<string>>(new Set());
+  const [myBookings, setMyBookings] = useState<BookingSnap[]>([]);
   const [loading, setLoading] = useState(true);
-  const { user, profile } = useAuth();
-  const currentWeekKey = useMemo(() => getCurrentWeekKey(), []);
-
-  const [payTarget, setPayTarget] = useState<ScheduleItem | null>(null);
-  const payTargetRef = useRef<ScheduleItem | null>(null);
-  payTargetRef.current = payTarget;
-
-  const [scheduleOrderId, setScheduleOrderId] = useState('');
-  const [scheduleBookingSession, setScheduleBookingSession] = useState<PaymentSession | null>(null);
-  const [scheduleBookingLoading, setScheduleBookingLoading] = useState(false);
-  const [scheduleCheckingPayment, setScheduleCheckingPayment] = useState(false);
-  const [scheduleBookingSuccess, setScheduleBookingSuccess] = useState(false);
-  const [scheduleUseQrFallback, setScheduleUseQrFallback] = useState(false);
-  const [schedulePayDialogOpen, setSchedulePayDialogOpen] = useState(false);
+  const { user } = useAuth();
+  const [nowTick] = useState(() => new Date());
 
   useEffect(() => {
     const unsubscribeClasses = onSnapshot(collection(db, 'classes'), (snapshot) => {
@@ -198,473 +309,114 @@ export const Schedule: React.FC = () => {
 
   useEffect(() => {
     if (!user?.uid) {
-      setMyRecurringBookedScheduleIds(new Set());
-      setMyWeeklyBookedScheduleIds(new Set());
+      setMyBookings([]);
       return;
     }
-
     const myBookingsQuery = query(collection(db, 'bookings'), where('userId', '==', user.uid));
     const unsubscribe = onSnapshot(myBookingsQuery, (snapshot) => {
-      const recurringIds = new Set<string>();
-      const weeklyIds = new Set<string>();
-      const scheduleIdsByClassId = new Map<string, string[]>();
-
-      schedule.forEach((slot) => {
-        const classId = String(slot?.classId || '').trim();
-        if (!classId) return;
-        const row = scheduleIdsByClassId.get(classId) || [];
-        row.push(String(slot?.id || '').trim());
-        scheduleIdsByClassId.set(classId, row.filter(Boolean));
-      });
-
-      snapshot.docs.forEach((bookingDoc) => {
-        const data = bookingDoc.data() as any;
-        const status = String(data?.status || '').toLowerCase();
-        if (status === 'cancelled') return;
-        const scheduleId = String(data?.scheduleId || '').trim();
-        if (!scheduleId) {
-          const classId = String(data?.classId || data?.itemId || '').trim();
-          if (!classId) return;
-          const mappedScheduleIds = scheduleIdsByClassId.get(classId) || [];
-          mappedScheduleIds.forEach((mappedId) => recurringIds.add(mappedId));
-          return;
-        }
-
-        const weekKey = String(data?.weekKey || '').trim();
-        if (!weekKey) {
-          // Legacy/recurring booking without week key.
-          recurringIds.add(scheduleId);
-          return;
-        }
-        if (weekKey === currentWeekKey) {
-          weeklyIds.add(scheduleId);
-        }
-      });
-      setMyRecurringBookedScheduleIds(recurringIds);
-      setMyWeeklyBookedScheduleIds(weeklyIds);
+      const list: BookingSnap[] = snapshot.docs.map((d) => ({ id: d.id, data: d.data() as Record<string, unknown> }));
+      setMyBookings(list);
     });
-
     return () => unsubscribe();
-  }, [currentWeekKey, schedule, user?.uid]);
+  }, [user?.uid]);
 
-  const isSlotAlreadyBooked = (scheduleId?: string) => {
-    const id = String(scheduleId || '').trim();
-    if (!id) return false;
-    return myRecurringBookedScheduleIds.has(id) || myWeeklyBookedScheduleIds.has(id);
-  };
+  const displayRows = useMemo(
+    () => buildMyScheduleRows(myBookings, schedule, classes, teachers, nowTick),
+    [myBookings, schedule, classes, teachers, nowTick]
+  );
 
-  const resetSchedulePaymentUi = () => {
-    setPayTarget(null);
-    setScheduleBookingSession(null);
-    setScheduleBookingSuccess(false);
-    setScheduleUseQrFallback(false);
-    setScheduleBookingLoading(false);
-    setScheduleCheckingPayment(false);
-  };
-
-  const finalizeScheduleBooking = async (item: ScheduleItem, opts?: { fromPaidFlow?: boolean }) => {
-    if (!user?.uid) {
-      toast.error('Хичээл захиалахын тулд нэвтэрнэ үү');
-      return;
+  const groupedByDate = useMemo(() => {
+    const map = new Map<string, ScheduleDisplayRow[]>();
+    for (const r of displayRows) {
+      const key = `${r.date.getFullYear()}-${String(r.date.getMonth() + 1).padStart(2, '0')}-${String(r.date.getDate()).padStart(2, '0')}`;
+      map.set(key, [...(map.get(key) || []), r]);
     }
-    if (isSlotAlreadyBooked(item.id)) {
-      toast.error('Та энэ хичээлд аль хэдийн бүртгүүлсэн байна');
-      return;
-    }
-    if ((item.bookedCount || 0) >= (item.capacity || 0)) {
-      toast.error('Хичээл дүүрсэн байна');
-      return;
-    }
-
-    try {
-      await runTransaction(db, async (transaction) => {
-        const schedRef = doc(db, 'schedule', item.id);
-        const schedSnap = await transaction.get(schedRef);
-        if (!schedSnap.exists()) {
-          throw new Error('NO_SCHEDULE');
-        }
-        const raw = schedSnap.data() as Record<string, unknown>;
-        const cap = Number(raw?.capacity ?? 0);
-        const booked = Number(raw?.bookedCount ?? 0);
-        if (booked >= cap) {
-          throw new Error('FULL');
-        }
-        const bookingRef = doc(collection(db, 'bookings'));
-        transaction.set(bookingRef, {
-          userId: user.uid,
-          scheduleId: item.id,
-          type: 'class',
-          status: 'booked',
-          weekKey: currentWeekKey,
-          createdAt: new Date().toISOString(),
-        });
-        transaction.update(schedRef, { bookedCount: increment(1) });
-      });
-      toast.success('Хичээл амжилттай захиалагдлаа!');
-      if (opts?.fromPaidFlow) setScheduleBookingSuccess(true);
-    } catch (error) {
-      console.error('Booking error:', error);
-      const code = error instanceof Error ? error.message : '';
-      if (code === 'FULL') toast.error('Хичээл дүүрсэн байна');
-      else toast.error('Хичээл захиалахад алдаа гарлаа');
-    }
-  };
-
-  const createScheduleInvoice = async () => {
-    const item = payTargetRef.current;
-    if (!user || !item) return;
-    const amount = getSlotPrice(item, classes);
-    if (amount <= 0) return;
-
-    setScheduleBookingLoading(true);
-    try {
-      const classTitle = getClassInfo(item).title;
-      const payload = {
-        amount,
-        orderId: scheduleOrderId || `sched-${item.id}-${user.uid}-${Date.now()}`,
-        description: `${classTitle} — хуваарийн захиалга`,
-        receiverCode: 'terminal',
-        senderBranchCode: 'SCHEDULE',
-        receiverData: {
-          name: pickString(profile?.displayName) ?? pickString(user.displayName) ?? 'JUJU user',
-          email: pickString(user.email),
-        },
-      };
-
-      const response = await fetch('/api/qpay/invoice', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
-      const data = await readJsonSafe(response);
-      if (!response.ok) {
-        throw new Error(pickString(data?.error) ?? 'QPay invoice үүсгэхэд алдаа гарлаа');
-      }
-
-      const links = Array.isArray(data?.urls) ? data.urls : [];
-      const deeplinkFromUrls = links
-        .map((linkItem: unknown) =>
-          linkItem && typeof linkItem === 'object' ? (linkItem as Record<string, unknown>).link : null
-        )
-        .find((v: unknown) => typeof v === 'string' && v.startsWith('qpay://'));
-
-      const session: PaymentSession = {
-        invoiceId: pickString(data?.invoice_id) ?? pickString(data?.invoiceId) ?? pickString(data?.id) ?? '',
-        qrText: pickString(data?.qr_text) ?? pickString(data?.qrText) ?? pickString(data?.qrcode),
-        qrImage: pickString(data?.qr_image) ?? pickString(data?.qr_image_url) ?? pickString(data?.qrImage),
-        deeplink: pickString(data?.deeplink) ?? (deeplinkFromUrls as string | null),
-      };
-      if (!session.invoiceId) throw new Error('invoice_id олдсонгүй');
-
-      const fallbackQrUrl = buildFallbackQrUrl(session.qrText ?? session.invoiceId);
-      const primaryReady = await waitForImageReady(session.qrImage);
-      const useFallback = !primaryReady;
-      if (useFallback) {
-        const fallbackReady = await waitForImageReady(fallbackQrUrl);
-        if (!fallbackReady) throw new Error('QR зураг ачаалагдсангүй');
-      }
-
-      setScheduleBookingSession(session);
-      setScheduleUseQrFallback(useFallback);
-      toast.success('Төлбөрийн QR амжилттай үүслээ');
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Төлбөр үүсгэхэд алдаа гарлаа');
-    } finally {
-      setScheduleBookingLoading(false);
-    }
-  };
-
-  const checkSchedulePayment = async (silent = false) => {
-    const item = payTargetRef.current;
-    if (!scheduleBookingSession?.invoiceId || scheduleBookingSuccess || !item) return;
-    if (!silent && scheduleCheckingPayment) return;
-    if (!silent) setScheduleCheckingPayment(true);
-    try {
-      const response = await fetch('/api/qpay/payment/check', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ invoiceId: scheduleBookingSession.invoiceId }),
-      });
-      const data = await readJsonSafe(response);
-      if (!response.ok) throw new Error(pickString(data?.error) ?? 'Төлбөр шалгах үед алдаа гарлаа');
-
-      if (hasPaidStatus(data)) {
-        await finalizeScheduleBooking(item, { fromPaidFlow: true });
-      }
-    } catch (error) {
-      if (!silent) toast.error(error instanceof Error ? error.message : 'Төлбөр шалгахад алдаа гарлаа');
-    } finally {
-      if (!silent) setScheduleCheckingPayment(false);
-    }
-  };
-
-  useEffect(() => {
-    if (!scheduleBookingSession?.invoiceId || scheduleBookingSuccess) return;
-    const timer = window.setInterval(() => {
-      void checkSchedulePayment(true);
-    }, 8000);
-    return () => window.clearInterval(timer);
-  }, [scheduleBookingSession?.invoiceId, scheduleBookingSuccess]);
-
-  const handleBook = async (item: ScheduleItem) => {
-    if (!user) {
-      toast.error('Хичээл захиалахын тулд нэвтэрнэ үү');
-      return;
-    }
-
-    if ((item?.bookedCount || 0) >= (item?.capacity || 0)) {
-      toast.error('Хичээл дүүрсэн байна');
-      return;
-    }
-
-    if (isSlotAlreadyBooked(item?.id)) {
-      toast.error('Та энэ хичээлд аль хэдийн бүртгүүлсэн байна');
-      return;
-    }
-
-    const amount = getSlotPrice(item, classes);
-    if (amount <= 0) {
-      await finalizeScheduleBooking(item);
-      return;
-    }
-
-    setScheduleBookingSuccess(false);
-    setScheduleBookingSession(null);
-    setScheduleUseQrFallback(false);
-    setPayTarget(item);
-    setScheduleOrderId(`sched-${item.id}-${user.uid}-${Date.now()}`);
-    setSchedulePayDialogOpen(true);
-  };
-
-  const getClassInfo = (item: ScheduleItem) => {
-    const classRecord: ClassLookupItem = classes?.[item?.classId] ?? { id: item.classId };
-    const teacherRecord = teachers?.[item?.teacherId || ''] || {};
-
-    return {
-      title:
-        typeof classRecord?.title === 'string'
-          ? classRecord.title
-          : typeof item?.className === 'string'
-            ? item.className
-            : 'Untitled class',
-      level: 'Бүх түвшин',
-      duration: '60 min',
-      time: item?.time || 'No time',
-      status: item?.status || 'Active',
-      teacherName: teacherRecord?.name || item?.teacherName || 'Багш',
-      seatsLeft: Math.max(0, (item?.capacity || 0) - (item?.bookedCount || 0)),
-    };
-  };
-
-  const groupedSchedule = useMemo(() => {
-    const groups: Record<string, ScheduleItem[]> = {};
-
-    (schedule || []).forEach((item) => {
-      const key = item?.day || 'Тодорхойгүй өдөр';
-      if (!groups[key]) groups[key] = [];
-      groups[key].push(item);
-    });
-
-    return dayOrder
-      .filter((day) => (groups?.[day] || []).length > 0)
-      .map((day) => ({ day, items: groups?.[day] || [] }));
-  }, [schedule]);
+    return Array.from(map.entries()).sort(([a], [b]) => a.localeCompare(b));
+  }, [displayRows]);
 
   return (
     <ErrorBoundary>
-      <Dialog
-        open={schedulePayDialogOpen && Boolean(payTarget)}
-        onOpenChange={(open) => {
-          setSchedulePayDialogOpen(open);
-          if (!open) resetSchedulePaymentUi();
-        }}
-      >
-        <DialogContent className="sm:max-w-md rounded-[2rem] p-8">
-          <DialogHeader className="gap-2">
-            <DialogTitle className="flex items-center gap-2 font-serif text-2xl text-brand-ink">
-              <QrCode className="text-brand-icon" size={22} />
-              Хичээлийн төлбөр
-            </DialogTitle>
-            <DialogDescription className="text-brand-ink/60">
-              {payTarget ? (
-                <>
-                  {getClassInfo(payTarget).title} — {payTarget.day} {payTarget.time}
-                </>
-              ) : null}
-            </DialogDescription>
-          </DialogHeader>
-
-          {payTarget && scheduleBookingSuccess ? (
-            <div className="space-y-4 text-center">
-              <p className="text-sm text-brand-ink/70">Төлбөр баталгаажлаа. Захиалга амжилттай үүслээ.</p>
-              <Button
-                type="button"
-                className="rounded-full bg-brand-ink px-8 text-white hover:bg-brand-icon"
-                onClick={() => {
-                  resetSchedulePaymentUi();
-                  setSchedulePayDialogOpen(false);
-                }}
-              >
-                Хаах
-              </Button>
-            </div>
-          ) : payTarget && !scheduleBookingSession ? (
-            <div className="space-y-4">
-              <p className="text-sm text-brand-ink/60">
-                Үнэ: {getSlotPrice(payTarget, classes).toLocaleString()} ₮. Төлбөр баталгаажсаны дараа л суудал таньд тоологдоно.
-              </p>
-              <Button
-                type="button"
-                onClick={() => void createScheduleInvoice()}
-                disabled={scheduleBookingLoading}
-                className="w-full rounded-full bg-brand-ink py-6 text-[11px] font-black uppercase tracking-[0.2em] text-white hover:bg-brand-icon"
-              >
-                {scheduleBookingLoading ? (
-                  <span className="inline-flex items-center justify-center gap-2">
-                    <Loader2 size={14} className="animate-spin" /> QR үүсгэж байна...
-                  </span>
-                ) : (
-                  `QPay QR үүсгэх: ${getSlotPrice(payTarget, classes).toLocaleString()}₮`
-                )}
-              </Button>
-            </div>
-          ) : scheduleBookingSession ? (
-            <div className="space-y-5">
-              <div className="rounded-2xl border border-brand-ink/10 bg-gray-50 p-4 flex flex-col items-center">
-                <img
-                  src={
-                    !scheduleUseQrFallback && scheduleBookingSession.qrImage
-                      ? scheduleBookingSession.qrImage
-                      : buildFallbackQrUrl(scheduleBookingSession.qrText ?? scheduleBookingSession.invoiceId)
-                  }
-                  alt="QPay QR"
-                  className="h-56 w-56 rounded-xl bg-white p-2"
-                  onError={() => {
-                    if (!scheduleUseQrFallback) setScheduleUseQrFallback(true);
-                  }}
-                />
-              </div>
-              {scheduleBookingSession.deeplink ? (
-                <a
-                  href={scheduleBookingSession.deeplink}
-                  className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-brand-icon py-3 text-[11px] font-black uppercase tracking-[0.2em] text-white"
-                >
-                  <Smartphone size={14} />
-                  QPay апп-аар нээх
-                </a>
-              ) : null}
-              <Button
-                type="button"
-                onClick={() => void checkSchedulePayment(false)}
-                disabled={scheduleCheckingPayment}
-                className="w-full rounded-full bg-brand-ink py-6 text-[11px] font-black uppercase tracking-[0.2em] text-white hover:bg-brand-icon"
-              >
-                {scheduleCheckingPayment ? (
-                  <span className="inline-flex items-center gap-2">
-                    <Loader2 size={14} className="animate-spin" /> Төлбөр шалгаж байна...
-                  </span>
-                ) : (
-                  'Төлбөр шалгах'
-                )}
-              </Button>
-            </div>
-          ) : null}
-        </DialogContent>
-      </Dialog>
-
       <div className="pt-32 pb-20 min-h-screen bg-white">
         <div className="container mx-auto px-4">
           <div className="max-w-4xl mx-auto">
             <div className="text-center mb-16">
-              <h1 className="text-5xl font-light tracking-tight mb-4">Хичээлийн хуваарь</h1>
-              <p className="text-accent/60">
-                Дасгал сургуулилт хийх тохиромжтой цагаа олоорой. Төлбөртэй хичээлийг QPay-ээр төлсний дараа л захиалга баталгаажина.
+              <h1 className="text-5xl font-light tracking-tight mb-4">Миний хуваарь</h1>
+              <p className="text-accent/60 max-w-xl mx-auto">
+                Таны бүртгэлтэй хичээлүүд — огноо, цаг, багшийн мэдээлэлтэй. Сард нэг төлбөртэй хичээлийг &quot;Хичээлүүд&quot;
+                хуудаснаас сонгон бүртгүүлнэ үү.
               </p>
             </div>
 
-            {loading ? (
+            {!user ? (
+              <div className="rounded-3xl border border-brand-ink/10 bg-secondary/5 px-8 py-14 text-center">
+                <p className="text-brand-ink/70 mb-6">Хуваарь харахын тулд нэвтэрнэ үү.</p>
+                <Button asChild className="rounded-full bg-brand-ink px-8 text-white hover:bg-brand-icon">
+                  <Link to="/login">Нэвтрэх</Link>
+                </Button>
+              </div>
+            ) : loading ? (
               <div className="space-y-4 animate-pulse">
                 {[1, 2, 3, 4, 5].map((i) => (
                   <div key={i} className="h-16 bg-secondary/10 rounded-2xl" />
                 ))}
               </div>
-            ) : !groupedSchedule || groupedSchedule.length === 0 ? (
-              <p className="text-center text-gray-800 py-16">No data available</p>
+            ) : displayRows.length === 0 ? (
+              <div className="rounded-3xl border border-brand-ink/10 bg-white px-8 py-14 text-center shadow-sm">
+                <p className="text-brand-ink/70 mb-6">Одоогоор бүртгэлтэй хичээл алга.</p>
+                <Button asChild variant="outline" className="rounded-full border-brand-ink/20">
+                  <Link to="/classes">Хичээлүүд үзэх</Link>
+                </Button>
+              </div>
             ) : (
               <div className="space-y-12">
-                {groupedSchedule?.map((group) => (
+                {groupedByDate.map(([dateKey, items]) => (
                   <motion.div
-                    key={group?.day}
+                    key={dateKey}
                     initial={{ opacity: 0, y: 20 }}
                     whileInView={{ opacity: 1, y: 0 }}
                     viewport={{ once: true }}
                   >
                     <h2 className="text-2xl font-light mb-6 flex items-center gap-3 text-gray-800">
                       <CalendarIcon className="text-primary" size={24} />
-                      {group?.day}
+                      {items[0] ? format(items[0].date, 'yyyy.MM.dd') : dateKey}
                     </h2>
                     <div className="bg-white rounded-3xl border border-accent/5 overflow-hidden shadow-sm">
                       <Table>
                         <TableHeader className="bg-secondary/5">
                           <TableRow className="hover:bg-transparent border-none">
+                            <TableHead className="py-4 px-6">Огноо</TableHead>
                             <TableHead className="py-4 px-6">Хичээл</TableHead>
                             <TableHead className="py-4 px-6">Цаг</TableHead>
                             <TableHead className="py-4 px-6">Багш</TableHead>
-                            <TableHead className="py-4 px-6">Суудал</TableHead>
-                            <TableHead className="py-4 px-6 text-right">Үйлдэл</TableHead>
+                            <TableHead className="py-4 px-6">Төрөл</TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
-                          {group?.items?.map((item) => {
-                            const classInfo = getClassInfo(item);
-
-                            return (
-                              <TableRow key={item?.id} className="border-accent/5 hover:bg-secondary/5 transition-colors">
-                                <TableCell className="py-6 px-6 text-gray-800">
-                                  <div className="font-medium text-gray-800">{classInfo?.title}</div>
-                                  <div className="text-xs text-gray-600 uppercase tracking-widest mt-1">{classInfo?.level}</div>
-                                </TableCell>
-                                <TableCell className="py-6 px-6 text-gray-800">
-                                  <div className="flex items-center gap-2 text-gray-800">
-                                    <Clock size={14} />
-                                    {classInfo?.time}
-                                  </div>
-                                </TableCell>
-                                <TableCell className="py-6 px-6 text-gray-800">
-                                  <div className="flex items-center gap-2 text-gray-800">
-                                    <User size={14} className="text-primary" />
-                                    {classInfo?.teacherName}
-                                  </div>
-                                </TableCell>
-                                <TableCell className="py-6 px-6 text-gray-800">
-                                  <Badge variant="secondary" className="bg-secondary/20 text-gray-800 border-none">
-                                    {classInfo?.status} • {classInfo?.seatsLeft} үлдсэн
-                                  </Badge>
-                                </TableCell>
-                                <TableCell className="py-6 px-6 text-right">
-                                  {isSlotAlreadyBooked(item?.id) ? (
-                                    <Button
-                                      disabled
-                                      className="rounded-full bg-gray-100 px-6 text-gray-500"
-                                    >
-                                      Бүртгэгдсэн
-                                    </Button>
-                                  ) : (
-                                  <Button
-                                    onClick={() => handleBook(item)}
-                                    disabled={(item?.bookedCount || 0) >= (item?.capacity || 0)}
-                                    className={`rounded-full px-6 ${(item?.bookedCount || 0) >= (item?.capacity || 0)
-                                        ? 'bg-gray-100 text-gray-400'
-                                        : 'bg-primary hover:bg-primary/90 text-white'
-                                      }`}
-                                  >
-                                    {(item?.bookedCount || 0) >= (item?.capacity || 0) ? 'Дүүрсэн' : 'Захиалах'}
-                                  </Button>
-                                  )}
-                                </TableCell>
-                              </TableRow>
-                            );
-                          })}
+                          {items.map((row) => (
+                            <TableRow key={row.key} className="border-accent/5 hover:bg-secondary/5 transition-colors">
+                              <TableCell className="py-5 px-6 text-gray-800 whitespace-nowrap">{row.dateLabel}</TableCell>
+                              <TableCell className="py-5 px-6 text-gray-800">
+                                <div className="font-medium text-gray-800">{row.classTitle}</div>
+                              </TableCell>
+                              <TableCell className="py-5 px-6 text-gray-800">
+                                <div className="flex items-center gap-2 text-gray-800">
+                                  <Clock size={14} />
+                                  {row.time}
+                                </div>
+                              </TableCell>
+                              <TableCell className="py-5 px-6 text-gray-800">
+                                <div className="flex items-center gap-2 text-gray-800">
+                                  <User size={14} className="text-primary" />
+                                  {row.teacherName}
+                                </div>
+                              </TableCell>
+                              <TableCell className="py-5 px-6 text-gray-800">
+                                <Badge variant="secondary" className="bg-secondary/20 text-gray-800 border-none">
+                                  {row.badge}
+                                </Badge>
+                              </TableCell>
+                            </TableRow>
+                          ))}
                         </TableBody>
                       </Table>
                     </div>

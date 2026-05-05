@@ -164,8 +164,11 @@ export const Classes: React.FC = () => {
       <div className="container mx-auto px-4">
         <div className="max-w-4xl mx-auto text-center mb-12">
           <h1 className="text-4xl md:text-5xl font-serif mb-6 text-brand-ink">Манай хичээлүүд</h1>
-          <p className="text-lg text-brand-ink/60 font-light leading-relaxed mb-10">
+          <p className="text-lg text-brand-ink/60 font-light leading-relaxed mb-6">
             Таны хэрэгцээнд тохирсон төрөл бүрийн йогийн хичээлүүдийг санал болгож байна.
+          </p>
+          <p className="text-sm text-brand-ink/55 max-w-2xl mx-auto mb-10 rounded-2xl border border-brand-ink/10 bg-secondary/25 px-5 py-3 font-light leading-relaxed">
+            Гадуурх хичээлүүдийг сард нэг төлбөртэй бүртгүүлнэ — сонгосон сард тухайн хичээлийн бүх суудлын огноо, цаг &quot;Миний хуваарь&quot; хуудсанд харагдана.
           </p>
 
           <div className="flex flex-wrap justify-center gap-4">
