@@ -9,7 +9,7 @@ export function buildFallbackQrUrl(value: string, size = 260): string {
   return `https://api.qrserver.com/v1/create-qr-code/?size=${size}x${size}&data=${encodeURIComponent(value)}`;
 }
 
-export function waitForImageReady(src: string | null, timeoutMs = 12000): Promise<boolean> {
+export function waitForImageReady(src: string | null, timeoutMs = 4500): Promise<boolean> {
   if (!src) return Promise.resolve(false);
   return new Promise((resolve) => {
     const img = new Image();

@@ -229,29 +229,37 @@ export const ClassDetail: React.FC = () => {
     }
 
     setBookingLoading(true);
+    let triedRefreshToken = false;
     try {
-      const idToken = await user.getIdToken(true);
-      const payload = {
-        amount: Number(classItem.price || 0),
-        orderId: orderId || `class-${id}-${Date.now()}`,
-        description: `${classItem.title} class booking`,
-        receiverCode: 'terminal',
-        senderBranchCode: 'CLASS',
-        receiverData: {
-          name: pickString(profile?.displayName) ?? pickString(user.displayName) ?? 'JUJU user',
-          email: pickString(user.email),
-        },
-        idToken,
-        // Keep legacy-compatible kind for environments still on older API code.
-        paymentIntent: { kind: 'class_detail', classId: id, monthKey: currentMonthKey() },
-      };
+      const getInvoiceWithToken = async (idToken: string) =>
+        fetch('/api/qpay/invoice', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            amount: Number(classItem.price || 0),
+            orderId: orderId || `class-${id}-${Date.now()}`,
+            description: `${classItem.title} class booking`,
+            receiverCode: 'terminal',
+            senderBranchCode: 'CLASS',
+            receiverData: {
+              name: pickString(profile?.displayName) ?? pickString(user.displayName) ?? 'JUJU user',
+              email: pickString(user.email),
+            },
+            idToken,
+            // Keep legacy-compatible kind for environments still on older API code.
+            paymentIntent: { kind: 'class_detail', classId: id, monthKey: currentMonthKey() },
+          }),
+        });
 
-      const response = await fetch('/api/qpay/invoice', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
-      const data = await readJsonSafe(response);
+      let idToken = await user.getIdToken();
+      let response = await getInvoiceWithToken(idToken);
+      let data = await readJsonSafe(response);
+      if (!response.ok && pickString(data?.error) === 'invalid idToken' && !triedRefreshToken) {
+        triedRefreshToken = true;
+        idToken = await user.getIdToken(true);
+        response = await getInvoiceWithToken(idToken);
+        data = await readJsonSafe(response);
+      }
       if (!response.ok) {
         throw new Error(pickString(data?.error) ?? 'QPay invoice үүсгэхэд алдаа гарлаа');
       }
@@ -273,7 +281,7 @@ export const ClassDetail: React.FC = () => {
       const primaryReady = await waitForImageReady(session.qrImage);
       const useFallback = !primaryReady;
       if (useFallback) {
-        const fallbackReady = await waitForImageReady(fallbackQrUrl);
+        const fallbackReady = await waitForImageReady(fallbackQrUrl, 2500);
         if (!fallbackReady) throw new Error('QR зураг ачаалагдсангүй');
       }
 

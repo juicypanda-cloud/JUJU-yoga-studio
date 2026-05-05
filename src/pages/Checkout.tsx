@@ -56,32 +56,37 @@ export const Checkout: React.FC = () => {
     setLoading(true);
 
     try {
-      const idToken = await user.getIdToken(true);
-      const payload = {
-        amount: plan.price,
-        orderId,
-        description: `JUJU ${plan.name} subscription`,
-        receiverCode: 'terminal',
-        senderBranchCode: 'ONLINE',
-        receiverData: {
-          name: pickString(profile?.displayName) ?? pickString(user.displayName) ?? 'JUJU user',
-          email: pickString(user.email),
-        },
-        idToken,
-        paymentIntent: {
-          kind: 'subscription',
-          planId,
-          durationDays: 30,
-        },
-      };
+      const createWithToken = async (idToken: string) =>
+        fetch('/api/qpay/invoice', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            amount: plan.price,
+            orderId,
+            description: `JUJU ${plan.name} subscription`,
+            receiverCode: 'terminal',
+            senderBranchCode: 'ONLINE',
+            receiverData: {
+              name: pickString(profile?.displayName) ?? pickString(user.displayName) ?? 'JUJU user',
+              email: pickString(user.email),
+            },
+            idToken,
+            paymentIntent: {
+              kind: 'subscription',
+              planId,
+              durationDays: 30,
+            },
+          }),
+        });
 
-      const response = await fetch('/api/qpay/invoice', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
-
-      const data = await readJsonSafe(response);
+      let idToken = await user.getIdToken();
+      let response = await createWithToken(idToken);
+      let data = await readJsonSafe(response);
+      if (!response.ok && pickString(data?.error) === 'invalid idToken') {
+        idToken = await user.getIdToken(true);
+        response = await createWithToken(idToken);
+        data = await readJsonSafe(response);
+      }
       if (!response.ok) {
         throw new Error(pickString(data?.error) ?? 'QPay invoice үүсгэхэд алдаа гарлаа');
       }
@@ -106,7 +111,7 @@ export const Checkout: React.FC = () => {
       const primaryReady = await waitForImageReady(session.qrImage);
       const useFallback = !primaryReady;
       if (useFallback) {
-        const fallbackReady = await waitForImageReady(fallbackQrUrl);
+        const fallbackReady = await waitForImageReady(fallbackQrUrl, 2500);
         if (!fallbackReady) {
           throw new Error('QR зураг ачаалагдсангүй. Дахин оролдоно уу.');
         }
