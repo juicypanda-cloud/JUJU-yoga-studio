@@ -242,7 +242,8 @@ export const ClassDetail: React.FC = () => {
           email: pickString(user.email),
         },
         idToken,
-        paymentIntent: { kind: 'class_month', classId: id, monthKey: currentMonthKey() },
+        // Keep legacy-compatible kind for environments still on older API code.
+        paymentIntent: { kind: 'class_detail', classId: id, monthKey: currentMonthKey() },
       };
 
       const response = await fetch('/api/qpay/invoice', {
