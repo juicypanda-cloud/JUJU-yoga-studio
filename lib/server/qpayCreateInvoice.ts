@@ -2,6 +2,30 @@ import { assertQPayInvoiceConfig, getQPayInvoiceConfig, qpayRequest } from '../.
 import { getServerAuth } from './firebaseAdmin.js';
 import { extractInvoiceIdFromQPayInvoiceResponse, savePendingQPayEvent, type PaymentIntent } from './qpayWebhookCore.js';
 
+function parseServiceAccountProjectId(): string | null {
+  try {
+    const raw = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
+    if (!raw) return null;
+    const parsed = JSON.parse(String(raw)) as Record<string, unknown>;
+    const pid = typeof parsed.project_id === 'string' ? parsed.project_id.trim() : '';
+    return pid || null;
+  } catch {
+    return null;
+  }
+}
+
+function parseJwtPayload(token: string): Record<string, unknown> | null {
+  try {
+    const [, payloadBase64Url] = token.split('.');
+    if (!payloadBase64Url) return null;
+    const payloadBase64 = payloadBase64Url.replace(/-/g, '+').replace(/_/g, '/');
+    const padded = payloadBase64 + '='.repeat((4 - (payloadBase64.length % 4)) % 4);
+    return JSON.parse(Buffer.from(padded, 'base64').toString('utf8')) as Record<string, unknown>;
+  } catch {
+    return null;
+  }
+}
+
 function parseIntent(raw: unknown): PaymentIntent | null {
   if (!raw || typeof raw !== 'object') return null;
   const o = raw as Record<string, unknown>;
@@ -64,8 +88,22 @@ export async function handleCreateInvoiceRequest(body: Record<string, unknown>):
   try {
     const decoded = await getServerAuth().verifyIdToken(idToken);
     uid = decoded.uid;
-  } catch {
-    return { status: 401, payload: { error: 'invalid idToken' } };
+  } catch (e) {
+    const tokenPayload = parseJwtPayload(idToken);
+    const tokenAud = typeof tokenPayload?.aud === 'string' ? tokenPayload.aud : null;
+    const tokenIss = typeof tokenPayload?.iss === 'string' ? tokenPayload.iss : null;
+    const expectedProjectId = parseServiceAccountProjectId();
+    const msg = e instanceof Error ? e.message : String(e);
+    return {
+      status: 401,
+      payload: {
+        error: 'invalid idToken',
+        details: msg,
+        tokenAud,
+        tokenIss,
+        expectedProjectId,
+      },
+    };
   }
 
   const { invoiceCode, callbackUrl } = getQPayInvoiceConfig();
