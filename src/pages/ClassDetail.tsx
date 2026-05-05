@@ -230,7 +230,7 @@ export const ClassDetail: React.FC = () => {
 
     setBookingLoading(true);
     try {
-      const idToken = await user.getIdToken();
+      const idToken = await user.getIdToken(true);
       const payload = {
         amount: Number(classItem.price || 0),
         orderId: orderId || `class-${id}-${Date.now()}`,

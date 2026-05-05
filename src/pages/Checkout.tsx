@@ -56,7 +56,7 @@ export const Checkout: React.FC = () => {
     setLoading(true);
 
     try {
-      const idToken = await user.getIdToken();
+      const idToken = await user.getIdToken(true);
       const payload = {
         amount: plan.price,
         orderId,
