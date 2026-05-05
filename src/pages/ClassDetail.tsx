@@ -487,8 +487,7 @@ export const ClassDetail: React.FC = () => {
             </div>
 
             <div className="pt-8 space-y-6">
-              {classItem.type === 'offline' ? (
-                <>
+              <>
                   {showBookingPayment ? (
                     <div className="rounded-[2rem] border border-brand-ink/10 bg-white p-6 sm:p-8">
                       {bookingSuccess ? (
@@ -580,15 +579,6 @@ export const ClassDetail: React.FC = () => {
                     </div>
                   ) : null}
                 </>
-              ) : (
-                <div className="flex justify-center">
-                  <Link to="/classes">
-                    <Button className="bg-brand-ink text-white hover:bg-brand-icon rounded-full px-12 py-8 text-[11px] font-black tracking-[0.2em] uppercase transition-all duration-500 shadow-xl w-full sm:w-auto">
-                      Хичээлүүд рүү очих
-                    </Button>
-                  </Link>
-                </div>
-              )}
             </div>
           </motion.div>
         </div>
