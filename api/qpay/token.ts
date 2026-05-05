@@ -1,4 +1,4 @@
-import { assertMethod, assertQPayCredentials, fetchQPayToken, getErrorMessage, jsonResponse } from './_lib';
+import { assertMethod, assertQPayCredentials, fetchQPayToken, getErrorMessage, jsonResponse } from './_lib.js';
 
 export const config = {
   runtime: 'nodejs',

@@ -1,5 +1,5 @@
-import { assertMethod, getBody, jsonResponse } from './_lib';
-import { processQPayWebhook } from '../../lib/server/qpayWebhookCore';
+import { assertMethod, getBody, jsonResponse } from './_lib.js';
+import { processQPayWebhook } from '../../lib/server/qpayWebhookCore.js';
 
 export const config = {
   runtime: 'nodejs',
