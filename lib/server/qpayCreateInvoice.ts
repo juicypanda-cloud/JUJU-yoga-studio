@@ -58,6 +58,15 @@ function parseIntent(raw: unknown): PaymentIntent | null {
   return null;
 }
 
+function toQPaySenderInvoiceNo(orderId: string): string {
+  const clean = orderId.trim();
+  if (clean.length <= 45) return clean;
+  // QPay requires max 45 chars. Keep start + end so uniqueness survives truncation.
+  const head = clean.slice(0, 28);
+  const tail = clean.slice(-16);
+  return `${head}-${tail}`;
+}
+
 export async function handleCreateInvoiceRequest(body: Record<string, unknown>): Promise<{
   status: number;
   payload: Record<string, unknown>;
@@ -83,6 +92,7 @@ export async function handleCreateInvoiceRequest(body: Record<string, unknown>):
   if (!orderId) {
     return { status: 400, payload: { error: 'orderId is required' } };
   }
+  const senderInvoiceNo = toQPaySenderInvoiceNo(orderId);
 
   let uid: string;
   try {
@@ -114,12 +124,12 @@ export async function handleCreateInvoiceRequest(body: Record<string, unknown>):
 
   const qpayBody = {
     invoice_code: invoiceCode,
-    sender_invoice_no: orderId,
+    sender_invoice_no: senderInvoiceNo,
     invoice_receiver_code: receiverCode,
     sender_branch_code: senderBranchCode,
     invoice_description: description,
     amount,
-    callback_url: `${callbackUrl}?orderId=${encodeURIComponent(orderId)}`,
+    callback_url: `${callbackUrl}?orderId=${encodeURIComponent(senderInvoiceNo)}`,
     ...(receiverData ? { invoice_receiver_data: receiverData } : {}),
   };
 
@@ -149,7 +159,7 @@ export async function handleCreateInvoiceRequest(body: Record<string, unknown>):
     await savePendingQPayEvent({
       invoiceId,
       userId: uid,
-      orderId,
+      orderId: senderInvoiceNo,
       amount,
       description,
       senderBranchCode,
