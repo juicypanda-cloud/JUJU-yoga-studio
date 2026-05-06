@@ -65,21 +65,24 @@ function resolveDisplayName(booking: Record<string, unknown>): string {
   return String(booking?.userId || 'Хэрэглэгч').trim();
 }
 
-function pickProfileDisplayName(d: Record<string, unknown>): string {
+type UserProfileLabel = { name: string; email: string };
+
+function pickProfileLabel(d: Record<string, unknown>): UserProfileLabel | null {
+  const rawEmail = String(d.email || '').trim();
   const display = String(d.displayName || d.name || '').trim();
-  const email = String(d.email || '').trim();
-  if (display) return display;
-  if (email.includes('@')) return email.split('@')[0].trim();
-  if (email) return email;
-  return '';
+  const email = rawEmail;
+  const nameSource = display || (rawEmail.includes('@') ? rawEmail.split('@')[0].trim() : '');
+  const name = nameSource || '';
+  if (!name && !email) return null;
+  return { name: name || (email ? email.split('@')[0].trim() : ''), email };
 }
 
 function resolveAttendeeDisplayName(
   booking: Record<string, unknown>,
-  profileLabels: Record<string, string>
+  profileLabels: Record<string, UserProfileLabel>
 ): string {
   const uid = String(booking?.userId || '').trim();
-  if (uid && profileLabels[uid]) return profileLabels[uid];
+  if (uid && profileLabels[uid]?.name) return profileLabels[uid].name;
   return resolveDisplayName(booking);
 }
 
@@ -141,7 +144,7 @@ export const ClassAttendanceAdmin: React.FC = () => {
   const [search, setSearch] = useState('');
   const [savingId, setSavingId] = useState<string | null>(null);
   const [expandedKeys, setExpandedKeys] = useState<Set<string>>(() => new Set());
-  const [userProfileLabels, setUserProfileLabels] = useState<Record<string, string>>({});
+  const [userProfileLabels, setUserProfileLabels] = useState<Record<string, UserProfileLabel>>({});
   const profileFetchStarted = useRef<Set<string>>(new Set());
 
   useEffect(() => {
@@ -211,12 +214,12 @@ export const ClassAttendanceAdmin: React.FC = () => {
     if (uids.length === 0) return;
     let cancelled = false;
     void (async () => {
-      const updates: Record<string, string> = {};
+      const updates: Record<string, UserProfileLabel> = {};
       for (const uid of uids) {
         try {
           const snap = await getDoc(doc(db, 'users', uid));
           if (snap.exists()) {
-            const label = pickProfileDisplayName(snap.data() as Record<string, unknown>);
+            const label = pickProfileLabel(snap.data() as Record<string, unknown>);
             if (label) updates[uid] = label;
           }
         } catch {
@@ -255,7 +258,10 @@ export const ClassAttendanceAdmin: React.FC = () => {
       out.push({
         bookingId: b.id,
         attendeeName: resolveAttendeeDisplayName(data, userProfileLabels),
-        attendeeEmail: String(data?.userEmail || data?.email || '').trim() || '—',
+        attendeeEmail:
+          (String(data?.userEmail || data?.email || '').trim() ||
+            (userProfileLabels[String(data?.userId || '').trim()]?.email ?? ''))
+            .trim() || '—',
         classId,
         classTitle,
         teacherName,
