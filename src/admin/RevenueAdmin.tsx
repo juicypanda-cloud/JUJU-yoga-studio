@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { toast } from 'sonner';
 import { format, subDays } from 'date-fns';
 import { Loader2, RefreshCw, TrendingUp, CreditCard, PieChart as PieChartIcon, CalendarRange } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
 
 const QPAY_EVENTS = 'qpayEvents';
 
@@ -55,9 +56,11 @@ function endOfDay(d: Date): Date {
 }
 
 export const RevenueAdmin: React.FC = () => {
+  const { user } = useAuth();
   const [rows, setRows] = useState<QPayEventRow[]>([]);
   const [activeSubscribers, setActiveSubscribers] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
+  const [reconcilingId, setReconcilingId] = useState<string | null>(null);
   const [dateFrom, setDateFrom] = useState(() => format(subDays(new Date(), 30), 'yyyy-MM-dd'));
   const [dateTo, setDateTo] = useState(() => format(new Date(), 'yyyy-MM-dd'));
   const [statusFilter, setStatusFilter] = useState<string>('all');
@@ -97,6 +100,41 @@ export const RevenueAdmin: React.FC = () => {
       setLoading(false);
     }
   }, []);
+
+  const reconcileInvoice = useCallback(
+    async (invoiceId: string) => {
+      if (!user) {
+        toast.error('Нэвтэрнэ үү');
+        return;
+      }
+      setReconcilingId(invoiceId);
+      try {
+        const idToken = await user.getIdToken();
+        const res = await fetch('/api/qpay/reconcile', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ idToken, invoiceId }),
+        });
+        const data = (await res.json()) as Record<string, unknown>;
+        if (!res.ok) {
+          toast.error(String(data.error ?? data.details ?? 'Алдаа'));
+          return;
+        }
+        if (data.paid === true || data.idempotent === true) {
+          toast.success('Төлбөр баталгаажлаа');
+        } else {
+          toast.message('QPay дээр төлбөр олдсонгүй эсвэл хүлээгдэж байна.');
+        }
+        await load();
+      } catch (e) {
+        console.error(e);
+        toast.error('Шалгахад алдаа гарлаа');
+      } finally {
+        setReconcilingId(null);
+      }
+    },
+    [user, load]
+  );
 
   useEffect(() => {
     void load();
@@ -383,7 +421,7 @@ export const RevenueAdmin: React.FC = () => {
               </span>
             </CardHeader>
             <CardContent className="overflow-x-auto">
-              <table className="w-full min-w-[640px] text-left text-sm">
+              <table className="w-full min-w-[760px] text-left text-sm">
                 <thead>
                   <tr className="border-b border-brand-ink/10 text-[10px] font-black uppercase tracking-widest text-brand-ink/40">
                     <th className="py-3 pr-4">Invoice</th>
@@ -391,6 +429,7 @@ export const RevenueAdmin: React.FC = () => {
                     <th className="py-3 pr-4">Төлөв</th>
                     <th className="py-3 pr-4 text-right">Дүн</th>
                     <th className="py-3 pr-4">Төлсөн</th>
+                    <th className="py-3 pr-4 text-right">Үйлдэл</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -414,6 +453,26 @@ export const RevenueAdmin: React.FC = () => {
                       <td className="py-2.5 pr-4 text-right tabular-nums">{r.amount.toLocaleString()}₮</td>
                       <td className="py-2.5 pr-4 text-xs text-brand-ink/50">
                         {r.paidAtMs ? format(new Date(r.paidAtMs), 'yyyy-MM-dd HH:mm') : '—'}
+                      </td>
+                      <td className="py-2.5 pr-4 text-right">
+                        {r.status === 'pending' && !r.processed ? (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="h-8 rounded-full text-[10px] font-black uppercase tracking-wider"
+                            disabled={reconcilingId === r.invoiceId}
+                            onClick={() => void reconcileInvoice(r.invoiceId)}
+                          >
+                            {reconcilingId === r.invoiceId ? (
+                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            ) : (
+                              'QPay шалгах'
+                            )}
+                          </Button>
+                        ) : (
+                          <span className="text-xs text-brand-ink/30">—</span>
+                        )}
                       </td>
                     </tr>
                   ))}

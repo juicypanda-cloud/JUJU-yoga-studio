@@ -205,9 +205,22 @@ export function extractInvoiceId(payload: unknown): string | null {
   if (!payload || typeof payload !== 'object') return null;
   const data = payload as Record<string, unknown>;
   const payment = (data.payment ?? {}) as Record<string, unknown>;
-  const candidates = [data.invoice_id, data.object_id, data.invoiceId, payment.invoice_id, payment.object_id];
+  const invoice = (data.invoice ?? {}) as Record<string, unknown>;
+  const candidates = [
+    data.invoice_id,
+    data.object_id,
+    data.invoiceId,
+    data.objectId,
+    payment.invoice_id,
+    payment.object_id,
+    payment.invoiceId,
+    invoice.invoice_id,
+    invoice.invoiceId,
+    invoice.object_id,
+    invoice.objectId,
+  ];
   for (const c of candidates) {
-    if (typeof c === 'string' && c.trim()) return c;
+    if (typeof c === 'string' && c.trim()) return c.trim();
   }
   return null;
 }

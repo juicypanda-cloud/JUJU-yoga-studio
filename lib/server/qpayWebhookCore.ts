@@ -80,6 +80,20 @@ async function fetchQPayPaymentCheckPayload(invoiceId: string): Promise<unknown>
   return data;
 }
 
+/** QPay may lag slightly behind the customer app; retry before treating as unpaid. */
+async function fetchQPayPaymentCheckWithRetries(invoiceId: string): Promise<unknown> {
+  const delaysMs = [0, 450, 1100, 2400];
+  let last: unknown = {};
+  for (let i = 0; i < delaysMs.length; i++) {
+    if (delaysMs[i] > 0) {
+      await new Promise<void>((resolve) => setTimeout(resolve, delaysMs[i]));
+    }
+    last = await fetchQPayPaymentCheckPayload(invoiceId);
+    if (hasPaidStatus(last)) return last;
+  }
+  return last;
+}
+
 export async function savePendingQPayEvent(params: {
   invoiceId: string;
   userId: string;
@@ -126,7 +140,7 @@ export async function processQPayWebhook(body: unknown): Promise<{ status: numbe
     return { status: 200, json: { ok: true, idempotent: true, invoiceId } };
   }
 
-  const paidPayload = await fetchQPayPaymentCheckPayload(invoiceId);
+  const paidPayload = await fetchQPayPaymentCheckWithRetries(invoiceId);
   if (!hasPaidStatus(paidPayload)) {
     return { status: 200, json: { ok: true, paid: false, invoiceId } };
   }

@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { motion } from 'motion/react';
-import { User, Mail, Calendar, CreditCard, ShieldCheck, LogOut, ClipboardCheck, CalendarClock, ClipboardList, Plus, Trash2, Receipt } from 'lucide-react';
+import { User, Mail, Calendar, CreditCard, ShieldCheck, LogOut, ClipboardCheck, CalendarClock, ClipboardList, Plus, Trash2, Receipt, Loader2 } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Textarea } from '../components/ui/textarea';
@@ -166,6 +166,35 @@ export const Profile: React.FC = () => {
   const [myPayments, setMyPayments] = useState<Array<Record<string, unknown> & { id: string }>>([]);
   const [myBookings, setMyBookings] = useState<Array<Record<string, unknown> & { id: string }>>([]);
   const [purchasesLoading, setPurchasesLoading] = useState(true);
+  const [reconcilingPaymentId, setReconcilingPaymentId] = useState<string | null>(null);
+
+  const handleReconcilePayment = async (invoiceId: string) => {
+    if (!user) return;
+    setReconcilingPaymentId(invoiceId);
+    try {
+      const idToken = await user.getIdToken();
+      const res = await fetch('/api/qpay/reconcile', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ idToken, invoiceId }),
+      });
+      const data = (await res.json()) as Record<string, unknown>;
+      if (!res.ok) {
+        toast.error(String(data.error ?? data.details ?? 'Алдаа'));
+        return;
+      }
+      if (data.paid === true || data.idempotent === true) {
+        toast.success('Төлбөр баталгаажлаа');
+      } else {
+        toast.message('QPay дээр төлбөр олдсонгүй эсвэл түр хүлээгдэж байна.');
+      }
+    } catch (e) {
+      console.error(e);
+      toast.error('Шалгахад алдаа гарлаа');
+    } finally {
+      setReconcilingPaymentId(null);
+    }
+  };
 
   const resetNewClassForm = () => {
     setNewClassTitle('');
@@ -792,6 +821,9 @@ export const Profile: React.FC = () => {
                             const pi = row.paymentIntent;
                             const amount = Number(row.amount ?? 0);
                             const st = qpayStatusLabel(row.status, row.processed);
+                            const invoiceKey = String(row.invoiceId ?? row.id);
+                            const showReconcile =
+                              String(row.status || '').toLowerCase() !== 'paid' && row.processed !== true;
                             return (
                               <li key={row.id} className="flex flex-col gap-2 px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
                                 <div>
@@ -814,6 +846,22 @@ export const Profile: React.FC = () => {
                                   >
                                     {st}
                                   </span>
+                                  {showReconcile ? (
+                                    <Button
+                                      type="button"
+                                      variant="outline"
+                                      size="sm"
+                                      className="h-8 rounded-full text-[10px] font-black uppercase tracking-wider"
+                                      disabled={reconcilingPaymentId === invoiceKey}
+                                      onClick={() => void handleReconcilePayment(invoiceKey)}
+                                    >
+                                      {reconcilingPaymentId === invoiceKey ? (
+                                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                      ) : (
+                                        'Төлбөр шалгах'
+                                      )}
+                                    </Button>
+                                  ) : null}
                                 </div>
                               </li>
                             );
