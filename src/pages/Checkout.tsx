@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { motion } from 'motion/react';
 import { ArrowLeft, Loader2, CheckCircle2, QrCode, Smartphone } from 'lucide-react';
@@ -17,6 +17,7 @@ import {
 import {
   type PaymentSession,
   buildFallbackQrUrl,
+  isFirestoreQpayPaid,
   pickString,
   readJsonSafe,
   waitForImageReady,
@@ -41,6 +42,7 @@ export const Checkout: React.FC = () => {
   const [orderId, setOrderId] = useState('');
   const [useQrFallback, setUseQrFallback] = useState(false);
   const [isQrModalOpen, setIsQrModalOpen] = useState(false);
+  const subscriptionPaidToastRef = useRef(false);
 
   useEffect(() => {
     if (!user) {
@@ -54,6 +56,7 @@ export const Checkout: React.FC = () => {
   const createInvoice = async () => {
     if (!user) return;
     setLoading(true);
+    subscriptionPaidToastRef.current = false;
 
     try {
       const createWithToken = async (idToken: string) =>
@@ -108,19 +111,21 @@ export const Checkout: React.FC = () => {
       }
 
       const fallbackQrUrl = buildFallbackQrUrl(session.qrText ?? session.invoiceId, 280);
-      const primaryReady = await waitForImageReady(session.qrImage);
-      const useFallback = !primaryReady;
-      if (useFallback) {
-        const fallbackReady = await waitForImageReady(fallbackQrUrl, 2500);
-        if (!fallbackReady) {
-          throw new Error('QR зураг ачаалагдсангүй. Дахин оролдоно уу.');
-        }
-      }
 
       setPaymentSession(session);
-      setUseQrFallback(useFallback);
+      setUseQrFallback(false);
       setIsQrModalOpen(true);
       toast.success('QPay QR амжилттай үүслээ');
+
+      void (async () => {
+        const primaryReady = await waitForImageReady(session.qrImage, 2200);
+        if (primaryReady) return;
+        const fallbackReady = await waitForImageReady(fallbackQrUrl, 2000);
+        setUseQrFallback(true);
+        if (!fallbackReady) {
+          toast.error('QR зургийг ачаалж чадсангүй. Дахин оролдож эсвэл апп-аар төлнө үү.');
+        }
+      })();
     } catch (error) {
       console.error('Payment error:', error);
       toast.error(error instanceof Error ? error.message : 'Төлбөр үүсгэхэд алдаа гарлаа');
@@ -135,10 +140,13 @@ export const Checkout: React.FC = () => {
     const unsub = onSnapshot(ref, (snap) => {
       if (!snap.exists()) return;
       const d = snap.data() as Record<string, unknown>;
-      if (d.processed === true && String(d.status || '') === 'paid') {
+      if (isFirestoreQpayPaid(d)) {
         setSuccess(true);
         setPaymentCompleteMessage('Төлбөр баталгаажлаа.');
-        toast.success('Гишүүнчлэл идэвхжлээ.');
+        if (!subscriptionPaidToastRef.current) {
+          subscriptionPaidToastRef.current = true;
+          toast.success('Төлбөр амжилттай. Гишүүнчлэл идэвхжлээ.', { duration: 8000 });
+        }
       }
     });
     return () => unsub();
