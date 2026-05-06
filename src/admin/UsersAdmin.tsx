@@ -80,15 +80,15 @@ export const UsersAdmin: React.FC = () => {
   );
 
   if (loading && users.length === 0) {
-    return <div className="p-8 text-center">Уншиж байна...</div>;
+    return <div className="p-8 text-center text-brand-ink/60">Уншиж байна...</div>;
   }
 
   return (
     <div className="p-8 max-w-6xl mx-auto">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
-        <h1 className="text-3xl font-light">Хэрэглэгчид</h1>
+        <h1 className="text-3xl font-light text-brand-ink">Хэрэглэгчид</h1>
         <div className="relative w-full md:w-72">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-accent/40" size={18} />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-brand-ink/45" size={18} />
           <input 
             type="text"
             placeholder="Хайх..."
@@ -104,17 +104,17 @@ export const UsersAdmin: React.FC = () => {
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-gray-50/50 border-bottom border-gray-100">
-                <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-accent/40">Хэрэглэгч</th>
-                <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-accent/40">Эрх</th>
-                <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-accent/40">Төлөв</th>
-                <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-accent/40">Бүртгүүлсэн</th>
-                <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-accent/40 text-right">Үйлдэл</th>
+                <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-brand-ink/45">Хэрэглэгч</th>
+                <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-brand-ink/45">Эрх</th>
+                <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-brand-ink/45">Төлөв</th>
+                <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-brand-ink/45">Бүртгүүлсэн</th>
+                <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-brand-ink/45 text-right">Үйлдэл</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
               {filteredUsers.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="px-6 py-20 text-center text-accent/40">Хэрэглэгч олдсонгүй.</td>
+                  <td colSpan={5} className="px-6 py-20 text-center text-brand-ink/45">Хэрэглэгч олдсонгүй.</td>
                 </tr>
               ) : (
                 filteredUsers.map((user) => (
@@ -131,12 +131,12 @@ export const UsersAdmin: React.FC = () => {
                               className="h-full w-full object-cover"
                             />
                           ) : (
-                            <UserIcon size={20} className="text-accent/40" />
+                            <UserIcon size={20} className="text-brand-ink/45" />
                           )}
                         </div>
                         <div>
                           <p className="text-sm font-medium text-brand-ink">{user.displayName || 'Нэргүй'}</p>
-                          <p className="text-xs text-accent/40">{user.email}</p>
+                          <p className="text-xs text-brand-ink/45">{user.email}</p>
                         </div>
                       </div>
                     </td>
@@ -156,13 +156,13 @@ export const UsersAdmin: React.FC = () => {
                         ) : (
                           <XCircle size={16} className="text-gray-300" />
                         )}
-                        <span className="text-xs font-medium text-accent/60">
+                        <span className="text-xs font-medium text-brand-ink/65">
                           {user.subscriptionStatus === 'active' ? 'Идэвхтэй' : 'Идэвхгүй'}
                         </span>
                       </div>
                     </td>
                     <td className="px-6 py-4">
-                      <p className="text-xs text-accent/40">
+                      <p className="text-xs text-brand-ink/45">
                         {user.createdAt?.toDate?.() ? user.createdAt.toDate().toLocaleDateString() : 'Тодорхойгүй'}
                       </p>
                     </td>

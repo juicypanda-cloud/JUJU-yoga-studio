@@ -26,7 +26,7 @@ import { toast } from 'sonner';
 
 interface Booking {
   id: string;
-  userId: string;
+  userId?: string;
   userEmail: string;
   userName: string;
   userPhone?: string;
@@ -95,13 +95,13 @@ export const BookingsAdmin: React.FC = () => {
   };
 
   if (loading && bookings.length === 0) {
-    return <div className="p-8 text-center">Уншиж байна...</div>;
+    return <div className="p-8 text-center text-brand-ink/60">Уншиж байна...</div>;
   }
 
   return (
     <div className="p-8 max-w-7xl mx-auto">
       <div className="flex justify-between items-center mb-8">
-        <h1 className="text-3xl font-light">Бүртгэлүүд</h1>
+        <h1 className="text-3xl font-light text-brand-ink">Бүртгэлүүд</h1>
       </div>
 
       <div className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden">
@@ -109,26 +109,30 @@ export const BookingsAdmin: React.FC = () => {
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-gray-50/50 border-bottom border-gray-100">
-                <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-accent/40">Хэрэглэгч</th>
-                <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-accent/40">Хичээл / Ретрит</th>
-                <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-accent/40">Огноо</th>
-                <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-accent/40">Төлөв</th>
-                <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-accent/40 text-right">Үйлдэл</th>
+                <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-brand-ink/45">Хэрэглэгч</th>
+                <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-brand-ink/45">Хичээл / Ретрит</th>
+                <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-brand-ink/45">Огноо</th>
+                <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-brand-ink/45">Төлөв</th>
+                <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-brand-ink/45 text-right">Үйлдэл</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
               {bookings.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="px-6 py-20 text-center text-accent/40">Бүртгэл олдсонгүй.</td>
+                  <td colSpan={5} className="px-6 py-20 text-center text-brand-ink/45">Бүртгэл олдсонгүй.</td>
                 </tr>
               ) : (
                 bookings.map((booking) => (
                   <tr key={booking.id} className="hover:bg-gray-50/30 transition-colors">
                     <td className="px-6 py-4">
                       <div className="flex flex-col">
-                        <span className="text-sm font-medium text-brand-ink">{booking.userName}</span>
-                        <span className="text-xs text-accent/40">{booking.userEmail}</span>
-                        {booking.userPhone && <span className="text-[10px] text-accent/40">{booking.userPhone}</span>}
+                        <span className="text-sm font-medium text-brand-ink">
+                          {booking.userName?.trim() ||
+                            booking.userEmail?.split('@')[0] ||
+                            (booking.userId ? String(booking.userId).slice(0, 8) + '…' : '—')}
+                        </span>
+                        <span className="text-xs text-brand-ink/45">{booking.userEmail}</span>
+                        {booking.userPhone && <span className="text-[10px] text-brand-ink/45">{booking.userPhone}</span>}
                       </div>
                     </td>
                     <td className="px-6 py-4">
@@ -138,7 +142,7 @@ export const BookingsAdmin: React.FC = () => {
                       </div>
                     </td>
                     <td className="px-6 py-4">
-                      <div className="flex items-center gap-2 text-xs text-accent/40">
+                      <div className="flex items-center gap-2 text-xs text-brand-ink/45">
                         <Calendar size={14} />
                         {booking.createdAt?.toDate?.() ? booking.createdAt.toDate().toLocaleDateString() : 'Тодорхойгүй'}
                       </div>

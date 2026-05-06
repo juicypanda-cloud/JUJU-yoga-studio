@@ -132,13 +132,13 @@ export const MindfulnessAdmin: React.FC = () => {
   };
 
   if (loading && tips.length === 0) {
-    return <div className="p-8 text-center">Уншиж байна...</div>;
+    return <div className="p-8 text-center text-brand-ink/60">Уншиж байна...</div>;
   }
 
   return (
     <div className="p-8 max-w-6xl mx-auto">
       <div className="flex justify-between items-center mb-8">
-        <h1 className="text-3xl font-light">Mindfulness удирдлага</h1>
+        <h1 className="text-3xl font-light text-brand-ink">Mindfulness удирдлага</h1>
         {!isEditing && (
           <Button 
             onClick={() => {
@@ -160,7 +160,7 @@ export const MindfulnessAdmin: React.FC = () => {
       {isEditing ? (
         <div className="bg-white p-8 rounded-3xl shadow-sm border border-gray-100 space-y-6">
           <div className="flex justify-between items-center mb-4">
-            <h2 className="text-xl font-serif">{currentTip.id ? 'Засах' : 'Шинэ зөвлөгөө нэмэх'}</h2>
+            <h2 className="text-xl font-serif text-brand-ink">{currentTip.id ? 'Засах' : 'Шинэ зөвлөгөө нэмэх'}</h2>
             <Button variant="ghost" onClick={() => setIsEditing(false)}>
               <X size={20} />
             </Button>
@@ -168,7 +168,7 @@ export const MindfulnessAdmin: React.FC = () => {
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="space-y-2">
-              <label className="text-xs font-black uppercase tracking-widest text-accent/40">Гарчиг</label>
+              <label className="text-xs font-black uppercase tracking-widest text-brand-ink/45">Гарчиг</label>
               <Input 
                 value={currentTip.title}
                 onChange={(e) => setCurrentTip({ ...currentTip, title: e.target.value })}
@@ -177,7 +177,7 @@ export const MindfulnessAdmin: React.FC = () => {
               />
             </div>
             <div className="space-y-2">
-              <label className="text-xs font-black uppercase tracking-widest text-accent/40">Ангилал</label>
+              <label className="text-xs font-black uppercase tracking-widest text-brand-ink/45">Ангилал</label>
               <select 
                 value={currentTip.category}
                 onChange={(e) => setCurrentTip({ ...currentTip, category: e.target.value })}
@@ -192,7 +192,7 @@ export const MindfulnessAdmin: React.FC = () => {
           </div>
 
           <div className="space-y-2">
-            <label className="text-xs font-black uppercase tracking-widest text-accent/40">Агуулга</label>
+            <label className="text-xs font-black uppercase tracking-widest text-brand-ink/45">Агуулга</label>
             <Textarea 
               value={currentTip.content}
               onChange={(e) => setCurrentTip({ ...currentTip, content: e.target.value })}
@@ -202,7 +202,7 @@ export const MindfulnessAdmin: React.FC = () => {
           </div>
 
           <div className="space-y-2">
-            <label className="text-xs font-black uppercase tracking-widest text-accent/40">Зохиогч</label>
+            <label className="text-xs font-black uppercase tracking-widest text-brand-ink/45">Зохиогч</label>
             <Input 
               value={currentTip.author}
               onChange={(e) => setCurrentTip({ ...currentTip, author: e.target.value })}
@@ -228,7 +228,7 @@ export const MindfulnessAdmin: React.FC = () => {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {tips.length === 0 ? (
             <div className="col-span-full text-center py-20 bg-white rounded-3xl border border-dashed border-gray-200">
-              <p className="text-accent/40">Мэдээлэл байхгүй байна.</p>
+              <p className="text-brand-ink/45">Мэдээлэл байхгүй байна.</p>
             </div>
           ) : (
             tips.map((item) => (
@@ -244,10 +244,10 @@ export const MindfulnessAdmin: React.FC = () => {
                     <Quote size={20} className="text-brand-ink/35" />
                   </div>
                   <h3 className="text-lg font-serif text-brand-ink mb-2">{item.title}</h3>
-                  <p className="text-sm text-accent/60 font-light line-clamp-4 mb-4">{item.content}</p>
+                  <p className="text-sm text-brand-ink/60 font-light line-clamp-4 mb-4">{item.content}</p>
                 </div>
                 <div className="flex justify-between items-center pt-4 border-t border-gray-50">
-                  <span className="text-xs text-accent/40 italic">— {item.author}</span>
+                  <span className="text-xs text-brand-ink/45 italic">— {item.author}</span>
                   <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                     {deleteId === item.id ? (
                       <div className="flex items-center gap-2">
@@ -263,7 +263,7 @@ export const MindfulnessAdmin: React.FC = () => {
                           variant="ghost" 
                           size="sm" 
                           onClick={() => setDeleteId(null)}
-                          className="text-accent/40 hover:bg-gray-50 h-8 px-3 text-xs font-bold"
+                          className="text-brand-ink/45 hover:bg-gray-50 h-8 px-3 text-xs font-bold"
                         >
                           Үгүй
                         </Button>

@@ -1,7 +1,8 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   collection,
   doc,
+  getDoc,
   onSnapshot,
   orderBy,
   query,
@@ -64,6 +65,24 @@ function resolveDisplayName(booking: Record<string, unknown>): string {
   return String(booking?.userId || 'Хэрэглэгч').trim();
 }
 
+function pickProfileDisplayName(d: Record<string, unknown>): string {
+  const display = String(d.displayName || d.name || '').trim();
+  const email = String(d.email || '').trim();
+  if (display) return display;
+  if (email.includes('@')) return email.split('@')[0].trim();
+  if (email) return email;
+  return '';
+}
+
+function resolveAttendeeDisplayName(
+  booking: Record<string, unknown>,
+  profileLabels: Record<string, string>
+): string {
+  const uid = String(booking?.userId || '').trim();
+  if (uid && profileLabels[uid]) return profileLabels[uid];
+  return resolveDisplayName(booking);
+}
+
 function formatCreated(value: unknown): string {
   if (!value) return '—';
   if (typeof (value as { toDate?: () => Date }).toDate === 'function') {
@@ -122,6 +141,8 @@ export const ClassAttendanceAdmin: React.FC = () => {
   const [search, setSearch] = useState('');
   const [savingId, setSavingId] = useState<string | null>(null);
   const [expandedKeys, setExpandedKeys] = useState<Set<string>>(() => new Set());
+  const [userProfileLabels, setUserProfileLabels] = useState<Record<string, string>>({});
+  const profileFetchStarted = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     const unsubClasses = onSnapshot(collection(db, 'classes'), (snap) => {
@@ -177,6 +198,39 @@ export const ClassAttendanceAdmin: React.FC = () => {
     };
   }, []);
 
+  useEffect(() => {
+    const uids: string[] = [];
+    for (const b of bookings) {
+      const data = b as Record<string, unknown>;
+      if (!isClassBooking(data)) continue;
+      const uid = String(data?.userId || '').trim();
+      if (!uid || profileFetchStarted.current.has(uid)) continue;
+      profileFetchStarted.current.add(uid);
+      uids.push(uid);
+    }
+    if (uids.length === 0) return;
+    let cancelled = false;
+    void (async () => {
+      const updates: Record<string, string> = {};
+      for (const uid of uids) {
+        try {
+          const snap = await getDoc(doc(db, 'users', uid));
+          if (snap.exists()) {
+            const label = pickProfileDisplayName(snap.data() as Record<string, unknown>);
+            if (label) updates[uid] = label;
+          }
+        } catch {
+          /* ignore */
+        }
+      }
+      if (cancelled || Object.keys(updates).length === 0) return;
+      setUserProfileLabels((prev) => ({ ...prev, ...updates }));
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [bookings]);
+
   const rows = useMemo(() => {
     const out: AttendeeRow[] = [];
     for (const b of bookings) {
@@ -200,7 +254,7 @@ export const ClassAttendanceAdmin: React.FC = () => {
 
       out.push({
         bookingId: b.id,
-        attendeeName: resolveDisplayName(data),
+        attendeeName: resolveAttendeeDisplayName(data, userProfileLabels),
         attendeeEmail: String(data?.userEmail || data?.email || '').trim() || '—',
         classId,
         classTitle,
@@ -220,7 +274,7 @@ export const ClassAttendanceAdmin: React.FC = () => {
       return a.attendeeName.localeCompare(b.attendeeName, 'mn');
     });
     return out;
-  }, [bookings, classesById, scheduleById]);
+  }, [bookings, classesById, scheduleById, userProfileLabels]);
 
   const teacherOptions = useMemo(() => {
     const set = new Set<string>();

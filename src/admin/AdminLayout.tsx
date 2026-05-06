@@ -117,9 +117,9 @@ export const AdminLayout: React.FC = () => {
       ) : null}
 
       {/* Sidebar */}
-      <aside className="relative z-10 hidden h-screen w-64 flex-col border-r border-zinc-800/80 bg-zinc-950 pt-20 shadow-[8px_0_40px_-20px_rgba(0,0,0,0.45)] md:flex">
+      <aside className="relative z-10 hidden h-screen w-64 shrink-0 flex-col border-r border-zinc-800/80 bg-zinc-950 pt-20 shadow-[8px_0_40px_-20px_rgba(0,0,0,0.45)] md:flex">
         <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_90%_50%_at_50%_-10%,rgba(122,106,189,0.18),transparent_55%)]" />
-        <ScrollArea className="relative flex-grow overscroll-contain py-6">
+        <ScrollArea className="relative min-h-0 flex-1 overscroll-contain py-6">
           <div className="mb-8 px-6">
             <p className="text-[10px] font-black uppercase tracking-[0.28em] text-zinc-500">JUJU</p>
             <h2 className="mt-1 font-serif text-lg font-medium tracking-tight text-white">Удирдлага</h2>
@@ -163,7 +163,7 @@ export const AdminLayout: React.FC = () => {
 
       {/* Mobile Sidebar Drawer */}
       <aside
-        className={`fixed left-0 top-0 z-50 flex h-screen w-[min(20rem,88vw)] flex-col border-r border-zinc-800 bg-zinc-950 pt-20 shadow-2xl transition-transform duration-300 md:hidden ${
+        className={`fixed left-0 top-0 z-50 flex h-screen min-h-0 w-[min(20rem,88vw)] flex-col border-r border-zinc-800 bg-zinc-950 pt-20 shadow-2xl transition-transform duration-300 md:hidden ${
           mobileSidebarOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
@@ -182,7 +182,7 @@ export const AdminLayout: React.FC = () => {
             <X size={18} />
           </button>
         </div>
-        <ScrollArea className="relative flex-grow overscroll-contain py-4">
+        <ScrollArea className="relative min-h-0 flex-1 overscroll-contain py-4">
           <nav className="space-y-0.5 px-3">
             {sidebarLinks.map((link) => {
               const isActive =
