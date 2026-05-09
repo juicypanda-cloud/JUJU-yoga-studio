@@ -46,8 +46,8 @@ export const About: React.FC = () => {
               className="relative md:col-span-7 aspect-[4/3] rounded-[2rem] overflow-hidden shadow-2xl shadow-brand-ink/5"
             >
               <img
-                src="https://picsum.photos/seed/studio-about-1/1200/900"
-                alt="Our Studio Space"
+                src="/images/about-body-mind-peace.png"
+                alt="Бие болон сэтгэлийн амар амгалан — бясалгал, студийн орчин"
                 className="absolute inset-0 h-full w-full object-cover"
                 loading="lazy"
                 decoding="async"
@@ -68,7 +68,7 @@ export const About: React.FC = () => {
                   Бид 2020 онд хүмүүст өдөр тутмын стрессээс ангижрах, сэтгэл зүйн эрүүл мэндээ хамгаалахад нь туслах зорилгоор үүд хаалгаа нээсэн.
                 </p>
                 <p>
-                  Өнөөдөр бид Оксфордын Майндфүлнэс хөтөлбөрийг албан ёсны эрхтэйгээр зааж, олон зуун суралцагчдад амьдралын чанараа сайжруулахад нь тусалж байна.
+                  Өнөөдөр бид Оксфордын Майндфүлнэс хөтөлбөрийг албан ёсны эрхтэйгээр зааж, олон олон суралцагчдад амьдралын чанараа сайжруулахад нь тусалж байна.
                 </p>
               </div>
             </motion.div>
@@ -87,7 +87,7 @@ export const About: React.FC = () => {
           <div className="flex flex-wrap justify-center gap-8">
             {[
               { title: 'Чин сэтгэл', desc: 'Бид суралцагч бүрт чин сэтгэлээсээ хандаж, тэдний хөгжлийг дэмждэг.', icon: Heart },
-              { title: 'Нийгэмлэг', desc: 'Ижил зорилготой, найрсаг хамт олныг бүрдүүлэх нь бидний зорилго.', icon: Users },
+              { title: 'Нийгэмлэг', desc: 'найрсаг хамт олныг бүрдүүлэх нь бидний зорилго.', icon: Users },
               { title: 'Чанар', desc: 'Олон улсын стандартад нийцсэн, шинжлэх ухааны үндэслэлтэй хөтөлбөрүүд.', icon: Sparkles },
               { title: 'Тэнцвэр', desc: 'Бие болон сэтгэл зүйн төгс тэнцвэрийг олоход бид тусална.', icon: Wind },
             ].map((value, idx) => (
@@ -146,9 +146,9 @@ export const About: React.FC = () => {
               className="relative aspect-square rounded-[3rem] overflow-hidden"
             >
               <img
-                src="https://picsum.photos/seed/studio-about-2/1000/1000"
-                alt="Meditation"
-                className="absolute inset-0 h-full w-full object-cover"
+                src="/images/about-mission-community.png"
+                alt="Бидний эрхэм зорилго — студийн хамт олон"
+                className="absolute inset-0 h-full w-full object-cover object-[center_68%]"
                 loading="lazy"
                 decoding="async"
               />
