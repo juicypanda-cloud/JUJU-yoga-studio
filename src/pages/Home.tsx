@@ -491,11 +491,14 @@ export const Home: React.FC = () => {
                         decoding="async"
                       />
                     ) : null}
-                    {/* Overlay Gradient */}
-                    <div className="pointer-events-none absolute inset-0 z-[2] bg-gradient-to-t from-brand-ink/80 via-brand-ink/20 to-transparent opacity-60 group-hover:opacity-80 transition-opacity duration-700" />
+                    {/* Soft black fade so white title/body read on any photo; stronger on mobile where copy sits low */}
+                    <div
+                      className="pointer-events-none absolute inset-0 z-[2] bg-gradient-to-t from-black/[0.52] via-black/[0.28] via-[42%] to-transparent to-[78%] md:from-black/[0.42] md:via-black/[0.18] md:via-[48%] md:to-transparent md:to-[82%]"
+                      aria-hidden
+                    />
                     
                     {/* Details Overlay */}
-                    <div className="absolute inset-0 z-[3] flex flex-col md:flex-row items-end justify-between p-10 md:p-16 gap-8">
+                    <div className="absolute inset-0 z-[3] flex flex-col md:flex-row items-end justify-between gap-8 px-6 pb-10 pt-24 sm:p-10 md:p-16">
                       <motion.div
                         initial={{ y: 20, opacity: 0 }}
                         animate={{ y: 0, opacity: 1 }}
