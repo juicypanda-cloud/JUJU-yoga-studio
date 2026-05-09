@@ -497,8 +497,8 @@ export const Home: React.FC = () => {
                       aria-hidden
                     />
                     
-                    {/* Details Overlay */}
-                    <div className="absolute inset-0 z-[3] flex flex-col md:flex-row items-end justify-between gap-8 px-6 pb-10 pt-24 sm:p-10 md:p-16">
+                    {/* Details Overlay — justify-end pins copy to bottom on mobile */}
+                    <div className="absolute inset-0 z-[3] flex flex-col md:flex-row items-stretch md:items-end justify-end md:justify-between gap-6 md:gap-8 px-6 pb-8 pt-8 sm:p-10 md:p-16">
                       <motion.div
                         initial={{ y: 20, opacity: 0 }}
                         animate={{ y: 0, opacity: 1 }}
@@ -520,6 +520,7 @@ export const Home: React.FC = () => {
                         initial={{ scale: 0.8, opacity: 0 }}
                         animate={{ scale: 1, opacity: 1 }}
                         transition={{ delay: 0.2 }}
+                        className="shrink-0 self-end md:self-auto"
                       >
                         <Link
                           to={
