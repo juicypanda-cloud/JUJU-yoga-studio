@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Link, useLocation, Routes, Route, Navigate } from 'react-router-dom';
 import { 
   LayoutDashboard, 
@@ -61,6 +61,7 @@ export const AdminLayout: React.FC = () => {
   const { isAdmin, loading } = useAuth();
   const location = useLocation();
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+  const mainScrollRef = useRef<HTMLElement>(null);
 
   if (loading) {
     return (
@@ -76,10 +77,16 @@ export const AdminLayout: React.FC = () => {
 
   useEffect(() => {
     if (!mobileSidebarOpen) return;
-    const previous = document.body.style.overflow;
+    const previousBody = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
+
+    const mainEl = mainScrollRef.current;
+    const previousMainOverflow = mainEl?.style.overflow ?? '';
+    if (mainEl) mainEl.style.overflow = 'hidden';
+
     return () => {
-      document.body.style.overflow = previous;
+      document.body.style.overflow = previousBody;
+      if (mainEl) mainEl.style.overflow = previousMainOverflow;
     };
   }, [mobileSidebarOpen]);
 
@@ -95,22 +102,24 @@ export const AdminLayout: React.FC = () => {
     'bg-gradient-to-r from-brand-icon to-brand-icon/85 text-white shadow-lg shadow-brand-icon/30 ring-1 ring-white/10';
 
   return (
-    <div className="admin-panel flex h-screen bg-gradient-to-br from-stone-100 via-white to-violet-50/40">
+    <div
+      className={`admin-panel relative z-0 flex h-[100dvh] max-h-[100dvh] min-h-0 bg-gradient-to-br from-stone-100 via-white to-violet-50/40 ${mobileSidebarOpen ? 'overflow-hidden md:overflow-visible' : ''}`}
+    >
       {/* Mobile Sidebar Toggle */}
       <button
         type="button"
         onClick={() => setMobileSidebarOpen(true)}
-        className="md:hidden fixed left-4 top-24 z-40 rounded-2xl border border-brand-ink/10 bg-white/90 p-2.5 text-brand-ink shadow-[0_8px_30px_-8px_rgba(26,26,26,0.2)] backdrop-blur-md"
+        className="md:hidden fixed left-4 top-24 z-[106] rounded-2xl border border-brand-ink/10 bg-white/90 p-2.5 text-brand-ink shadow-[0_8px_30px_-8px_rgba(26,26,26,0.2)] backdrop-blur-md"
         aria-label="Open admin sidebar"
       >
         <Menu size={18} />
       </button>
 
-      {/* Mobile Sidebar Overlay */}
+      {/* Mobile Sidebar Overlay — above main content, below drawer */}
       {mobileSidebarOpen ? (
         <button
           type="button"
-          className="fixed inset-0 z-40 bg-zinc-950/40 backdrop-blur-[2px] md:hidden"
+          className="fixed inset-0 z-[100] bg-zinc-950/50 backdrop-blur-[2px] md:hidden"
           onClick={() => setMobileSidebarOpen(false)}
           aria-label="Close admin sidebar overlay"
         />
@@ -161,14 +170,14 @@ export const AdminLayout: React.FC = () => {
         </div>
       </aside>
 
-      {/* Mobile Sidebar Drawer */}
+      {/* Mobile Sidebar Drawer — high z-index so it stays above scrolling main; native scroll for reliable height */}
       <aside
-        className={`fixed left-0 top-0 z-50 flex h-screen min-h-0 w-[min(20rem,88vw)] flex-col border-r border-zinc-800 bg-zinc-950 pt-20 shadow-2xl transition-transform duration-300 md:hidden ${
-          mobileSidebarOpen ? 'translate-x-0' : '-translate-x-full'
+        className={`fixed inset-y-0 left-0 z-[110] flex h-[100dvh] max-h-[100dvh] min-h-0 w-[min(20rem,88vw)] flex-col border-r border-zinc-800 bg-zinc-950 pt-[env(safe-area-inset-top,0px)] shadow-2xl transition-transform duration-300 ease-out md:hidden ${
+          mobileSidebarOpen ? 'translate-x-0' : '-translate-x-full pointer-events-none'
         }`}
       >
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_90%_40%_at_50%_0%,rgba(122,106,189,0.2),transparent_50%)] pointer-events-none" />
-        <div className="relative flex items-center justify-between border-b border-zinc-800 px-5 py-4">
+        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_90%_40%_at_50%_0%,rgba(122,106,189,0.2),transparent_50%)]" />
+        <div className="relative flex shrink-0 items-center justify-between border-b border-zinc-800 px-5 py-4">
           <div>
             <p className="text-[10px] font-black uppercase tracking-[0.28em] text-zinc-500">JUJU</p>
             <h2 className="font-serif text-base font-medium text-white">Удирдлага</h2>
@@ -182,8 +191,8 @@ export const AdminLayout: React.FC = () => {
             <X size={18} />
           </button>
         </div>
-        <ScrollArea className="relative min-h-0 flex-1 overscroll-contain py-4">
-          <nav className="space-y-0.5 px-3">
+        <div className="relative min-h-0 flex-1 overflow-y-auto overscroll-contain py-4 [-webkit-overflow-scrolling:touch]">
+          <nav className="space-y-0.5 px-3 pb-[env(safe-area-inset-bottom,0px)]">
             {sidebarLinks.map((link) => {
               const isActive =
                 link.path === '/admin'
@@ -208,9 +217,9 @@ export const AdminLayout: React.FC = () => {
               );
             })}
           </nav>
-        </ScrollArea>
-        <Separator className="relative bg-zinc-800" />
-        <div className="relative p-5">
+        </div>
+        <Separator className="relative shrink-0 bg-zinc-800" />
+        <div className="relative shrink-0 p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))]">
           <Link
             to="/"
             onClick={handleMobileNavigate}
@@ -222,7 +231,10 @@ export const AdminLayout: React.FC = () => {
       </aside>
 
       {/* Main Content */}
-      <main className="relative flex-grow overflow-auto pt-20 text-brand-ink">
+      <main
+        ref={mainScrollRef}
+        className="relative z-0 min-h-0 flex-grow overflow-auto pt-20 text-brand-ink"
+      >
         <div
           className="pointer-events-none absolute inset-0 opacity-[0.35]"
           style={{
