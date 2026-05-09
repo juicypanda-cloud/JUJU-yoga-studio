@@ -217,7 +217,7 @@ export const OnlineContentAdmin: React.FC = () => {
                   required 
                   value={formData.title} 
                   onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                  placeholder="Жишээ: Өглөөний йог"
+                  placeholder="Жишээ: Өглөөний иог"
                   className="rounded-xl"
                 />
               </div>

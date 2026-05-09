@@ -21,7 +21,7 @@ export const onlineContentData: OnlineContent[] = [
     duration: '20 мин',
     thumbnailURL: 'https://images.unsplash.com/photo-1544367567-0f2fcb009e0b?auto=format&fit=crop&q=80&w=800',
     mediaURL: 'https://www.youtube.com/watch?v=v7AYKMP6rOE',
-    description: 'Өглөөг эрч хүчтэй эхлүүлэхэд туслах 20 минутын йогийн урсгал. Биеийг сэрээж, анхаарлыг төвлөрүүлнэ.',
+    description: 'Өглөөг эрч хүчтэй эхлүүлэхэд туслах 20 минутын иогийн урсгал. Биеийг сэрээж, анхаарлыг төвлөрүүлнэ.',
     teacherName: 'Ариунаа'
   },
   {
@@ -38,7 +38,7 @@ export const onlineContentData: OnlineContent[] = [
   },
   {
     id: 'core-strength-yoga',
-    title: 'Биеийн төв хэсгийг чангалах йог',
+    title: 'Биеийн төв хэсгийг чангалах иог',
     type: 'video',
     category: 'Yoga',
     level: 'Дунд',
@@ -74,14 +74,14 @@ export const onlineContentData: OnlineContent[] = [
   },
   {
     id: 'evening-yin-yoga',
-    title: 'Оройн Инь йог',
+    title: 'Оройн Инь иог',
     type: 'video',
     category: 'Yoga',
     level: 'Анхан',
     duration: '25 мин',
     thumbnailURL: 'https://images.unsplash.com/photo-1506126613408-eca07ce68773?auto=format&fit=crop&q=80&w=800',
     mediaURL: 'https://www.youtube.com/watch?v=v7AYKMP6rOE',
-    description: 'Биеийг амрааж, уян хатан байдлыг нэмэгдүүлэх удаан хэмнэлтэй Инь йог.',
+    description: 'Биеийг амрааж, уян хатан байдлыг нэмэгдүүлэх удаан хэмнэлтэй Инь иог.',
     teacherName: 'Бат-Эрдэнэ'
   }
 ];

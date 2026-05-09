@@ -165,7 +165,7 @@ export const Classes: React.FC = () => {
         <div className="max-w-4xl mx-auto text-center mb-12">
           <h1 className="text-4xl md:text-5xl font-serif mb-6 text-brand-ink">Манай хичээлүүд</h1>
           <p className="text-lg text-brand-ink/60 font-light leading-relaxed mb-6">
-            Таны хэрэгцээнд тохирсон төрөл бүрийн йогийн хичээлүүдийг санал болгож байна.
+            Таны хэрэгцээнд тохирсон төрөл бүрийн иогийн хичээлүүдийг санал болгож байна.
           </p>
           <div className="flex flex-wrap justify-center gap-4">
             {[

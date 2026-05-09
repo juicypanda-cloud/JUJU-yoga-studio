@@ -331,7 +331,7 @@ export const OnlineClasses: React.FC = () => {
                   <div>
                     <h4 className="text-xl font-serif text-brand-ink mb-2">Мэргэжлийн багш нарын удирдамж</h4>
                     <p className="text-brand-ink/60 font-light leading-relaxed">
-                      Манай багш нар майндфүлнэс болон йогийн чиглэлээр олон жилийн туршлагатай мэргэжилтнүүд юм. Таны аялалыг чиглүүлэхдээ бид баяртай байх болно.
+                      Манай багш нар майндфүлнэс болон иогийн чиглэлээр олон жилийн туршлагатай мэргэжилтнүүд юм. Таны аялалыг чиглүүлэхдээ бид баяртай байх болно.
                     </p>
                   </div>
                 </div>
@@ -348,7 +348,7 @@ export const OnlineClasses: React.FC = () => {
                 <div className="max-w-3xl">
                   <h1 className="text-4xl md:text-5xl font-serif text-brand-ink mb-6 leading-tight">Онлайн сан</h1>
                   <p className="text-lg text-brand-ink/60 font-light leading-relaxed">
-                    Таны хэрэгцээнд тохирсон төрөл бүрийн йогийн хичээлүүдийг санал болгож байна
+                    Таны хэрэгцээнд тохирсон төрөл бүрийн иогийн хичээлүүдийг санал болгож байна
                   </p>
                 </div>
                 
