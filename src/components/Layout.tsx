@@ -52,9 +52,6 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
             </div>
           </div>
         </div>
-        <div className="container mx-auto mt-24 pt-12 border-t border-white/5 text-center text-[10px] font-black uppercase tracking-[0.2em] text-white/20">
-          © {new Date().getFullYear()} Mya Wellbeing
-        </div>
       </footer>
     </div>
   );
