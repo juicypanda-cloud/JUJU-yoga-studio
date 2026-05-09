@@ -15,7 +15,7 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
           <div className="space-y-6">
             <Logo light className="[&_img]:h-8 [&_img]:md:h-10" />
             <p className="text-white/40 text-sm leading-relaxed font-light">
-              Майндфүлнэс, йог болон цогц эрүүл мэндийн ариун дагшин газар. Манай нийгэмлэгт нэгдэж, өөрийгөө нээх аялалд гараарай.
+              Майндфүлнэс, иог болон цогц эрүүл мэндийн ариун дагшин газар. Манай нийгэмлэгт нэгдэж, өөрийгөө нээх аялалд гараарай.
             </p>
           </div>
           <div>
