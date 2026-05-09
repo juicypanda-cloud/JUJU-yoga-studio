@@ -68,28 +68,16 @@ const RouteLoadingOverlay: React.FC = () => {
     setVisible(true);
 
     let cancelled = false;
-    const main = document.querySelector('main');
-    if (!main) {
-      setVisible(false);
-      return;
-    }
-
-    const cleanupCallbacks: Array<() => void> = [];
     const tracked = new WeakSet<HTMLImageElement>();
     let pending = 0;
-    let settleTimer: number | null = null;
-    let lastMutationAt = Date.now();
+    let hideTimer: number | null = null;
 
-    const finishWhenStable = () => {
+    /** Hide shortly after all tracked (above-the-fold / eager) images settle — no “quiet DOM” loop (animations could defer that forever). */
+    const scheduleHide = () => {
       if (cancelled || pending > 0) return;
-      if (settleTimer) window.clearTimeout(settleTimer);
-      settleTimer = window.setTimeout(() => {
-        const quietForMs = Date.now() - lastMutationAt;
-        if (!cancelled && quietForMs >= 120) {
-          setVisible(false);
-        } else {
-          finishWhenStable();
-        }
+      if (hideTimer) window.clearTimeout(hideTimer);
+      hideTimer = window.setTimeout(() => {
+        if (!cancelled) setVisible(false);
       }, 120);
     };
 
@@ -108,64 +96,44 @@ const RouteLoadingOverlay: React.FC = () => {
         pending = Math.max(0, pending - 1);
         img.removeEventListener('load', resolve);
         img.removeEventListener('error', resolve);
-        finishWhenStable();
+        scheduleHide();
       };
 
       img.addEventListener('load', resolve, { once: true });
       img.addEventListener('error', resolve, { once: true });
-      cleanupCallbacks.push(() => {
-        img.removeEventListener('load', resolve);
-        img.removeEventListener('error', resolve);
-      });
     };
 
     const scanImages = (root: ParentNode) => {
       root.querySelectorAll('img').forEach((node) => trackImage(node as HTMLImageElement));
-      finishWhenStable();
+      scheduleHide();
     };
 
-    // Wait one frame so the next route content mounts before scanning.
-    const frame = window.requestAnimationFrame(() => {
-      if (cancelled) return;
-      scanImages(main);
-    });
-    cleanupCallbacks.push(() => window.cancelAnimationFrame(frame));
-
-    const observer = new MutationObserver((mutations) => {
-      lastMutationAt = Date.now();
-      mutations.forEach((mutation) => {
-        if (mutation.type === 'attributes' && mutation.target instanceof HTMLImageElement) {
-          trackImage(mutation.target);
+    let rafOuter = 0;
+    let rafInner = 0;
+    // Two frames so lazy route + Suspense content can mount before we scan.
+    rafOuter = window.requestAnimationFrame(() => {
+      rafInner = window.requestAnimationFrame(() => {
+        if (cancelled) return;
+        const main = document.querySelector('main');
+        if (!main) {
+          setVisible(false);
           return;
         }
-        mutation.addedNodes.forEach((node) => {
-          if (!(node instanceof HTMLElement)) return;
-          if (node.tagName === 'IMG') {
-            trackImage(node as HTMLImageElement);
-          } else {
-            scanImages(node);
-          }
-        });
+        scanImages(main);
       });
-      finishWhenStable();
     });
-    observer.observe(main, {
-      childList: true,
-      subtree: true,
-      attributes: true,
-      attributeFilter: ['src', 'srcset', 'loading'],
-    });
-    cleanupCallbacks.push(() => observer.disconnect());
 
+    // Never block the whole app for long — worst case stuck network image.
     const hardTimeout = window.setTimeout(() => {
       if (!cancelled) setVisible(false);
-    }, 8000);
-    cleanupCallbacks.push(() => window.clearTimeout(hardTimeout));
+    }, 1200);
 
     return () => {
       cancelled = true;
-      if (settleTimer) window.clearTimeout(settleTimer);
-      cleanupCallbacks.forEach((cb) => cb());
+      if (hideTimer) window.clearTimeout(hideTimer);
+      window.cancelAnimationFrame(rafOuter);
+      window.cancelAnimationFrame(rafInner);
+      window.clearTimeout(hardTimeout);
     };
   }, [location.pathname, location.search]);
 
