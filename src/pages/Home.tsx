@@ -360,7 +360,7 @@ export const Home: React.FC = () => {
       title: 'Студийн хичээлүүд',
       description:
         'Өдрийн хуваарь, багш нар, түвшин болон хичээлийн төрлөөр шүүж өөрт тохирох хичээлээ сонгоно уу. Бүх жагсаалт, дэлгэрэнгүй мэдээллийг «Хичээлүүд» хуудаснаас үзээрэй.',
-      image: offlineClasses[0]?.image || 'https://picsum.photos/seed/classes-feature/1600/900',
+      image: '/images/oxford-mindfulness-section.png',
       meta: 'Хичээлүүд хуудас руу →',
       path: '/classes',
     },
