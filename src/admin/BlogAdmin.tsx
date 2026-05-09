@@ -25,6 +25,10 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 
+/** Inter (`font-sans`); avoid mono/code fonts so Mongolian (Cyrillic) IME composes and every letter renders. */
+const BLOG_EDITOR_FIELD_CLASS =
+  'font-sans font-normal text-base leading-relaxed antialiased';
+
 interface BlogPost {
   id: string;
   title: string;
@@ -179,18 +183,22 @@ export const BlogAdmin: React.FC = () => {
             <div className="space-y-2">
               <label className="text-xs font-black uppercase tracking-widest text-accent/40">Гарчиг</label>
               <Input 
+                lang="mn"
+                autoCapitalize="off"
+                autoCorrect="off"
                 value={currentPost.title}
                 onChange={(e) => setCurrentPost({ ...currentPost, title: e.target.value })}
                 placeholder="Нийтлэлийн гарчиг"
-                className="rounded-xl"
+                className={`rounded-xl ${BLOG_EDITOR_FIELD_CLASS}`}
               />
             </div>
             <div className="space-y-2">
               <label className="text-xs font-black uppercase tracking-widest text-accent/40">Ангилал</label>
               <select 
+                lang="mn"
                 value={currentPost.category}
                 onChange={(e) => setCurrentPost({ ...currentPost, category: e.target.value })}
-                className="w-full h-10 px-3 rounded-xl border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-brand-icon/20"
+                className={`w-full h-10 px-3 rounded-xl border border-input bg-background focus:outline-none focus:ring-2 focus:ring-brand-icon/20 ${BLOG_EDITOR_FIELD_CLASS}`}
               >
                 <option value="MINDFULNESS">MINDFULNESS</option>
                 <option value="WELLNESS">WELLNESS</option>
@@ -203,20 +211,26 @@ export const BlogAdmin: React.FC = () => {
           <div className="space-y-2">
             <label className="text-xs font-black uppercase tracking-widest text-accent/40">Товч агуулга</label>
             <Textarea 
+              lang="mn"
+              spellCheck={false}
+              autoCorrect="off"
               value={currentPost.excerpt}
               onChange={(e) => setCurrentPost({ ...currentPost, excerpt: e.target.value })}
               placeholder="Нийтлэлийн товч тайлбар..."
-              className="rounded-xl h-24"
+              className={`rounded-xl h-24 min-h-24 ${BLOG_EDITOR_FIELD_CLASS}`}
             />
           </div>
 
           <div className="space-y-2">
             <label className="text-xs font-black uppercase tracking-widest text-accent/40">Үндсэн агуулга (HTML дэмжинэ)</label>
             <Textarea 
+              lang="mn"
+              spellCheck={false}
+              autoCorrect="off"
               value={currentPost.content}
               onChange={(e) => setCurrentPost({ ...currentPost, content: e.target.value })}
               placeholder="Нийтлэлийн дэлгэрэнгүй агуулга..."
-              className="rounded-xl h-64 font-mono text-sm"
+              className={`rounded-xl h-64 min-h-[16rem] ${BLOG_EDITOR_FIELD_CLASS}`}
             />
           </div>
 
@@ -230,10 +244,11 @@ export const BlogAdmin: React.FC = () => {
             <div className="space-y-2">
               <label className="text-xs font-black uppercase tracking-widest text-accent/40">Огноо</label>
               <Input 
+                lang="mn"
                 value={currentPost.date}
                 onChange={(e) => setCurrentPost({ ...currentPost, date: e.target.value })}
                 placeholder="15 Apr 2024"
-                className="rounded-xl"
+                className={`rounded-xl ${BLOG_EDITOR_FIELD_CLASS}`}
               />
             </div>
           </div>
