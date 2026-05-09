@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Link, useLocation, Routes, Route, Navigate } from 'react-router-dom';
 import { 
   LayoutDashboard, 
@@ -61,7 +62,12 @@ export const AdminLayout: React.FC = () => {
   const { isAdmin, loading } = useAuth();
   const location = useLocation();
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+  const [mobilePortalReady, setMobilePortalReady] = useState(false);
   const mainScrollRef = useRef<HTMLElement>(null);
+
+  useEffect(() => {
+    setMobilePortalReady(true);
+  }, []);
 
   if (loading) {
     return (
@@ -77,16 +83,19 @@ export const AdminLayout: React.FC = () => {
 
   useEffect(() => {
     if (!mobileSidebarOpen) return;
-    const previousBody = document.body.style.overflow;
+    const prevHtml = document.documentElement.style.overflow;
+    const prevBody = document.body.style.overflow;
+    document.documentElement.style.overflow = 'hidden';
     document.body.style.overflow = 'hidden';
 
     const mainEl = mainScrollRef.current;
-    const previousMainOverflow = mainEl?.style.overflow ?? '';
+    const prevMainOverflow = mainEl?.style.overflow ?? '';
     if (mainEl) mainEl.style.overflow = 'hidden';
 
     return () => {
-      document.body.style.overflow = previousBody;
-      if (mainEl) mainEl.style.overflow = previousMainOverflow;
+      document.documentElement.style.overflow = prevHtml;
+      document.body.style.overflow = prevBody;
+      if (mainEl) mainEl.style.overflow = prevMainOverflow;
     };
   }, [mobileSidebarOpen]);
 
@@ -114,16 +123,6 @@ export const AdminLayout: React.FC = () => {
       >
         <Menu size={18} />
       </button>
-
-      {/* Mobile Sidebar Overlay — above main content, below drawer */}
-      {mobileSidebarOpen ? (
-        <button
-          type="button"
-          className="fixed inset-0 z-[100] bg-zinc-950/50 backdrop-blur-[2px] md:hidden"
-          onClick={() => setMobileSidebarOpen(false)}
-          aria-label="Close admin sidebar overlay"
-        />
-      ) : null}
 
       {/* Sidebar */}
       <aside className="relative z-10 hidden h-screen w-64 shrink-0 flex-col border-r border-zinc-800/80 bg-zinc-950 pt-20 shadow-[8px_0_40px_-20px_rgba(0,0,0,0.45)] md:flex">
@@ -163,66 +162,6 @@ export const AdminLayout: React.FC = () => {
         <div className="relative p-5">
           <Link
             to="/"
-            className="flex items-center justify-center gap-2 rounded-xl border border-zinc-700/80 bg-zinc-900/50 py-3 text-[10px] font-black uppercase tracking-widest text-zinc-400 transition-colors hover:border-brand-icon/40 hover:text-brand-icon"
-          >
-            <Settings size={14} /> Сайт руу буцах
-          </Link>
-        </div>
-      </aside>
-
-      {/* Mobile Sidebar Drawer — high z-index so it stays above scrolling main; native scroll for reliable height */}
-      <aside
-        className={`fixed inset-y-0 left-0 z-[110] flex h-[100dvh] max-h-[100dvh] min-h-0 w-[min(20rem,88vw)] flex-col border-r border-zinc-800 bg-zinc-950 pt-[env(safe-area-inset-top,0px)] shadow-2xl transition-transform duration-300 ease-out md:hidden ${
-          mobileSidebarOpen ? 'translate-x-0' : '-translate-x-full pointer-events-none'
-        }`}
-      >
-        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_90%_40%_at_50%_0%,rgba(122,106,189,0.2),transparent_50%)]" />
-        <div className="relative flex shrink-0 items-center justify-between border-b border-zinc-800 px-5 py-4">
-          <div>
-            <p className="text-[10px] font-black uppercase tracking-[0.28em] text-zinc-500">JUJU</p>
-            <h2 className="font-serif text-base font-medium text-white">Удирдлага</h2>
-          </div>
-          <button
-            type="button"
-            onClick={() => setMobileSidebarOpen(false)}
-            className="rounded-xl p-2 text-zinc-400 transition-colors hover:bg-zinc-800 hover:text-white"
-            aria-label="Close admin sidebar"
-          >
-            <X size={18} />
-          </button>
-        </div>
-        <div className="relative min-h-0 flex-1 overflow-y-auto overscroll-contain py-4 [-webkit-overflow-scrolling:touch]">
-          <nav className="space-y-0.5 px-3 pb-[env(safe-area-inset-bottom,0px)]">
-            {sidebarLinks.map((link) => {
-              const isActive =
-                link.path === '/admin'
-                  ? location.pathname === '/admin'
-                  : location.pathname === link.path || location.pathname.startsWith(`${link.path}/`);
-              return (
-                <Link
-                  key={link.path}
-                  to={link.path}
-                  onClick={handleMobileNavigate}
-                  className={`group ${linkBase} ${isActive ? linkActive : linkInactive}`}
-                >
-                  <span
-                    className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg transition-colors ${
-                      isActive ? 'bg-white/15 text-white' : 'bg-zinc-800/80 text-zinc-400 group-hover:text-white'
-                    }`}
-                  >
-                    <link.icon size={15} strokeWidth={isActive ? 2.25 : 2} />
-                  </span>
-                  <span className="min-w-0 leading-snug">{link.name}</span>
-                </Link>
-              );
-            })}
-          </nav>
-        </div>
-        <Separator className="relative shrink-0 bg-zinc-800" />
-        <div className="relative shrink-0 p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))]">
-          <Link
-            to="/"
-            onClick={handleMobileNavigate}
             className="flex items-center justify-center gap-2 rounded-xl border border-zinc-700/80 bg-zinc-900/50 py-3 text-[10px] font-black uppercase tracking-widest text-zinc-400 transition-colors hover:border-brand-icon/40 hover:text-brand-icon"
           >
             <Settings size={14} /> Сайт руу буцах
@@ -273,6 +212,88 @@ export const AdminLayout: React.FC = () => {
         </Routes>
         </div>
       </main>
+
+      {/* Mobile drawer + backdrop portaled to body so parent overflow/scroll never clips fixed layers */}
+      {mobilePortalReady
+        ? createPortal(
+            <>
+              {mobileSidebarOpen ? (
+                <button
+                  type="button"
+                  className="fixed inset-0 z-[1000] bg-zinc-950/60 backdrop-blur-sm md:hidden"
+                  onClick={() => setMobileSidebarOpen(false)}
+                  aria-label="Close admin sidebar overlay"
+                />
+              ) : null}
+              <aside
+                aria-hidden={!mobileSidebarOpen}
+                className={`fixed left-0 top-0 z-[1001] flex h-[100dvh] max-h-[100dvh] w-[min(20rem,88vw)] flex-col overflow-hidden border-r border-zinc-800 shadow-2xl transition-transform duration-300 ease-out md:hidden ${
+                  mobileSidebarOpen ? 'translate-x-0' : '-translate-x-full pointer-events-none'
+                }`}
+              >
+                <div className="absolute inset-0 bg-zinc-950" aria-hidden />
+                <div
+                  className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_90%_42%_at_50%_0%,rgba(122,106,189,0.22),transparent_58%)]"
+                  aria-hidden
+                />
+                <div className="relative z-10 flex h-full min-h-0 flex-1 flex-col pt-[env(safe-area-inset-top,0px)]">
+                  <div className="flex shrink-0 items-center justify-between border-b border-zinc-800 px-5 py-4">
+                    <div>
+                      <p className="text-[10px] font-black uppercase tracking-[0.28em] text-zinc-500">JUJU</p>
+                      <h2 className="font-serif text-base font-medium text-white">Удирдлага</h2>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setMobileSidebarOpen(false)}
+                      className="rounded-xl p-2 text-zinc-400 transition-colors hover:bg-zinc-800 hover:text-white"
+                      aria-label="Close admin sidebar"
+                    >
+                      <X size={18} />
+                    </button>
+                  </div>
+                  <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-0 py-4 [-webkit-overflow-scrolling:touch]">
+                    <nav className="space-y-0.5 px-3">
+                      {sidebarLinks.map((link) => {
+                        const isActive =
+                          link.path === '/admin'
+                            ? location.pathname === '/admin'
+                            : location.pathname === link.path || location.pathname.startsWith(`${link.path}/`);
+                        return (
+                          <Link
+                            key={link.path}
+                            to={link.path}
+                            onClick={handleMobileNavigate}
+                            className={`group ${linkBase} ${isActive ? linkActive : linkInactive}`}
+                          >
+                            <span
+                              className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg transition-colors ${
+                                isActive ? 'bg-white/15 text-white' : 'bg-zinc-800/80 text-zinc-400 group-hover:text-white'
+                              }`}
+                            >
+                              <link.icon size={15} strokeWidth={isActive ? 2.25 : 2} />
+                            </span>
+                            <span className="min-w-0 leading-snug">{link.name}</span>
+                          </Link>
+                        );
+                      })}
+                    </nav>
+                  </div>
+                  <Separator className="shrink-0 bg-zinc-800" />
+                  <div className="shrink-0 bg-zinc-950 px-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-4">
+                    <Link
+                      to="/"
+                      onClick={handleMobileNavigate}
+                      className="flex items-center justify-center gap-2 rounded-xl border border-zinc-700/80 bg-zinc-900/50 py-3 text-[10px] font-black uppercase tracking-widest text-zinc-400 transition-colors hover:border-brand-icon/40 hover:text-brand-icon"
+                    >
+                      <Settings size={14} /> Сайт руу буцах
+                    </Link>
+                  </div>
+                </div>
+              </aside>
+            </>,
+            document.body
+          )
+        : null}
     </div>
   );
 };
