@@ -642,7 +642,7 @@ export const Home: React.FC = () => {
               whileInView={{ opacity: 1, scale: 1 }}
               viewport={{ once: true }}
               transition={{ duration: 0.8 }}
-              className="relative aspect-square lg:aspect-auto lg:h-[500px] rounded-2xl overflow-hidden grayscale hover:grayscale-0 transition-all duration-1000"
+              className="relative aspect-square lg:aspect-auto lg:h-[500px] rounded-2xl overflow-hidden"
             >
               <SmartImage
                 src="/images/oxford-mindfulness-omf.png"
