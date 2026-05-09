@@ -645,8 +645,8 @@ export const Home: React.FC = () => {
               className="relative aspect-square lg:aspect-auto lg:h-[500px] rounded-2xl overflow-hidden grayscale hover:grayscale-0 transition-all duration-1000"
             >
               <SmartImage
-                src="https://images.unsplash.com/photo-1518199266791-5375a83190b7?auto=format&fit=crop&q=80&w=1200"
-                alt="Mindfulness Practice"
+                src="/images/oxford-mindfulness-section.png"
+                alt="Оксфордын Майндфүлнэс — багш, суралцагчид"
                 className="absolute inset-0 h-full w-full object-cover"
                 sizes="(max-width: 1024px) 100vw, 50vw"
                 loading="lazy"
