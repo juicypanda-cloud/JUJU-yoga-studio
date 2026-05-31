@@ -339,7 +339,7 @@ export const RetreatsAdmin: React.FC = () => {
             <label className="text-xs font-black uppercase tracking-widest text-accent/40">Аяллын хуваарь</label>
             <div className="space-y-3 rounded-xl border border-input bg-background p-4">
               {travelScheduleRows.map((row, index) => (
-                <div key={`${index}-${row.time}-${row.activity}`} className="grid grid-cols-1 gap-3 md:grid-cols-[140px_1fr_1.5fr_auto]">
+                <div key={`travel-schedule-${index}`} className="grid grid-cols-1 gap-3 md:grid-cols-[140px_1fr_1.5fr_auto]">
                   <Input
                     type="time"
                     value={row.time}
@@ -410,9 +410,16 @@ export const RetreatsAdmin: React.FC = () => {
             <div className="space-y-2">
               <label className="text-xs font-black uppercase tracking-widest text-accent/40">Үнэ (₮)</label>
               <Input 
-                type="number"
-                value={currentRetreat.price}
-                onChange={(e) => setCurrentRetreat({ ...currentRetreat, price: Number(e.target.value) })}
+                type="text"
+                inputMode="numeric"
+                value={currentRetreat.price ? String(currentRetreat.price) : ''}
+                onChange={(e) => {
+                  const digits = e.target.value.replace(/\D/g, '');
+                  setCurrentRetreat({
+                    ...currentRetreat,
+                    price: digits === '' ? 0 : Number(digits),
+                  });
+                }}
                 placeholder="0"
                 className="rounded-xl"
               />
