@@ -5,64 +5,33 @@ import { db } from '../firebase';
 import { retreatsData } from '../data/retreats';
 import { motion } from 'motion/react';
 import { Button } from '../components/ui/button';
-import { Calendar, MapPin, ArrowLeft, CheckCircle2, Users, Clock, Sparkles } from 'lucide-react';
+import { Calendar, MapPin, ArrowLeft, CheckCircle2, Clock } from 'lucide-react';
 import { toast } from 'sonner';
 import { formatRetreatPriceWithSymbol } from '../lib/formatRetreatPrice';
 
-const DEFAULT_INCLUDED_PROGRAM = [
-  'Өглөө, оройн иогийн хичээл',
-  'Майндфүлнэс бясалгал',
-  'Эрүүл, цагаан хоол',
-  'Байгалийн аялал',
-  'Сэтгэл зүйн зөвлөгөө',
-  'Тээврийн зардал',
-];
-
-const DEFAULT_WHAT_TO_BRING = [
-  'Иогийн гудас',
-  'Биед эвтэйхэн хувцас',
-  'Дулаан хувцас (оройдоо)',
-  'Хувийн ариун цэврийн хэрэглэл',
-  'Тэмдэглэлийн дэвтэр',
-];
-
-const DEFAULT_SCHEDULE = [
-  { time: '07:00', activity: 'Өглөөний иог', desc: 'Өдрийг эрч хүчтэй, уян хатан эхлүүлэх иогийн дасгал.' },
-  { time: '08:30', activity: 'Өглөөний цай', desc: 'Эрүүл, шим тэжээлтэй өглөөний хоол.' },
-  { time: '10:00', activity: 'Майндфүлнэс бясалгал', desc: 'Оксфордын хөтөлбөрийн дагуух анхаарал төвлөрүүлэх бясалгал.' },
-  { time: '13:00', activity: 'Өдрийн хоол', desc: 'Байгалийн гаралтай, хөнгөн хооллолт.' },
-  { time: '15:00', activity: 'Байгалийн аялал', desc: 'Орчин тойронтойгоо танилцаж, цэвэр агаарт алхах.' },
-  { time: '18:00', activity: 'Оройн иог & Бясалгал', desc: 'Сэтгэл санааг амрааж, гүн нойронд бэлтгэх практик.' },
-  { time: '19:30', activity: 'Оройн хоол', desc: 'Өдрийг дүгнэж, хамт олноороо халуун дулаан яриа өрнүүлэх.' },
-];
-
-const toLineItems = (raw: unknown, fallback: string[]) => {
+const toLineItems = (raw: unknown): string[] => {
   const value = typeof raw === 'string' ? raw : '';
-  const rows = value
+  return value
     .split('\n')
     .map((line) => line.trim())
     .filter(Boolean);
-  return rows.length > 0 ? rows : fallback;
 };
 
-const toScheduleItems = (raw: unknown) => {
+const toScheduleItems = (raw: unknown): Array<{ time: string; activity: string; desc: string }> => {
   const value = typeof raw === 'string' ? raw : '';
-  const rows = value
+  return value
     .split('\n')
     .map((line) => line.trim())
     .filter(Boolean)
     .map((line) => {
       const [time = '', activity = '', ...rest] = line.split('|').map((part) => part.trim());
-      if (!time || !activity) return null;
       return {
         time,
         activity,
-        desc: rest.join(' | '),
+        desc: rest.join(' | ').trim(),
       };
     })
-    .filter((item): item is { time: string; activity: string; desc: string } => Boolean(item));
-
-  return rows.length > 0 ? rows : DEFAULT_SCHEDULE;
+    .filter((row) => row.time || row.activity || row.desc);
 };
 
 export const RetreatDetail: React.FC = () => {
@@ -127,9 +96,10 @@ export const RetreatDetail: React.FC = () => {
   const heroCover =
     String(retreat.imageURL || retreat.image || retreat.thumbnail || '').trim() ||
     'https://picsum.photos/seed/retreat-detail/1600/900';
-  const includedProgramItems = toLineItems(retreat.includedProgram, DEFAULT_INCLUDED_PROGRAM);
-  const whatToBringItems = toLineItems(retreat.whatToBring, DEFAULT_WHAT_TO_BRING);
+  const includedProgramItems = toLineItems(retreat.includedProgram);
+  const whatToBringItems = toLineItems(retreat.whatToBring);
   const scheduleItems = toScheduleItems(retreat.travelSchedule);
+  const hasProgramSection = includedProgramItems.length > 0 || whatToBringItems.length > 0;
 
   return (
     <div className="min-h-screen bg-white pb-32">
@@ -184,15 +154,16 @@ export const RetreatDetail: React.FC = () => {
           <div className="lg:col-span-2 space-y-16">
             <section>
               <h2 className="text-2xl font-serif text-brand-ink mb-8">Аяллын тухай</h2>
-              <p className="text-lg text-brand-ink/60 font-light leading-relaxed">
-                {retreat.description}
-              </p>
-              <p className="text-lg text-brand-ink/60 font-light leading-relaxed mt-6">
-                Энэхүү ретрит нь таныг өдөр тутмын завгүй амьдралаас түр хөндийрүүлж, байгалийн сайханд өөрийгөө сонсох, дотоод амар амгалангаа олоход туслах зорилготой. Бид мэргэжлийн багш нарын удирдамж дор иог, бясалгал болон майндфүлнэс хичээлүүдийг цогцоор нь санал болгож байна.
-              </p>
+              {retreat.description ? (
+                <p className="text-lg text-brand-ink/60 font-light leading-relaxed">
+                  {retreat.description}
+                </p>
+              ) : null}
             </section>
 
+            {hasProgramSection ? (
             <section className="grid grid-cols-1 md:grid-cols-2 gap-12">
+              {includedProgramItems.length > 0 ? (
               <div className="space-y-6">
                 <h3 className="text-xl font-serif text-brand-ink">Хөтөлбөрт багтсан</h3>
                 <ul className="space-y-4">
@@ -204,6 +175,8 @@ export const RetreatDetail: React.FC = () => {
                   ))}
                 </ul>
               </div>
+              ) : null}
+              {whatToBringItems.length > 0 ? (
               <div className="space-y-6">
                 <h3 className="text-xl font-serif text-brand-ink">Юу авч ирэх вэ?</h3>
                 <ul className="space-y-4">
@@ -215,8 +188,11 @@ export const RetreatDetail: React.FC = () => {
                   ))}
                 </ul>
               </div>
+              ) : null}
             </section>
+            ) : null}
 
+            {scheduleItems.length > 0 ? (
             <section className="space-y-10">
               <h3 className="text-3xl font-serif text-brand-ink">Аяллын хуваарь</h3>
               <div className="relative pl-8 space-y-12">
@@ -229,20 +205,27 @@ export const RetreatDetail: React.FC = () => {
                     <div className="absolute -left-[36px] top-1.5 w-4 h-4 rounded-full border-2 border-brand-icon bg-white" />
                     
                     <div className="flex flex-col md:flex-row md:items-baseline gap-2 md:gap-8">
-                      <span className="text-brand-icon font-black tracking-[0.2em] text-[10px] uppercase shrink-0">
-                        {item.time}
-                      </span>
+                      {item.time ? (
+                        <span className="text-brand-icon font-black tracking-[0.2em] text-[10px] uppercase shrink-0">
+                          {item.time}
+                        </span>
+                      ) : null}
                       <div className="space-y-2">
-                        <h4 className="text-xl font-serif text-brand-ink">{item.activity}</h4>
-                        <p className="text-sm text-brand-ink/50 font-light leading-relaxed">
-                          {item.desc}
-                        </p>
+                        {item.activity ? (
+                          <h4 className="text-xl font-serif text-brand-ink">{item.activity}</h4>
+                        ) : null}
+                        {item.desc ? (
+                          <p className="text-sm text-brand-ink/50 font-light leading-relaxed">
+                            {item.desc}
+                          </p>
+                        ) : null}
                       </div>
                     </div>
                   </div>
                 ))}
               </div>
             </section>
+            ) : null}
           </div>
 
           {/* Sidebar */}
@@ -253,22 +236,16 @@ export const RetreatDetail: React.FC = () => {
                 <span className="text-4xl font-medium text-brand-ink">{formatRetreatPriceWithSymbol(retreat.price)}</span>
               </div>
 
-              <div className="space-y-6 mb-10">
-                <div className="flex items-center gap-4 text-brand-ink/60">
-                  <Users size={20} className="text-brand-icon" />
-                  <span className="text-sm font-light">Хамгийн ихдээ 15 хүн</span>
+              {retreat.duration ? (
+                <div className="space-y-6 mb-10">
+                  <div className="flex items-center gap-4 text-brand-ink/60">
+                    <Clock size={20} className="text-brand-icon" />
+                    <span className="text-sm font-light">{retreat.duration}</span>
+                  </div>
                 </div>
-                <div className="flex items-center gap-4 text-brand-ink/60">
-                  <Clock size={20} className="text-brand-icon" />
-                  <span className="text-sm font-light">3 өдөр, 2 шөнө</span>
-                </div>
-                <div className="flex items-center gap-4 text-brand-ink/60">
-                  <Sparkles size={20} className="text-brand-icon" />
-                  <span className="text-sm font-light">Бүх түвшнийхэнд тохиромжтой</span>
-                </div>
-              </div>
+              ) : null}
 
-              <Button 
+              <Button
                 onClick={handleRegister}
                 className="w-full rounded-full bg-brand-ink text-white hover:bg-brand-icon transition-all duration-500 py-8 text-[11px] font-black uppercase tracking-[0.2em] shadow-xl"
               >
