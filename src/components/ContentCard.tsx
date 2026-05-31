@@ -2,6 +2,7 @@ import React from 'react';
 import { Card, CardContent } from './ui/card';
 import { Button } from './ui/button';
 import { MapPin, Calendar, ArrowRight } from 'lucide-react';
+import { formatRetreatPriceWithSymbol } from '../lib/formatRetreatPrice';
 
 const RETREAT_COVER_FALLBACK = 'https://picsum.photos/seed/retreat-card/1200/800';
 
@@ -12,7 +13,7 @@ interface ContentCardProps {
     description: string;
     location?: string;
     date: string;
-    price?: number;
+    price?: string | number;
     /** Local seed data */
     imageURL?: string;
     /** Firestore / admin (same as retreats admin) */
@@ -31,7 +32,7 @@ const retreatCoverSrc = (item: ContentCardProps['item']) => {
 
 export const ContentCard: React.FC<ContentCardProps> = ({ item, type, variant = 'vertical', onAction }) => {
   const coverSrc = retreatCoverSrc(item);
-  const priceLabel = Number(item.price ?? 0).toLocaleString();
+  const priceLabel = formatRetreatPriceWithSymbol(item.price);
 
   if (variant === 'horizontal') {
     return (
@@ -73,7 +74,7 @@ export const ContentCard: React.FC<ContentCardProps> = ({ item, type, variant = 
           <div className="pt-6 border-t border-brand-ink/5 flex justify-between items-center mt-auto">
             <div className="flex flex-col">
               <span className="text-[10px] uppercase tracking-[0.2em] text-brand-ink/30 font-black mb-1">Төлбөр</span>
-              <span className="text-xl font-medium text-brand-ink">₮{priceLabel}</span>
+              <span className="text-xl font-medium text-brand-ink">{priceLabel}</span>
             </div>
             <Button 
               onClick={onAction}
@@ -125,7 +126,7 @@ export const ContentCard: React.FC<ContentCardProps> = ({ item, type, variant = 
         <div className="flex justify-between items-center pt-8 border-t border-brand-ink/5">
           <div className="flex flex-col">
             <span className="text-[10px] uppercase tracking-[0.2em] text-brand-ink/30 font-black mb-1">Төлбөр</span>
-            <span className="text-2xl font-medium text-brand-ink">₮{priceLabel}</span>
+            <span className="text-2xl font-medium text-brand-ink">{priceLabel}</span>
           </div>
           <Button 
             onClick={onAction}

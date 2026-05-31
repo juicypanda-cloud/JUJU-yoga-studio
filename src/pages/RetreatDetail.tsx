@@ -7,6 +7,7 @@ import { motion } from 'motion/react';
 import { Button } from '../components/ui/button';
 import { Calendar, MapPin, ArrowLeft, CheckCircle2, Users, Clock, Sparkles } from 'lucide-react';
 import { toast } from 'sonner';
+import { formatRetreatPriceWithSymbol } from '../lib/formatRetreatPrice';
 
 const DEFAULT_INCLUDED_PROGRAM = [
   'Өглөө, оройн иогийн хичээл',
@@ -249,7 +250,7 @@ export const RetreatDetail: React.FC = () => {
             <div className="bg-white border border-brand-ink/5 shadow-2xl shadow-brand-ink/5 rounded-[2.5rem] p-10 sticky top-32">
               <div className="mb-8">
                 <span className="text-[10px] uppercase tracking-[0.2em] text-brand-ink/30 font-black block mb-2">Төлбөр</span>
-                <span className="text-4xl font-medium text-brand-ink">₮{Number(retreat.price ?? 0).toLocaleString()}</span>
+                <span className="text-4xl font-medium text-brand-ink">{formatRetreatPriceWithSymbol(retreat.price)}</span>
               </div>
 
               <div className="space-y-6 mb-10">

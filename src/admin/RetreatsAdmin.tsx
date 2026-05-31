@@ -27,6 +27,7 @@ import {
   Tag
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { formatRetreatPriceWithSymbol } from '../lib/formatRetreatPrice';
 
 interface Retreat {
   id: string;
@@ -35,7 +36,7 @@ interface Retreat {
   location: string;
   date: string;
   duration: string;
-  price: number;
+  price: string | number;
   image: string;
   includedProgram?: string;
   whatToBring?: string;
@@ -99,7 +100,7 @@ export const RetreatsAdmin: React.FC = () => {
     location: '',
     date: '',
     duration: '',
-    price: 0,
+    price: '',
     image: '',
     includedProgram: '',
     whatToBring: '',
@@ -169,7 +170,7 @@ export const RetreatsAdmin: React.FC = () => {
         location: '',
         date: '',
         duration: '',
-        price: 0,
+        price: '',
         image: '',
         includedProgram: '',
         whatToBring: '',
@@ -222,7 +223,7 @@ export const RetreatsAdmin: React.FC = () => {
                 location: '',
                 date: '',
                 duration: '',
-                price: 0,
+                price: '',
                 image: '',
                 includedProgram: '',
                 whatToBring: '',
@@ -410,17 +411,9 @@ export const RetreatsAdmin: React.FC = () => {
             <div className="space-y-2">
               <label className="text-xs font-black uppercase tracking-widest text-accent/40">Үнэ (₮)</label>
               <Input 
-                type="text"
-                inputMode="numeric"
-                value={currentRetreat.price ? String(currentRetreat.price) : ''}
-                onChange={(e) => {
-                  const digits = e.target.value.replace(/\D/g, '');
-                  setCurrentRetreat({
-                    ...currentRetreat,
-                    price: digits === '' ? 0 : Number(digits),
-                  });
-                }}
-                placeholder="0"
+                value={String(currentRetreat.price ?? '')}
+                onChange={(e) => setCurrentRetreat({ ...currentRetreat, price: e.target.value })}
+                placeholder="450000 эсвэл Тохирно"
                 className="rounded-xl"
               />
             </div>
@@ -470,7 +463,7 @@ export const RetreatsAdmin: React.FC = () => {
                       }`}>
                         {item.status === 'upcoming' ? 'Удахгүй болох' : item.status === 'ongoing' ? 'Явагдаж буй' : 'Дууссан'}
                       </span>
-                      <span className="text-xs font-bold text-brand-ink">{item.price.toLocaleString()} ₮</span>
+                      <span className="text-xs font-bold text-brand-ink">{formatRetreatPriceWithSymbol(item.price)}</span>
                     </div>
                     <h3 className="text-2xl font-serif text-brand-ink mb-4">{item.title}</h3>
                     <div className="grid grid-cols-2 gap-4">
