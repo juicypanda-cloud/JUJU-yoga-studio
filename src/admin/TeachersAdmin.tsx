@@ -199,7 +199,7 @@ export const TeachersAdmin: React.FC = () => {
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="space-y-2">
-              <label className="text-xs font-black uppercase tracking-widest text-accent/40">Нэр</label>
+              <label className="text-xs font-black uppercase tracking-widest text-black">Нэр</label>
               <Input 
                 value={currentTeacher.name}
                 onChange={(e) => setCurrentTeacher({ ...currentTeacher, name: e.target.value })}
@@ -208,7 +208,7 @@ export const TeachersAdmin: React.FC = () => {
               />
             </div>
             <div className="space-y-2">
-              <label className="text-xs font-black uppercase tracking-widest text-accent/40">Цол/Мэргэжил</label>
+              <label className="text-xs font-black uppercase tracking-widest text-black">Цол/Мэргэжил</label>
               <Input 
                 value={currentTeacher.role}
                 onChange={(e) => setCurrentTeacher({ ...currentTeacher, role: e.target.value })}
@@ -219,7 +219,7 @@ export const TeachersAdmin: React.FC = () => {
           </div>
 
           <div className="space-y-2">
-            <label className="text-xs font-black uppercase tracking-widest text-accent/40">Намтар</label>
+            <label className="text-xs font-black uppercase tracking-widest text-black">Намтар</label>
             <Textarea 
               value={currentTeacher.bio}
               onChange={(e) => setCurrentTeacher({ ...currentTeacher, bio: e.target.value })}
@@ -236,7 +236,7 @@ export const TeachersAdmin: React.FC = () => {
               onChange={(url) => setCurrentTeacher({ ...currentTeacher, image: url })}
             />
             <div className="space-y-2">
-              <label className="text-xs font-black uppercase tracking-widest text-accent/40">
+              <label className="text-xs font-black uppercase tracking-widest text-black">
                 Имэйл{!currentTeacher.id ? ' (бүртгэлийн имэйлтэй тааруулна)' : ''}
               </label>
               <Input
@@ -253,7 +253,7 @@ export const TeachersAdmin: React.FC = () => {
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="space-y-2">
-              <label className="text-xs font-black uppercase tracking-widest text-accent/40">Instagram</label>
+              <label className="text-xs font-black uppercase tracking-widest text-black">Instagram</label>
               <Input 
                 value={currentTeacher.instagram}
                 onChange={(e) => setCurrentTeacher({ ...currentTeacher, instagram: e.target.value })}
@@ -262,7 +262,7 @@ export const TeachersAdmin: React.FC = () => {
               />
             </div>
             <div className="space-y-2">
-              <label className="text-xs font-black uppercase tracking-widest text-accent/40">Facebook</label>
+              <label className="text-xs font-black uppercase tracking-widest text-black">Facebook</label>
               <Input 
                 value={currentTeacher.facebook}
                 onChange={(e) => setCurrentTeacher({ ...currentTeacher, facebook: e.target.value })}
@@ -289,7 +289,7 @@ export const TeachersAdmin: React.FC = () => {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {teachers.length === 0 ? (
             <div className="col-span-full text-center py-20 bg-white rounded-3xl border border-dashed border-gray-200">
-              <p className="text-accent/40">Багш бүртгэгдээгүй байна.</p>
+              <p className="text-brand-ink/45">Багш бүртгэгдээгүй байна.</p>
             </div>
           ) : (
             teachers.map((item) => (
@@ -308,7 +308,7 @@ export const TeachersAdmin: React.FC = () => {
                         className="h-full w-full object-cover"
                       />
                     ) : (
-                      <User className="w-full h-full p-4 text-accent/20" />
+                      <User className="w-full h-full p-4 text-brand-ink/20" />
                     )}
                   </div>
                   <div className="min-w-0">
@@ -316,12 +316,12 @@ export const TeachersAdmin: React.FC = () => {
                     <p className="text-xs text-brand-icon font-bold uppercase tracking-widest">{item.role}</p>
                   </div>
                 </div>
-                <p className="text-sm text-accent/60 line-clamp-3 mb-6 font-light">{item.bio}</p>
+                <p className="text-sm text-brand-ink/60 line-clamp-3 mb-6 font-light">{item.bio}</p>
                 <div className="flex justify-between items-center pt-4 border-t border-gray-50">
                   <div className="flex gap-2">
-                    {item.instagram && <Instagram size={16} className="text-accent/40" />}
-                    {item.facebook && <Facebook size={16} className="text-accent/40" />}
-                    {item.email && <Mail size={16} className="text-accent/40" />}
+                    {item.instagram && <Instagram size={16} className="text-brand-ink/45" />}
+                    {item.facebook && <Facebook size={16} className="text-brand-ink/45" />}
+                    {item.email && <Mail size={16} className="text-brand-ink/45" />}
                   </div>
                   <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                     {deleteId === item.id ? (

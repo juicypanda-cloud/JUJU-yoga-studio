@@ -164,7 +164,7 @@ export const GalleryAdmin: React.FC = () => {
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="space-y-2">
-              <label className="text-xs font-black uppercase tracking-widest text-accent/40">Гарчиг</label>
+              <label className="text-xs font-black uppercase tracking-widest text-black">Гарчиг</label>
               <Input 
                 value={currentItem.title}
                 onChange={(e) => setCurrentItem({ ...currentItem, title: e.target.value })}
@@ -173,7 +173,7 @@ export const GalleryAdmin: React.FC = () => {
               />
             </div>
             <div className="space-y-2">
-              <label className="text-xs font-black uppercase tracking-widest text-accent/40">Ангилал</label>
+              <label className="text-xs font-black uppercase tracking-widest text-black">Ангилал</label>
               <select 
                 value={currentItem.category}
                 onChange={(e) => setCurrentItem({ ...currentItem, category: e.target.value })}
@@ -211,7 +211,7 @@ export const GalleryAdmin: React.FC = () => {
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
           {items.length === 0 ? (
             <div className="col-span-full text-center py-20 bg-white rounded-3xl border border-dashed border-gray-200">
-              <p className="text-accent/40">Галлерей хоосон байна.</p>
+              <p className="text-brand-ink/45">Галлерей хоосон байна.</p>
             </div>
           ) : (
             items.map((item) => (
@@ -230,7 +230,7 @@ export const GalleryAdmin: React.FC = () => {
                 </div>
                 <div className="px-2 pb-2">
                   <p className="text-xs font-medium text-brand-ink truncate">{item.title}</p>
-                  <p className="text-[10px] text-accent/40 uppercase tracking-widest font-black">{item.category}</p>
+                  <p className="text-[10px] text-brand-ink/45 uppercase tracking-widest font-black">{item.category}</p>
                 </div>
                 
                 <div className="absolute top-4 right-4 flex gap-1 opacity-0 transition-opacity group-hover:opacity-100">

@@ -183,7 +183,7 @@ export const OnlineContentAdmin: React.FC = () => {
       <div className="flex justify-between items-center mb-8">
         <div>
           <h1 className="text-3xl font-light">Онлайн хичээлүүд</h1>
-          <p className="text-accent/40 text-sm">Видео болон аудио сангаа удирдана уу.</p>
+          <p className="text-brand-ink/45 text-sm">Видео болон аудио сангаа удирдана уу.</p>
         </div>
         <Dialog open={isAddOpen} onOpenChange={(open) => {
           setIsAddOpen(open);
@@ -212,7 +212,7 @@ export const OnlineContentAdmin: React.FC = () => {
             </DialogHeader>
             <form onSubmit={handleSubmit} className="space-y-6 pt-4">
               <div className="space-y-2">
-                <label className="text-sm font-medium">Гарчиг</label>
+                <label className="text-sm font-medium text-black">Гарчиг</label>
                 <Input 
                   required 
                   value={formData.title} 
@@ -224,7 +224,7 @@ export const OnlineContentAdmin: React.FC = () => {
               
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">Төрөл</label>
+                  <label className="text-sm font-medium text-black">Төрөл</label>
                   <Select 
                     value={formData.type} 
                     onValueChange={(val) => setFormData({ ...formData, type: val })}
@@ -239,7 +239,7 @@ export const OnlineContentAdmin: React.FC = () => {
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">Ангилал</label>
+                  <label className="text-sm font-medium text-black">Ангилал</label>
                   <Select 
                     value={formData.category} 
                     onValueChange={(val) => setFormData({ ...formData, category: val })}
@@ -256,7 +256,7 @@ export const OnlineContentAdmin: React.FC = () => {
               </div>
 
               <div className="space-y-2">
-                <label className="text-sm font-medium">Медиа URL (Видео/Аудио)</label>
+                <label className="text-sm font-medium text-black">Медиа URL (Видео/Аудио)</label>
                 <Input 
                   required 
                   value={formData.mediaURL} 
@@ -268,7 +268,7 @@ export const OnlineContentAdmin: React.FC = () => {
 
               {formData.type === 'audio' ? (
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">Хугацаа</label>
+                  <label className="text-sm font-medium text-black">Хугацаа</label>
                   <Input
                     required
                     value={formData.duration}
@@ -278,13 +278,13 @@ export const OnlineContentAdmin: React.FC = () => {
                   />
                 </div>
               ) : (
-                <p className="text-xs text-accent/60">
+                <p className="text-xs text-brand-ink/60">
                   Видео үргэлжлэх хугацааг YouTube линкээс автоматаар авна.
                 </p>
               )}
 
               <div className="space-y-2">
-                <label className="text-sm font-medium">Тайлбар</label>
+                <label className="text-sm font-medium text-black">Тайлбар</label>
                 <Textarea 
                   value={formData.description} 
                   onChange={(e) => setFormData({ ...formData, description: e.target.value })}

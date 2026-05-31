@@ -219,15 +219,15 @@ export const MediaLibrary: React.FC = () => {
                 />
               </div>
             )}
-            <p className="text-sm text-accent/40 mt-2">Зураг, видео болон аудио файлууд дэмжигдэнэ (Зургийг автоматаар оновчтой болгоно)</p>
+            <p className="text-sm text-brand-ink/45 mt-2">Зураг, видео болон аудио файлууд дэмжигдэнэ (Зургийг автоматаар оновчтой болгоно)</p>
           </div>
         </div>
       </div>
 
       {loading ? (
-        <div className="py-16 text-center text-accent/40">Loading...</div>
+        <div className="py-16 text-center text-brand-ink/45">Loading...</div>
       ) : mediaItems.length === 0 ? (
-        <div className="py-16 text-center text-accent/40">No media uploaded yet</div>
+        <div className="py-16 text-center text-brand-ink/45">No media uploaded yet</div>
       ) : (
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
         {mediaItems.map((file) => (
@@ -245,7 +245,7 @@ export const MediaLibrary: React.FC = () => {
                 <video src={file.url} controls className="w-full h-full object-cover" />
               ) : (
                 <div className="w-full h-full flex flex-col items-center justify-center p-3 gap-3">
-                  <Music size={28} className="text-accent/50" />
+                  <Music size={28} className="text-brand-ink/50" />
                   <audio src={file.url} controls className="w-full" />
                 </div>
               )}
@@ -253,10 +253,10 @@ export const MediaLibrary: React.FC = () => {
             <div className="p-3">
               <p className="text-xs font-medium truncate mb-1">{file.filename || file.name}</p>
               {file.createdAt == null && (
-                <p className="text-[10px] text-accent/30 mb-1">Syncing...</p>
+                <p className="text-[10px] text-brand-ink/30 mb-1">Syncing...</p>
               )}
               <div className="flex justify-between items-center">
-                <span className="text-[10px] uppercase tracking-widest text-accent/40">{file.type}</span>
+                <span className="text-[10px] uppercase tracking-widest text-brand-ink/45">{file.type}</span>
                 <div className="flex gap-1">
                   <Button 
                     variant="ghost" 

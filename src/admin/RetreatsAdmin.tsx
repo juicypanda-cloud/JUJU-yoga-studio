@@ -251,7 +251,7 @@ export const RetreatsAdmin: React.FC = () => {
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="space-y-2">
-              <label className="text-xs font-black uppercase tracking-widest text-accent/40">Гарчиг</label>
+              <label className="text-xs font-black uppercase tracking-widest text-black">Гарчиг</label>
               <Input 
                 value={currentRetreat.title}
                 onChange={(e) => setCurrentRetreat({ ...currentRetreat, title: e.target.value })}
@@ -260,7 +260,7 @@ export const RetreatsAdmin: React.FC = () => {
               />
             </div>
             <div className="space-y-2">
-              <label className="text-xs font-black uppercase tracking-widest text-accent/40">Байршил</label>
+              <label className="text-xs font-black uppercase tracking-widest text-black">Байршил</label>
               <Input 
                 value={currentRetreat.location}
                 onChange={(e) => setCurrentRetreat({ ...currentRetreat, location: e.target.value })}
@@ -272,7 +272,7 @@ export const RetreatsAdmin: React.FC = () => {
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div className="space-y-2">
-              <label className="text-xs font-black uppercase tracking-widest text-accent/40">Огноо</label>
+              <label className="text-xs font-black uppercase tracking-widest text-black">Огноо</label>
               <Input 
                 value={currentRetreat.date}
                 onChange={(e) => setCurrentRetreat({ ...currentRetreat, date: e.target.value })}
@@ -281,7 +281,7 @@ export const RetreatsAdmin: React.FC = () => {
               />
             </div>
             <div className="space-y-2">
-              <label className="text-xs font-black uppercase tracking-widest text-accent/40">Хугацаа</label>
+              <label className="text-xs font-black uppercase tracking-widest text-black">Хугацаа</label>
               <Input 
                 value={currentRetreat.duration}
                 onChange={(e) => setCurrentRetreat({ ...currentRetreat, duration: e.target.value })}
@@ -290,7 +290,7 @@ export const RetreatsAdmin: React.FC = () => {
               />
             </div>
             <div className="space-y-2">
-              <label className="text-xs font-black uppercase tracking-widest text-accent/40">Төлөв</label>
+              <label className="text-xs font-black uppercase tracking-widest text-black">Төлөв</label>
               <select 
                 value={currentRetreat.status}
                 onChange={(e) => setCurrentRetreat({ ...currentRetreat, status: e.target.value as any })}
@@ -304,7 +304,7 @@ export const RetreatsAdmin: React.FC = () => {
           </div>
 
           <div className="space-y-2">
-            <label className="text-xs font-black uppercase tracking-widest text-accent/40">Тайлбар</label>
+            <label className="text-xs font-black uppercase tracking-widest text-black">Тайлбар</label>
             <Textarea 
               value={currentRetreat.description}
               onChange={(e) => setCurrentRetreat({ ...currentRetreat, description: e.target.value })}
@@ -315,29 +315,29 @@ export const RetreatsAdmin: React.FC = () => {
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="space-y-2">
-              <label className="text-xs font-black uppercase tracking-widest text-accent/40">Хөтөлбөрт багтсан</label>
+              <label className="text-xs font-black uppercase tracking-widest text-black">Хөтөлбөрт багтсан</label>
               <Textarea
                 value={currentRetreat.includedProgram || ''}
                 onChange={(e) => setCurrentRetreat({ ...currentRetreat, includedProgram: e.target.value })}
                 placeholder={'Мөр мөрөөр бичнэ:\nӨглөө, оройн иогийн хичээл\nМайндфүлнэс бясалгал\nЭрүүл хоол'}
                 className="rounded-xl min-h-[140px]"
               />
-              <p className="text-[11px] text-accent/40">Жагсаалтын нэг мөр = нэг item</p>
+              <p className="text-[11px] text-black/50">Жагсаалтын нэг мөр = нэг item</p>
             </div>
             <div className="space-y-2">
-              <label className="text-xs font-black uppercase tracking-widest text-accent/40">Юу авч ирэх вэ?</label>
+              <label className="text-xs font-black uppercase tracking-widest text-black">Юу авч ирэх вэ?</label>
               <Textarea
                 value={currentRetreat.whatToBring || ''}
                 onChange={(e) => setCurrentRetreat({ ...currentRetreat, whatToBring: e.target.value })}
                 placeholder={'Мөр мөрөөр бичнэ:\nИогийн гудас\nБиед эвтэйхэн хувцас\nТэмдэглэлийн дэвтэр'}
                 className="rounded-xl min-h-[140px]"
               />
-              <p className="text-[11px] text-accent/40">Жагсаалтын нэг мөр = нэг item</p>
+              <p className="text-[11px] text-black/50">Жагсаалтын нэг мөр = нэг item</p>
             </div>
           </div>
 
           <div className="space-y-2">
-            <label className="text-xs font-black uppercase tracking-widest text-accent/40">Аяллын хуваарь</label>
+            <label className="text-xs font-black uppercase tracking-widest text-black">Аяллын хуваарь</label>
             <div className="space-y-3 rounded-xl border border-input bg-background p-4">
               {travelScheduleRows.map((row, index) => (
                 <div key={`travel-schedule-${index}`} className="grid grid-cols-1 gap-3 md:grid-cols-[140px_1fr_1.5fr_auto]">
@@ -398,7 +398,7 @@ export const RetreatsAdmin: React.FC = () => {
                 Мөр нэмэх
               </Button>
             </div>
-            <p className="text-[11px] text-accent/40">Цаг + үйл ажиллагаа + тайлбар байдлаар хуваарь үүсгэнэ</p>
+            <p className="text-[11px] text-black/50">Цаг + үйл ажиллагаа + тайлбар байдлаар хуваарь үүсгэнэ</p>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -409,7 +409,7 @@ export const RetreatsAdmin: React.FC = () => {
               onChange={(url) => setCurrentRetreat({ ...currentRetreat, image: url })}
             />
             <div className="space-y-2">
-              <label className="text-xs font-black uppercase tracking-widest text-accent/40">Үнэ (₮)</label>
+              <label className="text-xs font-black uppercase tracking-widest text-black">Үнэ (₮)</label>
               <Input 
                 value={String(currentRetreat.price ?? '')}
                 onChange={(e) => setCurrentRetreat({ ...currentRetreat, price: e.target.value })}
@@ -436,7 +436,7 @@ export const RetreatsAdmin: React.FC = () => {
         <div className="grid grid-cols-1 gap-6">
           {retreats.length === 0 ? (
             <div className="text-center py-20 bg-white rounded-3xl border border-dashed border-gray-200">
-              <p className="text-accent/40">Ретрит байхгүй байна.</p>
+              <p className="text-brand-ink/45">Ретрит байхгүй байна.</p>
             </div>
           ) : (
             retreats.map((item) => (
@@ -467,10 +467,10 @@ export const RetreatsAdmin: React.FC = () => {
                     </div>
                     <h3 className="text-2xl font-serif text-brand-ink mb-4">{item.title}</h3>
                     <div className="grid grid-cols-2 gap-4">
-                      <div className="flex items-center gap-2 text-sm text-accent/60">
+                      <div className="flex items-center gap-2 text-sm text-brand-ink/60">
                         <MapPin size={16} className="text-brand-icon" /> <span>{item.location}</span>
                       </div>
-                      <div className="flex items-center gap-2 text-sm text-accent/60">
+                      <div className="flex items-center gap-2 text-sm text-brand-ink/60">
                         <Calendar size={16} className="text-brand-icon" /> <span>{item.date}</span>
                       </div>
                     </div>

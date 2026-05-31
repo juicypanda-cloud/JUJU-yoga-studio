@@ -245,15 +245,15 @@ export const RevenueAdmin: React.FC = () => {
         </CardHeader>
         <CardContent className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
           <div className="space-y-2">
-            <label className="text-[10px] font-black uppercase tracking-widest text-brand-ink/45">Эхлэх</label>
+            <label className="text-[10px] font-black uppercase tracking-widest text-black">Эхлэх</label>
             <Input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="rounded-xl" />
           </div>
           <div className="space-y-2">
-            <label className="text-[10px] font-black uppercase tracking-widest text-brand-ink/45">Дуусах</label>
+            <label className="text-[10px] font-black uppercase tracking-widest text-black">Дуусах</label>
             <Input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="rounded-xl" />
           </div>
           <div className="space-y-2">
-            <label className="text-[10px] font-black uppercase tracking-widest text-brand-ink/45">Төлөв</label>
+            <label className="text-[10px] font-black uppercase tracking-widest text-black">Төлөв</label>
             <Select value={statusFilter} onValueChange={setStatusFilter}>
               <SelectTrigger className="rounded-xl">
                 <SelectValue />
@@ -267,7 +267,7 @@ export const RevenueAdmin: React.FC = () => {
             </Select>
           </div>
           <div className="space-y-2">
-            <label className="text-[10px] font-black uppercase tracking-widest text-brand-ink/45">Төрөл</label>
+            <label className="text-[10px] font-black uppercase tracking-widest text-black">Төрөл</label>
             <Select value={typeFilter} onValueChange={setTypeFilter}>
               <SelectTrigger className="rounded-xl">
                 <SelectValue />

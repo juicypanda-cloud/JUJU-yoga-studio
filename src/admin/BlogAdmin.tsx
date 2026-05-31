@@ -181,7 +181,7 @@ export const BlogAdmin: React.FC = () => {
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="space-y-2">
-              <label className="text-xs font-black uppercase tracking-widest text-accent/40">Гарчиг</label>
+              <label className="text-xs font-black uppercase tracking-widest text-black">Гарчиг</label>
               <Input 
                 lang="mn"
                 autoCapitalize="off"
@@ -193,7 +193,7 @@ export const BlogAdmin: React.FC = () => {
               />
             </div>
             <div className="space-y-2">
-              <label className="text-xs font-black uppercase tracking-widest text-accent/40">Ангилал</label>
+              <label className="text-xs font-black uppercase tracking-widest text-black">Ангилал</label>
               <select 
                 lang="mn"
                 value={currentPost.category}
@@ -209,7 +209,7 @@ export const BlogAdmin: React.FC = () => {
           </div>
 
           <div className="space-y-2">
-            <label className="text-xs font-black uppercase tracking-widest text-accent/40">Товч агуулга</label>
+            <label className="text-xs font-black uppercase tracking-widest text-black">Товч агуулга</label>
             <Textarea 
               lang="mn"
               spellCheck={false}
@@ -222,7 +222,7 @@ export const BlogAdmin: React.FC = () => {
           </div>
 
           <div className="space-y-2">
-            <label className="text-xs font-black uppercase tracking-widest text-accent/40">Үндсэн агуулга (HTML дэмжинэ)</label>
+            <label className="text-xs font-black uppercase tracking-widest text-black">Үндсэн агуулга (HTML дэмжинэ)</label>
             <Textarea 
               lang="mn"
               spellCheck={false}
@@ -242,7 +242,7 @@ export const BlogAdmin: React.FC = () => {
               onChange={(url) => setCurrentPost({ ...currentPost, image: url })}
             />
             <div className="space-y-2">
-              <label className="text-xs font-black uppercase tracking-widest text-accent/40">Огноо</label>
+              <label className="text-xs font-black uppercase tracking-widest text-black">Огноо</label>
               <Input 
                 lang="mn"
                 value={currentPost.date}
@@ -270,7 +270,7 @@ export const BlogAdmin: React.FC = () => {
         <div className="grid grid-cols-1 gap-4">
           {posts.length === 0 ? (
             <div className="text-center py-20 bg-white rounded-3xl border border-dashed border-gray-200">
-              <p className="text-accent/40">Нийтлэл байхгүй байна.</p>
+              <p className="text-brand-ink/45">Нийтлэл байхгүй байна.</p>
             </div>
           ) : (
             posts.map((post) => (
@@ -291,12 +291,12 @@ export const BlogAdmin: React.FC = () => {
                   <div className="flex items-center gap-3 mb-1">
                     <span className="text-[10px] font-black uppercase tracking-widest text-brand-icon">{post.category}</span>
                     <span className="text-gray-300">•</span>
-                    <span className="text-[10px] font-medium text-accent/40 flex items-center gap-1">
+                    <span className="text-[10px] font-medium text-brand-ink/45 flex items-center gap-1">
                       <Calendar size={10} /> {post.date}
                     </span>
                   </div>
                   <h3 className="text-lg font-serif text-brand-ink truncate">{post.title}</h3>
-                  <p className="text-sm text-accent/60 line-clamp-1 font-light">{post.excerpt}</p>
+                  <p className="text-sm text-brand-ink/60 line-clamp-1 font-light">{post.excerpt}</p>
                 </div>
                 <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                   {deleteId === post.id ? (

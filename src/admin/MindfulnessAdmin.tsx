@@ -168,7 +168,7 @@ export const MindfulnessAdmin: React.FC = () => {
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="space-y-2">
-              <label className="text-xs font-black uppercase tracking-widest text-brand-ink/45">Гарчиг</label>
+              <label className="text-xs font-black uppercase tracking-widest text-black">Гарчиг</label>
               <Input 
                 value={currentTip.title}
                 onChange={(e) => setCurrentTip({ ...currentTip, title: e.target.value })}
@@ -177,7 +177,7 @@ export const MindfulnessAdmin: React.FC = () => {
               />
             </div>
             <div className="space-y-2">
-              <label className="text-xs font-black uppercase tracking-widest text-brand-ink/45">Ангилал</label>
+              <label className="text-xs font-black uppercase tracking-widest text-black">Ангилал</label>
               <select 
                 value={currentTip.category}
                 onChange={(e) => setCurrentTip({ ...currentTip, category: e.target.value })}
@@ -192,7 +192,7 @@ export const MindfulnessAdmin: React.FC = () => {
           </div>
 
           <div className="space-y-2">
-            <label className="text-xs font-black uppercase tracking-widest text-brand-ink/45">Агуулга</label>
+            <label className="text-xs font-black uppercase tracking-widest text-black">Агуулга</label>
             <Textarea 
               value={currentTip.content}
               onChange={(e) => setCurrentTip({ ...currentTip, content: e.target.value })}
@@ -202,7 +202,7 @@ export const MindfulnessAdmin: React.FC = () => {
           </div>
 
           <div className="space-y-2">
-            <label className="text-xs font-black uppercase tracking-widest text-brand-ink/45">Зохиогч</label>
+            <label className="text-xs font-black uppercase tracking-widest text-black">Зохиогч</label>
             <Input 
               value={currentTip.author}
               onChange={(e) => setCurrentTip({ ...currentTip, author: e.target.value })}

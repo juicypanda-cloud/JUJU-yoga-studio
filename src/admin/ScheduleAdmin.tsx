@@ -193,7 +193,7 @@ export const ScheduleAdmin: React.FC = () => {
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="space-y-2">
-              <label className="text-xs font-black uppercase tracking-widest text-accent/40">Хичээл сонгох</label>
+              <label className="text-xs font-black uppercase tracking-widest text-black">Хичээл сонгох</label>
               <select 
                 value={currentItem.classId}
                 onChange={(e) => setCurrentItem({ ...currentItem, classId: e.target.value })}
@@ -206,7 +206,7 @@ export const ScheduleAdmin: React.FC = () => {
               </select>
             </div>
             <div className="space-y-2">
-              <label className="text-xs font-black uppercase tracking-widest text-accent/40">Өдөр</label>
+              <label className="text-xs font-black uppercase tracking-widest text-black">Өдөр</label>
               <select 
                 value={currentItem.dayOfWeek}
                 onChange={(e) => setCurrentItem({ ...currentItem, dayOfWeek: e.target.value })}
@@ -221,7 +221,7 @@ export const ScheduleAdmin: React.FC = () => {
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div className="space-y-2">
-              <label className="text-xs font-black uppercase tracking-widest text-accent/40">Эхлэх цаг</label>
+              <label className="text-xs font-black uppercase tracking-widest text-black">Эхлэх цаг</label>
               <Input 
                 type="time"
                 value={currentItem.startTime}
@@ -230,7 +230,7 @@ export const ScheduleAdmin: React.FC = () => {
               />
             </div>
             <div className="space-y-2">
-              <label className="text-xs font-black uppercase tracking-widest text-accent/40">Дуусах цаг</label>
+              <label className="text-xs font-black uppercase tracking-widest text-black">Дуусах цаг</label>
               <Input 
                 type="time"
                 value={currentItem.endTime}
@@ -239,7 +239,7 @@ export const ScheduleAdmin: React.FC = () => {
               />
             </div>
             <div className="space-y-2">
-              <label className="text-xs font-black uppercase tracking-widest text-accent/40">Өрөө/Заал</label>
+              <label className="text-xs font-black uppercase tracking-widest text-black">Өрөө/Заал</label>
               <Input 
                 value={currentItem.room}
                 onChange={(e) => setCurrentItem({ ...currentItem, room: e.target.value })}
@@ -282,7 +282,7 @@ export const ScheduleAdmin: React.FC = () => {
                           <Clock size={12} /> {item.startTime} - {item.endTime}
                         </div>
                         <h3 className="text-sm font-medium text-brand-ink">{item.className}</h3>
-                        <p className="text-[10px] text-accent/40">{item.teacherName} • {item.room}</p>
+                        <p className="text-[10px] text-brand-ink/45">{item.teacherName} • {item.room}</p>
                       </div>
                       <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                         <Button 
@@ -313,7 +313,7 @@ export const ScheduleAdmin: React.FC = () => {
           })}
           {schedule.length === 0 && (
             <div className="text-center py-20 bg-white rounded-3xl border border-dashed border-gray-200">
-              <p className="text-accent/40">Хуваарь хоосон байна.</p>
+              <p className="text-brand-ink/45">Хуваарь хоосон байна.</p>
             </div>
           )}
         </div>

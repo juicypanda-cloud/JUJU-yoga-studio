@@ -443,7 +443,7 @@ export const ClassAttendanceAdmin: React.FC = () => {
         </div>
         <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:gap-4">
           <div className="flex flex-col gap-2.5">
-            <label className="text-[10px] font-black uppercase tracking-widest text-brand-ink/40">
+            <label className="text-[10px] font-black uppercase tracking-widest text-black">
               Багш
             </label>
             <select
@@ -527,19 +527,19 @@ export const ClassAttendanceAdmin: React.FC = () => {
                         <table className="w-full min-w-[640px] text-left border-collapse">
                           <thead>
                             <tr className="bg-secondary/20">
-                              <th className="px-4 py-2.5 text-[10px] font-black uppercase tracking-widest text-brand-ink/40">
+                              <th className="px-4 py-2.5 text-[10px] font-black uppercase tracking-widest text-black">
                                 Суралцагч
                               </th>
-                              <th className="px-4 py-2.5 text-[10px] font-black uppercase tracking-widest text-brand-ink/40">
+                              <th className="px-4 py-2.5 text-[10px] font-black uppercase tracking-widest text-black">
                                 Имэйл
                               </th>
-                              <th className="px-4 py-2.5 text-[10px] font-black uppercase tracking-widest text-brand-ink/40">
+                              <th className="px-4 py-2.5 text-[10px] font-black uppercase tracking-widest text-black">
                                 Захиалал
                               </th>
-                              <th className="px-4 py-2.5 text-[10px] font-black uppercase tracking-widest text-brand-ink/40">
+                              <th className="px-4 py-2.5 text-[10px] font-black uppercase tracking-widest text-black">
                                 Ирц
                               </th>
-                              <th className="px-4 py-2.5 text-[10px] font-black uppercase tracking-widest text-brand-ink/40">
+                              <th className="px-4 py-2.5 text-[10px] font-black uppercase tracking-widest text-black">
                                 Огноо
                               </th>
                             </tr>

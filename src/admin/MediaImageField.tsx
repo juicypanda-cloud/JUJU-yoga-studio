@@ -202,7 +202,7 @@ export const MediaImageField: React.FC<MediaImageFieldProps> = ({
   return (
     <div className={cn('space-y-2', className)}>
       <MediaImagePickerModal open={pickerOpen} onOpenChange={setPickerOpen} onSelect={onChange} title={label} />
-      <label className="text-xs font-black uppercase tracking-widest text-accent/40">{label}</label>
+      <label className="text-xs font-black uppercase tracking-widest text-black">{label}</label>
       {description ? <p className="text-xs text-muted-foreground">{description}</p> : null}
       <div className="flex flex-wrap items-center gap-3">
         <div className="flex h-20 w-20 shrink-0 overflow-hidden rounded-xl border border-border bg-muted">

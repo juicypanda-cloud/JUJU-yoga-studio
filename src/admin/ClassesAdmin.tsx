@@ -602,7 +602,7 @@ export const ClassesAdmin: React.FC = () => {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {classes.length === 0 ? (
             <div className="col-span-full text-center py-20 bg-white rounded-3xl border border-dashed border-gray-200">
-              <p className="text-accent/40">Хичээл байхгүй байна.</p>
+              <p className="text-brand-ink/45">Хичээл байхгүй байна.</p>
             </div>
           ) : (
             classes.map((item) => (
@@ -625,14 +625,14 @@ export const ClassesAdmin: React.FC = () => {
                   </div>
                   <h3 className="text-lg font-serif text-brand-ink truncate mb-2">{item.title}</h3>
                   <div className="space-y-1 mb-4">
-                    <div className="flex items-center gap-2 text-xs text-accent/60">
+                    <div className="flex items-center gap-2 text-xs text-brand-ink/60">
                       <Users size={14} /> <span>{item.teacher}</span>
                     </div>
-                    <div className="flex items-center gap-2 text-xs text-accent/60">
+                    <div className="flex items-center gap-2 text-xs text-brand-ink/60">
                       <Clock size={14} /> <span>{item.duration}</span>
                     </div>
                     {item.scheduleSlots && item.scheduleSlots.length > 0 && (
-                      <div className="text-xs text-accent/60">
+                      <div className="text-xs text-brand-ink/60">
                         Хуваарь: {item.scheduleSlots.map((slot) => `${slot.dayOfWeek} ${slot.startTime}-${slot.endTime}`).join(', ')}
                       </div>
                     )}
