@@ -42,13 +42,17 @@ export const RetreatDetail: React.FC = () => {
 
   useEffect(() => {
     const fetchRetreat = async () => {
-      if (!id) return;
+      if (!id) {
+        setLoading(false);
+        return;
+      }
 
       try {
         const docRef = doc(db, 'retreats', id);
         const docSnap = await getDoc(docRef);
         if (docSnap.exists()) {
           setRetreat({ id: docSnap.id, ...docSnap.data() });
+          setLoading(false);
           return;
         }
       } catch (error) {
