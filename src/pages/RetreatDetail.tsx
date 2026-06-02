@@ -10,6 +10,10 @@ import { toast } from 'sonner';
 import { formatRetreatPriceWithSymbol } from '../lib/formatRetreatPrice';
 
 const toLineItems = (raw: unknown): string[] => {
+  if (Array.isArray(raw)) {
+    return raw.map((v) => String(v).trim()).filter(Boolean);
+  }
+
   const value = typeof raw === 'string' ? raw : '';
   return value
     .split('\n')
@@ -18,6 +22,19 @@ const toLineItems = (raw: unknown): string[] => {
 };
 
 const toScheduleItems = (raw: unknown): Array<{ time: string; activity: string; desc: string }> => {
+  if (Array.isArray(raw)) {
+    return raw
+      .map((row) => {
+        const r = row as any;
+        return {
+          time: String(r?.time ?? '').trim(),
+          activity: String(r?.activity ?? '').trim(),
+          desc: String(r?.desc ?? r?.description ?? '').trim(),
+        };
+      })
+      .filter((row) => row.time || row.activity || row.desc);
+  }
+
   const value = typeof raw === 'string' ? raw : '';
   return value
     .split('\n')
