@@ -44,26 +44,24 @@ export const RetreatDetail: React.FC = () => {
     const fetchRetreat = async () => {
       if (!id) return;
 
-      // Check local data first
-      const localRetreat = retreatsData.find(r => r.id === id);
-      if (localRetreat) {
-        setRetreat(localRetreat);
-        setLoading(false);
-        return;
-      }
-
-      // Then check Firebase
       try {
         const docRef = doc(db, 'retreats', id);
         const docSnap = await getDoc(docRef);
         if (docSnap.exists()) {
           setRetreat({ id: docSnap.id, ...docSnap.data() });
+          return;
         }
       } catch (error) {
         console.error("Error fetching retreat:", error);
-      } finally {
-        setLoading(false);
       }
+
+      // Fallback to local seed data (only if Firestore doc not found / not readable)
+      const localRetreat = retreatsData.find(r => r.id === id);
+      if (localRetreat) {
+        setRetreat(localRetreat);
+      }
+
+      setLoading(false);
     };
 
     fetchRetreat();
