@@ -25,7 +25,7 @@ export const About: React.FC = () => {
               transition={{ delay: 0.2 }}
               className="text-lg text-brand-ink/60 font-light leading-relaxed"
             >
-              Mya Wellbeing бол зөвхөн студи биш, энэ бол таны өөрийгөө нээх, дотоод амар амгаланг олох аялалын эхлэл юм.
+              JUJU Yoga Studio бол зөвхөн студи биш, энэ бол таны өөрийгөө нээх, дотоод амар амгаланг олох аялалын эхлэл юм.
             </motion.p>
           </div>
         </div>

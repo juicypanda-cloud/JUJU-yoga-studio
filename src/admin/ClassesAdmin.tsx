@@ -75,7 +75,7 @@ interface YogaClass {
   teacher: string;
   image: string;
   category: string;
-  price?: number;
+  price?: string | number;
   benefits?: string[];
   scheduleSlots?: ScheduleSlot[];
   createdAt: any;
@@ -105,7 +105,7 @@ export const ClassesAdmin: React.FC = () => {
     teacher: '',
     image: '',
     category: 'Yoga',
-    price: 0,
+    price: '',
     benefits: [''],
     scheduleSlots: [{ dayOfWeek: 'Даваа', startTime: '08:00', endTime: '09:00' }]
   });
@@ -236,7 +236,8 @@ export const ClassesAdmin: React.FC = () => {
     const validBenefits = (currentClass.benefits || []).map((benefit) => benefit.trim()).filter(Boolean);
     const className = currentClass.title || '';
     const teacherName = selectedTeacher?.name || currentClass.teacher || '';
-    const classPrice = Number(currentClass.price || 0);
+    const priceRaw = String(currentClass.price ?? '').trim();
+    const classPrice = priceRaw === '' ? 0 : Number(priceRaw.replace(/\D/g, '')) || 0;
     const normalizedCategory = normalizeClassCategory(currentClass.category);
 
     setIsSaving(true);
@@ -286,7 +287,7 @@ export const ClassesAdmin: React.FC = () => {
         teacher: '',
         image: '',
         category: 'Yoga',
-        price: 0,
+        price: '',
         benefits: [''],
         scheduleSlots: [{ dayOfWeek: 'Даваа', startTime: '08:00', endTime: '09:00' }]
       });
@@ -341,7 +342,7 @@ export const ClassesAdmin: React.FC = () => {
                 teacher: '',
                 image: '',
                 category: 'Yoga',
-                price: 0,
+                price: '',
                 benefits: [''],
                 scheduleSlots: [{ dayOfWeek: 'Даваа', startTime: '08:00', endTime: '09:00' }]
               });
@@ -579,11 +580,9 @@ export const ClassesAdmin: React.FC = () => {
             <div className="space-y-2">
               <label className="text-xs font-black uppercase tracking-widest text-black">Үнэ (₮)</label>
               <Input
-                type="number"
-                min={0}
-                value={currentClass.price ?? 0}
-                onChange={(e) => setCurrentClass({ ...currentClass, price: Number(e.target.value) })}
-                placeholder="0"
+                value={String(currentClass.price ?? '')}
+                onChange={(e) => setCurrentClass({ ...currentClass, price: e.target.value })}
+                placeholder="45000"
                 className="rounded-xl"
               />
             </div>
