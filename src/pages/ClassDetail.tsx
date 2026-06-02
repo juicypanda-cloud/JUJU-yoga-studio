@@ -5,7 +5,7 @@ import { ArrowLeft, Clock, Calendar, CheckCircle2, Loader2, QrCode, Smartphone }
 import { Button } from '../components/ui/button';
 import { classData } from '../data/classes';
 import { db } from '../firebase';
-import { addDoc, collection, doc, getDocs, onSnapshot, query, where } from 'firebase/firestore';
+import { addDoc, collection, doc, getDoc, getDocs, onSnapshot, query, where } from 'firebase/firestore';
 import { useAuth } from '../context/AuthContext';
 import type { ClassItem } from '../types/class';
 import { toast } from 'sonner';
@@ -26,6 +26,8 @@ import {
   readJsonSafe,
   waitForImageReady,
 } from '../lib/qpayHelpers';
+import { ClassCoverImage } from '../components/ClassCoverImage';
+import { preloadClassImages, resolveClassImageUrl } from '../lib/classImage';
 
 type ClassDetailItem = ClassItem & {
   category: string;
@@ -89,7 +91,7 @@ const normalizeClassDetail = (id: string, raw: any): ClassDetailItem => {
     videoUrl: typeof raw?.videoUrl === 'string' ? raw.videoUrl : '',
     audioUrl: typeof raw?.audioUrl === 'string' ? raw.audioUrl : '',
     createdAt: raw?.createdAt,
-    image: typeof raw?.image === 'string' ? raw.image : 'https://picsum.photos/seed/class-detail/1200/900',
+    image: resolveClassImageUrl(raw?.image),
     category: normalizedCategory,
     schedule,
     time,
@@ -122,36 +124,57 @@ export const ClassDetail: React.FC = () => {
       return;
     }
 
+    let cancelled = false;
     setLoading(true);
+
+    const staticItem = classData.find((item) => item.id === id);
+    if (staticItem) {
+      const normalizedStatic = normalizeClassDetail(staticItem.id, staticItem);
+      setClassItem(normalizedStatic);
+      preloadClassImages([normalizedStatic.image]);
+      setLoading(false);
+    }
+
     const classRef = doc(db, 'classes', id);
+
+    const applyClassDoc = (classDoc: { exists: () => boolean; id: string; data: () => unknown }) => {
+      if (cancelled) return;
+      if (classDoc.exists()) {
+        const normalized = normalizeClassDetail(classDoc.id, classDoc.data());
+        setClassItem(normalized);
+        preloadClassImages([normalized.image]);
+      } else if (!staticItem) {
+        setClassItem(null);
+      }
+      setLoading(false);
+    };
+
+    getDoc(classRef)
+      .then(applyClassDoc)
+      .catch((error) => {
+        console.error('[ClassDetail] Class fetch error:', error);
+        if (cancelled) return;
+        if (!staticItem) setClassItem(null);
+        setLoading(false);
+      });
+
     const unsubscribe = onSnapshot(
       classRef,
-      (classDoc) => {
-        if (classDoc.exists()) {
-          setClassItem(normalizeClassDetail(classDoc.id, classDoc.data()));
-        } else {
-          const staticItem = classData.find((item) => item.id === id);
-          if (staticItem) {
-            setClassItem(normalizeClassDetail(staticItem.id, staticItem));
-          } else {
-            setClassItem(null);
-          }
-        }
-        setLoading(false);
-      },
+      applyClassDoc,
       (error) => {
         console.error('[ClassDetail] Class subscription error:', error);
-        const staticItem = classData.find((item) => item.id === id);
-        if (staticItem) {
-          setClassItem(normalizeClassDetail(staticItem.id, staticItem));
-        } else {
+        if (cancelled) return;
+        if (!staticItem) {
           setClassItem(null);
         }
         setLoading(false);
       }
     );
 
-    return () => unsubscribe();
+    return () => {
+      cancelled = true;
+      unsubscribe();
+    };
   }, [id]);
 
   useEffect(() => {
@@ -400,13 +423,12 @@ export const ClassDetail: React.FC = () => {
             className="space-y-8"
           >
             <div className="relative aspect-[4/3] rounded-[2rem] overflow-hidden shadow-2xl shadow-brand-ink/10">
-              <img
+              <ClassCoverImage
                 src={classItem.image}
                 alt={classItem.title}
                 className="absolute inset-0 h-full w-full object-cover"
                 loading="eager"
                 fetchPriority="high"
-                decoding="async"
               />
               <div className="absolute top-8 left-8">
                 <span className="bg-white/90 backdrop-blur-md px-6 py-2 rounded-full text-[10px] font-black uppercase tracking-widest text-brand-icon shadow-xl">

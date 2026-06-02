@@ -126,7 +126,7 @@ const RouteLoadingOverlay: React.FC = () => {
     // Never block the whole app for long — worst case stuck network image.
     const hardTimeout = window.setTimeout(() => {
       if (!cancelled) setVisible(false);
-    }, 1200);
+    }, 700);
 
     return () => {
       cancelled = true;
@@ -140,7 +140,7 @@ const RouteLoadingOverlay: React.FC = () => {
   if (!visible) return null;
 
   return (
-    <div className="fixed inset-0 z-[120] flex items-center justify-center bg-white">
+    <div className="pointer-events-none fixed inset-0 z-[120] flex items-center justify-center bg-white">
       <div className="flex flex-col items-center gap-4">
         <div className="w-12 h-12 border-4 border-brand-icon/20 border-t-brand-icon rounded-full animate-spin" />
         <p className="text-[10px] font-black uppercase tracking-[0.2em] text-brand-ink/40">Уншиж байна...</p>

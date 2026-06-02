@@ -6,7 +6,13 @@ import { classData as staticClassData } from '../data/classes';
 import { collection, onSnapshot, query, orderBy } from 'firebase/firestore';
 import { db } from '../firebase';
 import { ErrorBoundary } from '../components/ErrorBoundary';
+import { ClassCoverImage } from '../components/ClassCoverImage';
+import { preloadClassImages, resolveClassImageUrl } from '../lib/classImage';
 import type { ClassItem as BaseClassItem } from '../types/class';
+
+const prefetchClassDetail = () => {
+  void import('./ClassDetail');
+};
 
 type ScheduleSlot = {
   dayOfWeek?: string;
@@ -37,8 +43,6 @@ type ClassItem = BaseClassItem & {
   teacherName: string;
 };
 
-const CLASS_FALLBACK_IMAGE = 'https://picsum.photos/seed/class-fallback/1200/800';
-
 const normalizeCategory = (value?: string): string => {
   const raw = String(value || '').trim();
   if (!raw) return 'Class';
@@ -57,7 +61,7 @@ const normalizeClassItem = (raw: RawClassItem, fallbackId: string): ClassItem =>
   id: typeof raw?.id === 'string' ? raw.id : fallbackId,
   title: typeof raw?.title === 'string' ? raw.title : 'Untitled class',
   type: raw?.type === 'online' || raw?.type === 'audio' ? raw.type : 'offline',
-  image: typeof raw?.image === 'string' ? raw.image : CLASS_FALLBACK_IMAGE,
+  image: resolveClassImageUrl(raw?.image),
   videoUrl: typeof raw?.videoUrl === 'string' ? raw.videoUrl : undefined,
   audioUrl: typeof raw?.audioUrl === 'string' ? raw.audioUrl : undefined,
   createdAt: raw?.createdAt,
@@ -78,7 +82,13 @@ export const Classes: React.FC = () => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    setLoading(true);
+    const staticClasses = (staticClassData as RawClassItem[]).map((item, index) =>
+      normalizeClassItem({ ...item, id: String(item?.id || `static-${index}`) }, `static-${index}`)
+    );
+    setClasses(staticClasses);
+    setLoading(false);
+    preloadClassImages(staticClasses.map((item) => item.image));
+
     const q = query(collection(db, 'classes'), orderBy('createdAt', 'desc'));
     const unsubscribe = onSnapshot(
       q,
@@ -87,22 +97,13 @@ export const Classes: React.FC = () => {
           normalizeClassItem({ id: classDoc.id, ...(classDoc.data() as RawClassItem) }, classDoc.id)
         );
 
-        const normalizedData =
-          firestoreClasses.length > 0
-            ? firestoreClasses
-            : (staticClassData as RawClassItem[]).map((item, index) =>
-                normalizeClassItem({ ...item, id: String(item?.id || `static-${index}`) }, `static-${index}`)
-              );
-
+        const normalizedData = firestoreClasses.length > 0 ? firestoreClasses : staticClasses;
         setClasses(normalizedData);
-        setLoading(false);
+        preloadClassImages(normalizedData.map((item) => item.image));
       },
       (error) => {
         console.error('Error subscribing to classes:', error);
-        setClasses((staticClassData as RawClassItem[]).map((item, index) =>
-          normalizeClassItem({ ...item, id: String(item?.id || `static-${index}`) }, `static-${index}`)
-        ));
-        setLoading(false);
+        setClasses(staticClasses);
       }
     );
 
@@ -266,16 +267,20 @@ export const Classes: React.FC = () => {
                 transition={{ duration: 0.35, ease: 'easeOut' }}
                 className="h-full"
               >
-                <Link to={`/classes/${item?.id}`} className="block h-full">
+                <Link
+                  to={`/classes/${item?.id}`}
+                  className="block h-full"
+                  onMouseEnter={prefetchClassDetail}
+                  onFocus={prefetchClassDetail}
+                >
                   <article className="group relative flex h-full flex-col overflow-hidden rounded-3xl border border-brand-ink/[0.07] bg-white shadow-[0_2px_28px_-6px_rgba(26,26,26,0.1)] transition-all duration-500 ease-out hover:-translate-y-1.5 hover:border-brand-ink/12 hover:shadow-[0_24px_56px_-16px_rgba(26,26,26,0.18)]">
                     <div className="relative aspect-[5/4] shrink-0 overflow-hidden bg-secondary/20">
-                      <img
+                      <ClassCoverImage
                         src={item.image}
                         alt={item.title}
-                        className="absolute inset-0 h-full w-full object-cover block"
+                        className="absolute inset-0 h-full w-full object-cover"
                         loading="eager"
                         fetchPriority="high"
-                        decoding="async"
                       />
                       <div
                         className="pointer-events-none absolute inset-0 bg-gradient-to-t from-brand-ink/55 via-brand-ink/10 to-transparent opacity-80 transition-opacity duration-500 group-hover:opacity-95"
