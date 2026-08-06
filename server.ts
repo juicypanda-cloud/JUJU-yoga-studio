@@ -5,6 +5,7 @@ import { createServer as createViteServer } from 'vite';
 import dotenv from 'dotenv';
 import { handleCreateInvoiceRequest } from './lib/server/qpayCreateInvoice.ts';
 import { processQPayWebhook } from './lib/server/qpayWebhookCore.ts';
+import { getServerAuth, getServerFirestore } from './lib/server/firebaseAdmin.ts';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -230,6 +231,30 @@ async function startServer() {
       return res.status(status).json(json);
     } catch (error) {
       return res.status(500).json({ error: (error as Error).message });
+    }
+  });
+
+  app.post('/api/admin/set-role', async (req, res) => {
+    try {
+      const { idToken, targetUserId, newRole } = req.body ?? {};
+      if (!idToken || !targetUserId || !newRole) {
+        return res.status(400).json({ error: 'idToken, targetUserId, and newRole are required' });
+      }
+      const auth = getServerAuth();
+      const decoded = await auth.verifyIdToken(String(idToken));
+      const db = getServerFirestore();
+      const callerSnap = await db.collection('users').doc(decoded.uid).get();
+      if (String(callerSnap.data()?.role || '') !== 'admin') {
+        return res.status(403).json({ error: 'Forbidden: Only admins can manage roles' });
+      }
+      if (!['admin', 'teacher', 'client', 'user'].includes(String(newRole))) {
+        return res.status(400).json({ error: 'Invalid role' });
+      }
+      await db.collection('users').doc(String(targetUserId)).update({ role: newRole });
+      return res.json({ ok: true, userId: targetUserId, role: newRole });
+    } catch (error) {
+      console.error('[api/admin/set-role]', error);
+      return res.status(500).json({ error: 'Failed to update user role' });
     }
   });
 

@@ -91,8 +91,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     user,
     profile,
     loading,
-    isAdmin: profile?.role === 'admin' || (user?.email === 'anand@one.mn' && user?.emailVerified),
-    isTeacher: profile?.role === 'teacher' || profile?.role === 'admin' || (user?.email === 'anand@one.mn' && user?.emailVerified),
+    isAdmin: profile?.role === 'admin',
+    isTeacher: profile?.role === 'teacher' || profile?.role === 'admin',
     isSubscribed: profile?.subscriptionStatus === 'active',
   };
 

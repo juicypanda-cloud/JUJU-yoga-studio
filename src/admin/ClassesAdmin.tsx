@@ -638,7 +638,7 @@ export const ClassesAdmin: React.FC = () => {
                   </div>
                   <div className="flex justify-between items-center">
                     <span className="text-sm font-bold text-brand-ink">
-                      {item.price && item.price > 0 ? `${item.price.toLocaleString()} ₮` : normalizeClassCategory(item.category)}
+                      {Number(item.price || 0) > 0 ? `${Number(item.price).toLocaleString()} ₮` : normalizeClassCategory(item.category)}
                     </span>
                     <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                       {deleteId === item.id ? (

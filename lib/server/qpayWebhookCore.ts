@@ -68,6 +68,59 @@ function parsePaymentIntentFromStored(raw: unknown): PaymentIntent | null {
   return null;
 }
 
+/**
+ * Security boundary: Extracts total paid amount and currency returned from QPay.
+ */
+export function extractQPayPaidAmountAndCurrency(payload: unknown): { paidAmount: number | null; currency: string | null } {
+  if (!payload || typeof payload !== 'object') return { paidAmount: null, currency: null };
+  const root = payload as Record<string, unknown>;
+
+  const rows = root.rows;
+  if (Array.isArray(rows) && rows.length > 0) {
+    let totalAmt = 0;
+    let curr: string | null = null;
+    let foundPaid = false;
+
+    for (const r of rows) {
+      if (!r || typeof r !== 'object') continue;
+      const rowObj = r as Record<string, unknown>;
+      const amtRaw = rowObj.payment_amount ?? rowObj.amount ?? rowObj.paid_amount ?? rowObj.paidAmount;
+      const c = pickString(rowObj.payment_currency ?? rowObj.currency);
+
+      if (c) curr = c;
+
+      if (typeof amtRaw === 'number' && Number.isFinite(amtRaw)) {
+        totalAmt += amtRaw;
+        foundPaid = true;
+      } else if (typeof amtRaw === 'string') {
+        const parsed = parseFloat(amtRaw.replace(/,/g, ''));
+        if (!Number.isNaN(parsed)) {
+          totalAmt += parsed;
+          foundPaid = true;
+        }
+      }
+    }
+
+    if (foundPaid) {
+      return { paidAmount: totalAmt, currency: curr || 'MNT' };
+    }
+  }
+
+  const paidAmtRaw = root.paid_amount ?? root.paidAmount ?? root.amount;
+  const currencyRaw = pickString(root.currency ?? root.payment_currency);
+  if (typeof paidAmtRaw === 'number' && Number.isFinite(paidAmtRaw)) {
+    return { paidAmount: paidAmtRaw, currency: currencyRaw || 'MNT' };
+  }
+  if (typeof paidAmtRaw === 'string') {
+    const parsed = parseFloat(paidAmtRaw.replace(/,/g, ''));
+    if (!Number.isNaN(parsed)) {
+      return { paidAmount: parsed, currency: currencyRaw || 'MNT' };
+    }
+  }
+
+  return { paidAmount: null, currency: currencyRaw || null };
+}
+
 async function fetchQPayPaymentCheckPayload(invoiceId: string): Promise<unknown> {
   const { data } = await qpayRequest<Record<string, unknown>>('/v2/payment/check', {
     method: 'POST',
@@ -80,7 +133,6 @@ async function fetchQPayPaymentCheckPayload(invoiceId: string): Promise<unknown>
   return data;
 }
 
-/** QPay may lag slightly behind the customer app; retry before treating as unpaid. */
 async function fetchQPayPaymentCheckWithRetries(invoiceId: string): Promise<unknown> {
   const delaysMs = [0, 450, 1100, 2400];
   let last: unknown = {};
@@ -135,14 +187,35 @@ export async function processQPayWebhook(body: unknown): Promise<{ status: numbe
   if (!pre.exists) {
     return { status: 404, json: { ok: false, error: 'payment event not found' } };
   }
+
   const preData = pre.data() as Record<string, unknown>;
+
+  // Security boundary: Idempotent fulfillment check
   if (preData.processed === true) {
     return { status: 200, json: { ok: true, idempotent: true, invoiceId } };
   }
 
+  // Security boundary: Confirm payment status with QPay provider API
   const paidPayload = await fetchQPayPaymentCheckWithRetries(invoiceId);
   if (!hasPaidStatus(paidPayload)) {
     return { status: 200, json: { ok: true, paid: false, invoiceId } };
+  }
+
+  // Security boundary: Verify paid amount and currency match server-stored invoice event details
+  const expectedAmount = Number(preData.amount ?? 0);
+  const expectedCurrency = String(preData.currency || 'MNT').toUpperCase();
+  const { paidAmount, currency: paidCurrency } = extractQPayPaidAmountAndCurrency(paidPayload);
+
+  if (paidAmount !== null && paidAmount + 0.01 < expectedAmount) {
+    console.error(`[QPay webhook] Paid amount mismatch for invoice ${invoiceId}: expected ${expectedAmount}, received ${paidAmount}`);
+    await eventRef.update({ status: 'failed_amount_mismatch', processed: false });
+    return { status: 400, json: { ok: false, error: 'paid_amount_mismatch' } };
+  }
+
+  if (paidCurrency && paidCurrency.toUpperCase() !== expectedCurrency) {
+    console.error(`[QPay webhook] Currency mismatch for invoice ${invoiceId}: expected ${expectedCurrency}, received ${paidCurrency}`);
+    await eventRef.update({ status: 'failed_currency_mismatch', processed: false });
+    return { status: 400, json: { ok: false, error: 'currency_mismatch' } };
   }
 
   try {
@@ -179,7 +252,7 @@ export async function processQPayWebhook(body: unknown): Promise<{ status: numbe
         userSnap = await t.get(userRef);
       }
 
-      // All document reads must complete before any write (Firestore transaction rule).
+      // Mark payment event paid/processed
       t.update(eventRef, {
         status: 'paid',
         processed: true,
@@ -219,6 +292,8 @@ export async function processQPayWebhook(body: unknown): Promise<{ status: numbe
         const sData = scheduleSnap.data() as Record<string, unknown>;
         const cap = Number(sData.capacity ?? 0);
         const booked = Number(sData.bookedCount ?? 0);
+
+        // Security boundary: Atomic schedule capacity check
         if (booked >= cap) {
           throw new Error('CAPACITY_FULL');
         }
@@ -244,6 +319,7 @@ export async function processQPayWebhook(body: unknown): Promise<{ status: numbe
         if (!userSnap.exists) {
           throw new Error('USER_NOT_FOUND');
         }
+        // Security boundary: Duration is strictly set from server intent, defaulting to 30 days
         const days = Math.max(1, Number(intent.durationDays ?? 30));
         const startIso = new Date().toISOString();
         const endIso = new Date(Date.now() + days * 24 * 60 * 60 * 1000).toISOString();

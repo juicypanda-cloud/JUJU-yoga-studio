@@ -5,9 +5,10 @@ service firebase.storage {
       return request.auth != null;
     }
     
+    // Security boundary: Admin check via Firestore user document role (no hardcoded email bypass)
     function isAdmin() {
       return isAuthenticated() && 
-        (request.auth.token.email == "anand@one.mn" && request.auth.token.email_verified == true);
+        firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
 
     match /{allPaths=**} {

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { collection, getDocs, updateDoc, deleteDoc, doc, query, orderBy } from 'firebase/firestore';
-import { db } from '../firebase';
+import { auth, db } from '../firebase';
 import { Button } from '../components/ui/button';
 import { 
   Users, 
@@ -53,12 +53,26 @@ export const UsersAdmin: React.FC = () => {
 
   const handleRoleChange = async (userId: string, newRole: string) => {
     try {
-      await updateDoc(doc(db, 'users', userId), { role: newRole });
+      const authUser = auth.currentUser;
+      if (!authUser) {
+        toast.error('Эхлээд нэвтэрнэ үү');
+        return;
+      }
+      const idToken = await authUser.getIdToken();
+      const res = await fetch('/api/admin/set-role', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ idToken, targetUserId: userId, newRole }),
+      });
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || 'Эрх шинэчлэхэд алдаа гарлаа');
+      }
       toast.success('Эрх амжилттай шинэчлэгдлээ');
       fetchUsers();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error updating role:', error);
-      toast.error('Эрх шинэчлэхэд алдаа гарлаа');
+      toast.error(error?.message || 'Эрх шинэчлэхэд алдаа гарлаа');
     }
   };
 

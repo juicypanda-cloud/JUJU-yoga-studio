@@ -2,7 +2,7 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     // ===============================================================
-    // Helper Functions
+    // Security Boundaries & Helper Functions
     // ===============================================================
     
     function isAuthenticated() {
@@ -13,10 +13,10 @@ service cloud.firestore {
       return isAuthenticated() && request.auth.uid == userId;
     }
     
+    // Security boundary: Server-managed admin role check (hardcoded email bypass removed)
     function isAdmin() {
       return isAuthenticated() && 
-        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' || 
-         (request.auth.token.email == "anand@one.mn" && request.auth.token.email_verified == true));
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
 
     function isTeacher() {
@@ -85,12 +85,6 @@ service cloud.firestore {
         );
     }
 
-    function isValidString(field, minLen, maxLen) {
-      return request.resource.data[field] is string && 
-             request.resource.data[field].size() >= minLen && 
-             request.resource.data[field].size() <= maxLen;
-    }
-
     // ===============================================================
     // Rules
     // ===============================================================
@@ -103,7 +97,7 @@ service cloud.firestore {
     
     match /classes/{classId} {
       allow read: if true;
-      // Admins manage all classes; teachers may create/update/delete only classes they own (teacherId == auth uid).
+      // Admins manage all classes; teachers may create/update/delete only classes they own.
       allow create: if isAdmin() || (
         isTeacher() &&
         request.resource.data.teacherId == request.auth.uid
@@ -150,6 +144,7 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
     
+    // Security boundary: Schedule - seat counts (bookedCount) cannot be modified directly by clients.
     match /schedule/{id} {
       allow read: if true;
       allow create: if isAdmin() || (
@@ -158,13 +153,6 @@ service cloud.firestore {
         teacherOwnsClass(request.resource.data.classId)
       );
       allow update: if isAdmin() || (
-        isAuthenticated() &&
-        request.resource.data.diff(resource.data).changedKeys().hasOnly(['bookedCount']) &&
-        request.resource.data.bookedCount is int &&
-        resource.data.bookedCount is int &&
-        request.resource.data.bookedCount == resource.data.bookedCount + 1 &&
-        request.resource.data.bookedCount <= resource.data.capacity
-      ) || (
         isTeacher() &&
         resource.data.classId is string &&
         request.resource.data.classId is string &&
@@ -183,27 +171,55 @@ service cloud.firestore {
       allow read, write: if isAdmin();
     }
 
-    // User profiles
+    // Security boundary: User profiles - prevent privilege escalation.
+    // Users cannot set 'role', subscription fields, or any privileged profile fields.
     match /users/{userId} {
       allow read: if isOwner(userId) || isAdmin();
-      allow create: if isAuthenticated() && request.auth.uid == userId;
-      allow update: if isOwner(userId) || isAdmin();
+
+      // On creation, normal users can set personal info but CANNOT assign privileged roles or active subscriptions.
+      allow create: if isAuthenticated() && request.auth.uid == userId &&
+        (!('role' in request.resource.data) || request.resource.data.role in ['client', 'user']) &&
+        (!('subscriptionStatus' in request.resource.data) || request.resource.data.subscriptionStatus in ['inactive', null]) &&
+        !request.resource.data.keys().hasAny([
+          'subscriptionPlan', 'subscriptionStartDate', 'subscriptionEndDate', 'activeUntil', 'passesRemaining'
+        ]);
+
+      // On update, normal users can only edit safe personal profile fields.
+      // Admin role promotion is strictly restricted to server Admin SDK execution.
+      allow update: if (
+        isOwner(userId) &&
+        !request.resource.data.diff(resource.data).affectedKeys().hasAny([
+          'role',
+          'subscriptionStatus',
+          'subscriptionPlan',
+          'subscriptionStartDate',
+          'subscriptionEndDate',
+          'activeUntil',
+          'passesRemaining'
+        ])
+      ) || (
+        isAdmin() &&
+        (request.resource.data.role != 'admin' || resource.data.role == 'admin')
+      );
+
+      allow delete: if isAdmin();
     }
 
-    // QPay payment events (Admin SDK writes; clients read own row for UI; admins read all)
+    // QPay payment events (Admin SDK writes; clients read own row for UI status; admins read all)
     match /qpayEvents/{invoiceId} {
       allow read: if isAdmin() || (isAuthenticated() && resource.data.userId == request.auth.uid);
       allow create, update, delete: if false;
     }
 
-    // Bookings
+    // Security boundary: Bookings - confirmed booking creation is handled server-side upon payment fulfillment.
     match /bookings/{id} {
       allow read: if isAuthenticated() && (
         resource.data.userId == request.auth.uid ||
         isAdmin() ||
         teacherCanReadBookingNow(resource.data)
       );
-      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
+      // Direct creation of confirmed bookings by clients via Web SDK is forbidden.
+      allow create: if isAdmin();
       allow update: if isAdmin() || (
         teacherCanAccessBooking(resource.data) &&
         isBookingEditableNow(resource.data) &&
