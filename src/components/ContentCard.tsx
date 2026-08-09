@@ -3,6 +3,7 @@ import { Card, CardContent } from './ui/card';
 import { Button } from './ui/button';
 import { MapPin, Calendar, ArrowRight } from 'lucide-react';
 import { formatRetreatPriceWithSymbol } from '../lib/formatRetreatPrice';
+import { SmartImage } from './SmartImage';
 
 const RETREAT_COVER_FALLBACK = 'https://picsum.photos/seed/retreat-card/1200/800';
 
@@ -41,12 +42,14 @@ export const ContentCard: React.FC<ContentCardProps> = ({ item, type, variant = 
         className="shadow-2xl shadow-brand-ink/5 hover:shadow-brand-ink/10 hover:-translate-y-1 transition-all duration-500 group cursor-pointer overflow-hidden rounded-[2rem] bg-white flex flex-col md:flex-row max-w-4xl mx-auto md:h-[420px]"
       >
         <div className="md:w-2/5 relative overflow-hidden h-[300px] md:h-full flex">
-          <img
+          <SmartImage
             src={coverSrc}
             alt={item.title}
+            fallbackSrc={RETREAT_COVER_FALLBACK}
             className="absolute inset-0 h-full w-full object-cover transition-transform duration-1000 group-hover:scale-110"
             loading="lazy"
             decoding="async"
+            sizes="(max-width: 768px) 100vw, 40vw"
           />
           {item.location && (
             <div className="absolute top-4 left-4">
@@ -95,12 +98,14 @@ export const ContentCard: React.FC<ContentCardProps> = ({ item, type, variant = 
       className="shadow-2xl shadow-brand-ink/5 hover:shadow-brand-ink/10 hover:-translate-y-2 transition-all duration-500 group cursor-pointer overflow-hidden rounded-[2.5rem] bg-white"
     >
       <div className="relative aspect-[4/5] overflow-hidden flex">
-        <img
+        <SmartImage
           src={coverSrc}
           alt={item.title}
+          fallbackSrc={RETREAT_COVER_FALLBACK}
           className="absolute inset-0 h-full w-full object-cover transition-transform duration-1000 group-hover:scale-110"
           loading="lazy"
           decoding="async"
+          sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
         />
         {item.location && (
           <div className="absolute top-6 left-6">

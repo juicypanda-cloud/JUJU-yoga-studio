@@ -9,77 +9,8 @@ import { Card, CardContent } from '../components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../components/ui/dialog';
 import { Plus, Trash2, Edit, Video, Music, ExternalLink } from 'lucide-react';
 import { toast } from 'sonner';
-import { getYouTubeVideoId, resolveOnlineContentThumbnail } from '../lib/online-video-thumb';
-
-declare global {
-  interface Window {
-    YT?: any;
-    onYouTubeIframeAPIReady?: () => void;
-  }
-}
-
-const formatDuration = (seconds: number) => {
-  const rounded = Math.max(0, Math.round(seconds));
-  const hrs = Math.floor(rounded / 3600);
-  const mins = Math.floor((rounded % 3600) / 60);
-  const secs = rounded % 60;
-  if (hrs > 0) return `${hrs}:${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
-  return `${mins}:${String(secs).padStart(2, '0')}`;
-};
-
-const ensureYouTubeIframeApi = (): Promise<any> => {
-  if (window.YT && window.YT.Player) return Promise.resolve(window.YT);
-
-  return new Promise((resolve) => {
-    const existingScript = document.getElementById('youtube-iframe-api');
-    if (!existingScript) {
-      const tag = document.createElement('script');
-      tag.id = 'youtube-iframe-api';
-      tag.src = 'https://www.youtube.com/iframe_api';
-      document.body.appendChild(tag);
-    }
-
-    const previousReady = window.onYouTubeIframeAPIReady;
-    window.onYouTubeIframeAPIReady = () => {
-      previousReady?.();
-      resolve(window.YT);
-    };
-  });
-};
-
-const fetchYouTubeDuration = async (mediaUrl: string): Promise<string> => {
-  const videoId = getYouTubeVideoId(mediaUrl);
-  if (!videoId) return '';
-  const YT = await ensureYouTubeIframeApi();
-
-  return new Promise<string>((resolve) => {
-    const mount = document.createElement('div');
-    mount.style.position = 'fixed';
-    mount.style.left = '-99999px';
-    mount.style.top = '0';
-    document.body.appendChild(mount);
-
-    const player = new YT.Player(mount, {
-      videoId,
-      events: {
-        onReady: (event: any) => {
-          const finalize = () => {
-            const seconds = event?.target?.getDuration?.() || 0;
-            event?.target?.destroy?.();
-            mount.remove();
-            resolve(seconds > 0 ? formatDuration(seconds) : '');
-          };
-          window.setTimeout(finalize, 400);
-        },
-        onError: () => {
-          player?.destroy?.();
-          mount.remove();
-          resolve('');
-        },
-      },
-    });
-  });
-};
+import { resolveOnlineContentThumbnail } from '../lib/online-video-thumb';
+import { SmartImage } from '../components/SmartImage';
 
 export const OnlineContentAdmin: React.FC = () => {
   const [content, setContent] = useState<any[]>([]);
@@ -112,12 +43,9 @@ export const OnlineContentAdmin: React.FC = () => {
     if (isSubmitting) return;
     setIsSubmitting(true);
     try {
-      const autoDuration =
-        formData.type === 'video' ? await fetchYouTubeDuration(formData.mediaURL) : formData.duration;
-
       const payload = {
         ...formData,
-        duration: autoDuration || formData.duration || '',
+        duration: formData.duration?.trim() || '',
         // Thumbnail is auto-derived from YouTube URL for videos.
         thumbnailURL:
           formData.type === 'video'
@@ -266,22 +194,15 @@ export const OnlineContentAdmin: React.FC = () => {
                 />
               </div>
 
-              {formData.type === 'audio' ? (
-                <div className="space-y-2">
-                  <label className="text-sm font-medium text-black">Хугацаа</label>
-                  <Input
-                    required
-                    value={formData.duration}
-                    onChange={(e) => setFormData({ ...formData, duration: e.target.value })}
-                    placeholder="Жишээ: 24:15 эсвэл 45 мин"
-                    className="rounded-xl"
-                  />
-                </div>
-              ) : (
-                <p className="text-xs text-brand-ink/60">
-                  Видео үргэлжлэх хугацааг YouTube линкээс автоматаар авна.
-                </p>
-              )}
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-black">Хугацаа (Сонголттой)</label>
+                <Input
+                  value={formData.duration}
+                  onChange={(e) => setFormData({ ...formData, duration: e.target.value })}
+                  placeholder="Жишээ: 24:15 эсвэл 45 мин"
+                  className="rounded-xl"
+                />
+              </div>
 
               <div className="space-y-2">
                 <label className="text-sm font-medium text-black">Тайлбар</label>
@@ -313,7 +234,7 @@ export const OnlineContentAdmin: React.FC = () => {
             return (
           <Card key={item.id} className="overflow-hidden border-none shadow-sm hover:shadow-md transition-all rounded-2xl group">
             <div className="relative aspect-video overflow-hidden">
-              <img
+              <SmartImage
                 src={thumb || 'https://picsum.photos/seed/online-content-admin/1280/720'}
                 alt={item.title}
                 loading="lazy"

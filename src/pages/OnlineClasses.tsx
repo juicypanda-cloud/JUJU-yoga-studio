@@ -17,52 +17,10 @@ import {
   DialogHeader,
   DialogTitle,
 } from '../components/ui/dialog';
-import { getYouTubeVideoId, resolveOnlineContentThumbnail } from '../lib/online-video-thumb';
-
-declare global {
-  interface Window {
-    YT?: any;
-    onYouTubeIframeAPIReady?: () => void;
-  }
-}
-
-const getYouTubeEmbedUrl = (url: string) => {
-  const id = getYouTubeVideoId(url);
-  return id ? `https://www.youtube.com/embed/${id}?rel=0` : '';
-};
-
-const formatDuration = (seconds: number) => {
-  const rounded = Math.max(0, Math.round(seconds));
-  const hrs = Math.floor(rounded / 3600);
-  const mins = Math.floor((rounded % 3600) / 60);
-  const secs = rounded % 60;
-  if (hrs > 0) return `${hrs}:${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
-  return `${mins}:${String(secs).padStart(2, '0')}`;
-};
-
-const ensureYouTubeIframeApi = (): Promise<any> => {
-  if (window.YT && window.YT.Player) return Promise.resolve(window.YT);
-
-  return new Promise((resolve) => {
-    const existingScript = document.getElementById('youtube-iframe-api');
-    if (!existingScript) {
-      const tag = document.createElement('script');
-      tag.id = 'youtube-iframe-api';
-      tag.src = 'https://www.youtube.com/iframe_api';
-      document.body.appendChild(tag);
-    }
-
-    const previousReady = window.onYouTubeIframeAPIReady;
-    window.onYouTubeIframeAPIReady = () => {
-      previousReady?.();
-      resolve(window.YT);
-    };
-  });
-};
+import { getYouTubeEmbedUrl, resolveOnlineContentThumbnail } from '../lib/online-video-thumb';
 
 export const OnlineClasses: React.FC = () => {
   const [content, setContent] = useState<any[]>([]);
-  const [durationById, setDurationById] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [selectedContent, setSelectedContent] = useState<any | null>(null);
   const [mediaError, setMediaError] = useState('');
@@ -77,8 +35,6 @@ export const OnlineClasses: React.FC = () => {
     const type = String(item?.type || '').trim().toLowerCase() === 'audio' ? 'audio' : 'video';
     return canAccessOnlineContentType(profile, type);
   };
-  const durationByIdRef = useRef(durationById);
-  durationByIdRef.current = durationById;
 
   useEffect(() => {
     setLoading(true);
@@ -143,76 +99,14 @@ export const OnlineClasses: React.FC = () => {
   }, [registeredTeachers]);
   const showTeacherOptions = teachersExpanded;
 
-  useEffect(() => {
-    let cancelled = false;
-
-    const loadDurations = async () => {
-      if (!profile) return;
-      const candidates = content.filter(
-        (item) => canAccessItem(item) && !item.duration && getYouTubeVideoId(String(item.mediaURL || ''))
-      );
-      if (candidates.length === 0) return;
-
-      try {
-        const YT = await ensureYouTubeIframeApi();
-        for (const item of candidates) {
-          if (cancelled) break;
-          if (durationByIdRef.current[item.id]) continue;
-          const videoId = getYouTubeVideoId(String(item.mediaURL || ''));
-          if (!videoId) continue;
-
-          await new Promise<void>((resolve) => {
-            const mount = document.createElement('div');
-            mount.style.position = 'fixed';
-            mount.style.left = '-99999px';
-            mount.style.top = '0';
-            document.body.appendChild(mount);
-
-            const player = new YT.Player(mount, {
-              videoId,
-              events: {
-                onReady: (event: any) => {
-                  const finalize = () => {
-                    const seconds = event?.target?.getDuration?.() || 0;
-                    if (!cancelled && seconds > 0) {
-                      setDurationById((prev) =>
-                        prev[item.id] ? prev : { ...prev, [item.id]: formatDuration(seconds) }
-                      );
-                    }
-                    event?.target?.destroy?.();
-                    mount.remove();
-                    resolve();
-                  };
-                  window.setTimeout(finalize, 400);
-                },
-                onError: () => {
-                  player?.destroy?.();
-                  mount.remove();
-                  resolve();
-                },
-              },
-            });
-          });
-        }
-      } catch (error) {
-        console.error('Failed to auto-load YouTube durations:', error);
-      }
-    };
-
-    loadDurations();
-    return () => {
-      cancelled = true;
-    };
-  }, [content, profile]);
-
   const normalizedContent = useMemo(
     () =>
       filteredContent.map((item) => ({
         ...item,
-        duration: item.duration || durationById[item.id] || '',
+        duration: item.duration || '',
         thumbnailURL: resolveOnlineContentThumbnail(item),
       })),
-    [filteredContent, durationById]
+    [filteredContent]
   );
 
   useEffect(() => {

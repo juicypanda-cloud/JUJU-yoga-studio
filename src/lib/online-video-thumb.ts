@@ -1,43 +1,67 @@
 /**
- * YouTube / online library thumbnail helpers (shared by Home + OnlineClasses).
+ * YouTube / online library thumbnail & embed helpers with in-memory memoization.
  */
 
-export const getYouTubeVideoId = (url: string) => {
+const videoIdCache = new Map<string, string>();
+const thumbnailCache = new Map<string, string>();
+const embedUrlCache = new Map<string, string>();
+
+export const getYouTubeVideoId = (url: string): string => {
   if (!url) return '';
+  const trimmed = url.trim();
+  if (videoIdCache.has(trimmed)) {
+    return videoIdCache.get(trimmed)!;
+  }
+
+  let result = '';
   try {
-    const parsedUrl = new URL(url.trim());
+    const parsedUrl = new URL(trimmed);
     const cleanPath = parsedUrl.pathname.replace(/\/+$/, '');
 
     if (parsedUrl.hostname.includes('youtube.com') || parsedUrl.hostname.includes('youtube-nocookie.com')) {
       const id = parsedUrl.searchParams.get('v');
-      if (id) return id;
-
-      const pathParts = cleanPath.split('/').filter(Boolean);
-      const shortsIndex = pathParts.indexOf('shorts');
-      const embedIndex = pathParts.indexOf('embed');
-      return (shortsIndex >= 0 ? pathParts[shortsIndex + 1] : '') || (embedIndex >= 0 ? pathParts[embedIndex + 1] : '');
+      if (id) {
+        result = id;
+      } else {
+        const pathParts = cleanPath.split('/').filter(Boolean);
+        const shortsIndex = pathParts.indexOf('shorts');
+        const embedIndex = pathParts.indexOf('embed');
+        result = (shortsIndex >= 0 ? pathParts[shortsIndex + 1] : '') || (embedIndex >= 0 ? pathParts[embedIndex + 1] : '');
+      }
+    } else if (parsedUrl.hostname.includes('youtu.be')) {
+      result = cleanPath.slice(1).split('/')[0] || '';
     }
-
-    if (parsedUrl.hostname.includes('youtu.be')) {
-      return cleanPath.slice(1).split('/')[0];
-    }
-
-    return '';
   } catch {
-    return '';
+    result = '';
   }
+
+  videoIdCache.set(trimmed, result);
+  return result;
 };
 
-/** `mq` ≈320px wide — fast for lists; `hq` ≈480px — better detail */
-export type YouTubePosterSize = 'list' | 'detail';
+/** `mq` ≈320px wide — fast for lists; `hq` ≈480px — better detail; `maxres` ≈1280px */
+export type YouTubePosterSize = 'list' | 'detail' | 'maxres';
 
 const YT_POSTER_FILE: Record<YouTubePosterSize, string> = {
   list: 'mqdefault.jpg',
   detail: 'hqdefault.jpg',
+  maxres: 'hqdefault.jpg',
 };
 
 export const getYouTubePosterUrl = (videoId: string, size: YouTubePosterSize = 'list') =>
   videoId ? `https://i.ytimg.com/vi/${videoId}/${YT_POSTER_FILE[size]}` : '';
+
+export const getYouTubeEmbedUrl = (url: string): string => {
+  if (!url) return '';
+  const trimmed = url.trim();
+  if (embedUrlCache.has(trimmed)) {
+    return embedUrlCache.get(trimmed)!;
+  }
+  const id = getYouTubeVideoId(trimmed);
+  const result = id ? `https://www.youtube.com/embed/${id}?autoplay=1&rel=0` : '';
+  embedUrlCache.set(trimmed, result);
+  return result;
+};
 
 export const isYouTubeThumbnailUrl = (url?: string) => {
   const normalized = String(url || '').toLowerCase();
@@ -85,22 +109,40 @@ export const resolveOnlineContentThumbnail = (item: {
   thumbnail?: string;
   image?: string;
 }): string => {
+  const cacheKey = `${item?.mediaURL || ''}|${item?.thumbnailURL || ''}|${item?.thumbnail || ''}|${item?.image || ''}`;
+  if (thumbnailCache.has(cacheKey)) {
+    return thumbnailCache.get(cacheKey)!;
+  }
+
   const mediaUrl = String(item?.mediaURL || '').trim();
   const stored = String(item?.thumbnailURL || item?.thumbnail || item?.image || '').trim();
   const mediaYtId = mediaUrl ? getYouTubeVideoId(mediaUrl) : '';
 
+  let result = '';
   if (mediaYtId) {
     const derived = getYouTubePosterUrl(mediaYtId, 'detail');
-    if (!stored) return derived;
-    if (isYouTubeThumbnailUrl(stored)) {
+    if (!stored) {
+      result = derived;
+    } else if (isYouTubeThumbnailUrl(stored)) {
       const thumbYtId = getYoutubeIdFromStoredThumb(stored);
-      if (thumbYtId && thumbYtId !== mediaYtId) return derived;
-      return getYouTubePosterUrl(mediaYtId, 'detail');
+      if (thumbYtId && thumbYtId !== mediaYtId) {
+        result = derived;
+      } else {
+        result = getYouTubePosterUrl(mediaYtId, 'detail');
+      }
+    } else {
+      result = stored;
     }
-    return stored;
+  } else if (stored) {
+    result = toListYouTubePosterUrl(stored);
+  } else if (isLikelyImageUrl(mediaUrl)) {
+    result = mediaUrl;
   }
 
-  if (stored) return toListYouTubePosterUrl(stored);
-  if (isLikelyImageUrl(mediaUrl)) return mediaUrl;
-  return '';
+  if (!result) {
+    result = 'https://picsum.photos/seed/online-content-fallback/1280/720';
+  }
+
+  thumbnailCache.set(cacheKey, result);
+  return result;
 };

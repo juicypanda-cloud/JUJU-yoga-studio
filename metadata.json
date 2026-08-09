@@ -1,5 +1,8 @@
 {
   "name": "Mya Wellbeing Yoga Studio",
   "description": "A premium, minimal yoga studio platform with retreats and online classes.",
-  "requestFramePermissions": []
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
 }

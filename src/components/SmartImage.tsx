@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { cn } from '@/lib/utils';
 
 type SmartImageProps = React.ImgHTMLAttributes<HTMLImageElement> & {
   wrapperClassName?: string;
+  fallbackSrc?: string;
 };
 
 const buildResponsiveSrcSet = (rawSrc: string) => {
@@ -14,20 +15,22 @@ const buildResponsiveSrcSet = (rawSrc: string) => {
     const widths = [480, 768, 1024, 1440];
     return widths
       .map((w) => {
-        const url = new URL(src);
-        url.searchParams.set('w', String(w));
-        return `${url.toString()} ${w}w`;
+        try {
+          const url = new URL(src);
+          url.searchParams.set('w', String(w));
+          return `${url.toString()} ${w}w`;
+        } catch {
+          return `${src} ${w}w`;
+        }
       })
       .join(', ');
   }
 
-  // YouTube thumbnails can be requested in multiple fixed sizes.
-  if (src.includes('i.ytimg.com/vi/')) {
+  // YouTube thumbnails: mqdefault (320w) and hqdefault (480w) are universally supported.
+  if (src.includes('i.ytimg.com/vi/') || src.includes('img.youtube.com/vi/')) {
     const bases = [
       ['mqdefault.jpg', '320w'],
       ['hqdefault.jpg', '480w'],
-      ['sddefault.jpg', '640w'],
-      ['maxresdefault.jpg', '1280w'],
     ] as const;
     return bases.map(([name, width]) => `${src.replace(/[^/]+$/, name)} ${width}`).join(', ');
   }
@@ -43,6 +46,8 @@ const buildResponsiveSrcSet = (rawSrc: string) => {
   return '';
 };
 
+const DEFAULT_FALLBACK = 'https://picsum.photos/seed/juju-fallback/800/600';
+
 export const SmartImage: React.FC<SmartImageProps> = ({
   src,
   alt,
@@ -53,22 +58,49 @@ export const SmartImage: React.FC<SmartImageProps> = ({
   loading = 'lazy',
   decoding = 'async',
   fetchPriority = 'auto',
+  fallbackSrc = DEFAULT_FALLBACK,
   onLoad,
   onError,
   ...rest
 }) => {
+  const initialSrc = String(src || '').trim();
+  const effectiveFallback = fallbackSrc || DEFAULT_FALLBACK;
+  const [currentSrc, setCurrentSrc] = useState<string>(() => initialSrc || effectiveFallback);
+  const [hasFailed, setHasFailed] = useState(false);
   const [loaded, setLoaded] = useState(false);
 
-  if (!src) return null;
-  const computedSrcSet = srcSet || buildResponsiveSrcSet(String(src));
+  useEffect(() => {
+    const fresh = String(src || '').trim();
+    setCurrentSrc(fresh || effectiveFallback);
+    setHasFailed(!fresh);
+    setLoaded(false);
+  }, [src, effectiveFallback]);
+
+  const activeSrc = currentSrc || effectiveFallback;
+  if (!activeSrc) return null;
+
+  const computedSrcSet = !hasFailed ? (srcSet || buildResponsiveSrcSet(activeSrc)) : undefined;
   const computedSizes = sizes || '(max-width: 768px) 100vw, 50vw';
+
+  const handleError = (event: React.SyntheticEvent<HTMLImageElement, Event>) => {
+    setLoaded(true);
+    if (!hasFailed) {
+      setHasFailed(true);
+      if (activeSrc.includes('maxresdefault.jpg') || activeSrc.includes('sddefault.jpg')) {
+        setCurrentSrc(activeSrc.replace(/(maxresdefault|sddefault)\.jpg$/, 'hqdefault.jpg'));
+      } else if (effectiveFallback && activeSrc !== effectiveFallback) {
+        setCurrentSrc(effectiveFallback);
+      }
+    }
+    onError?.(event);
+  };
 
   return (
     <div className={cn('relative overflow-hidden bg-gray-100', className, wrapperClassName)}>
       <div
         aria-hidden
         className={cn(
-          'absolute inset-0 z-[1] transition-opacity duration-500',
+          'absolute inset-0 z-[1] transition-opacity duration-500 pointer-events-none',
           loaded ? 'opacity-0' : 'opacity-100'
         )}
       >
@@ -76,7 +108,7 @@ export const SmartImage: React.FC<SmartImageProps> = ({
       </div>
 
       <img
-        src={src}
+        src={activeSrc}
         alt={alt ?? ''}
         srcSet={computedSrcSet || undefined}
         sizes={computedSrcSet ? computedSizes : undefined}
@@ -91,10 +123,7 @@ export const SmartImage: React.FC<SmartImageProps> = ({
           setLoaded(true);
           onLoad?.(event);
         }}
-        onError={(event) => {
-          setLoaded(true);
-          onError?.(event);
-        }}
+        onError={handleError}
         {...rest}
       />
     </div>

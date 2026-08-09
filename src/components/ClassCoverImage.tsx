@@ -1,6 +1,6 @@
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import { CLASS_FALLBACK_IMAGE, resolveClassImageUrl } from '../lib/classImage';
-import { cn } from '@/lib/utils';
+import { SmartImage } from './SmartImage';
 
 type ClassCoverImageProps = {
   src?: unknown;
@@ -8,6 +8,7 @@ type ClassCoverImageProps = {
   className?: string;
   loading?: 'eager' | 'lazy';
   fetchPriority?: 'high' | 'low' | 'auto';
+  sizes?: string;
 };
 
 export const ClassCoverImage: React.FC<ClassCoverImageProps> = ({
@@ -16,24 +17,20 @@ export const ClassCoverImage: React.FC<ClassCoverImageProps> = ({
   className,
   loading = 'lazy',
   fetchPriority = 'auto',
+  sizes,
 }) => {
-  const [currentSrc, setCurrentSrc] = useState(() => resolveClassImageUrl(src));
-
-  useEffect(() => {
-    setCurrentSrc(resolveClassImageUrl(src));
-  }, [src]);
+  const resolved = resolveClassImageUrl(src);
 
   return (
-    <img
-      src={currentSrc}
+    <SmartImage
+      src={resolved}
       alt={alt}
-      className={cn('block', className)}
+      fallbackSrc={CLASS_FALLBACK_IMAGE}
+      className={className}
       loading={loading}
       fetchPriority={fetchPriority}
       decoding="async"
-      onError={() => {
-        setCurrentSrc((prev) => (prev === CLASS_FALLBACK_IMAGE ? prev : CLASS_FALLBACK_IMAGE));
-      }}
+      sizes={sizes}
     />
   );
 };

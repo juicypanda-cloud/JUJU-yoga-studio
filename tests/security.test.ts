@@ -135,6 +135,62 @@ async function runSecurityTests() {
   console.log('✅ TEST 5 PASSED: Payment intent serialization and document ID generation work as expected.\n');
   passedTests++;
 
+  // ----------------------------------------------------
+  // TEST 6: Public QPay token endpoint is deleted
+  // ----------------------------------------------------
+  console.log('[TEST 6] Verifying public api/qpay/token.ts endpoint is removed...');
+  const tokenFileExists = fs.existsSync(path.resolve('api/qpay/token.ts'));
+  assert.strictEqual(
+    tokenFileExists,
+    false,
+    'SECURITY ERROR: api/qpay/token.ts still exists! Public QPay token endpoint must be removed.'
+  );
+
+  const serverContent = fs.readFileSync(path.resolve('server.ts'), 'utf8');
+  assert.strictEqual(
+    serverContent.includes('/api/qpay/token'),
+    false,
+    'SECURITY ERROR: server.ts still contains /api/qpay/token route!'
+  );
+  console.log('✅ TEST 6 PASSED: Public QPay token endpoint completely removed from codebase.\n');
+  passedTests++;
+
+  // ----------------------------------------------------
+  // TEST 7: Unflagged zero price products are rejected
+  // ----------------------------------------------------
+  console.log('[TEST 7] Verifying unflagged free ($0) bookings are rejected...');
+  try {
+    await resolveServerItemPriceAndIntent({
+      kind: 'class_month',
+      classId: 'non-existent-class-unflagged-free-test',
+      monthKey: '2026-08',
+    });
+    assert.fail('SECURITY ERROR: Allowed $0 booking for unflagged product!');
+  } catch (err: any) {
+    assert.ok(
+      err.message.includes('INVALID_PRODUCT') || err.message.includes('NOT_FREE_EXPLICIT'),
+      `Expected pricing rejection error, got: ${err.message}`
+    );
+  }
+  console.log('✅ TEST 7 PASSED: Server correctly rejects unflagged free bookings.\n');
+  passedTests++;
+
+  // ----------------------------------------------------
+  // TEST 8: Missing currency or amount in webhook payload returns null
+  // ----------------------------------------------------
+  console.log('[TEST 8] Verifying webhook payload rejection on missing currency/amount...');
+  const missingCurrencyPayload = {
+    rows: [{ payment_amount: 100 }], // currency missing
+  };
+  const extracted = extractQPayPaidAmountAndCurrency(missingCurrencyPayload);
+  assert.strictEqual(
+    extracted.currency,
+    null,
+    'SECURITY ERROR: Missing currency did not evaluate to null!'
+  );
+  console.log('✅ TEST 8 PASSED: Webhook safely rejects payloads missing explicit currency or amount.\n');
+  passedTests++;
+
   console.log('====================================================');
   console.log(`ALL ${passedTests} SECURITY VERIFICATION TESTS PASSED SUCCESSFULLY!`);
   console.log('====================================================');

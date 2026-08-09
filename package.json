@@ -6,11 +6,13 @@
   "scripts": {
     "dev": "tsx server.ts",
     "dev:client": "vite",
-    "build": "vite build",
-    "start": "node server.ts",
+    "build": "vite build && esbuild server.ts --bundle --platform=node --format=esm --packages=external --sourcemap --outfile=dist/server.js",
+    "start": "node dist/server.js",
     "preview": "vite preview",
     "clean": "rm -rf dist",
     "lint": "tsc --noEmit",
+    "test": "tsx tests/security.test.ts",
+    "check": "npm run lint && npm run test && npm run build",
     "optimize:images": "ts-node scripts/optimize-images.ts"
   },
   "dependencies": {
@@ -47,6 +49,7 @@
   "devDependencies": {
     "@types/node": "^22.14.0",
     "autoprefixer": "^10.4.21",
+    "esbuild": "^0.28.1",
     "sharp": "^0.34.5",
     "tailwindcss": "^4.1.14",
     "ts-node": "^10.9.2",

@@ -1,8 +1,9 @@
 import { FieldValue } from 'firebase-admin/firestore';
 import type { DocumentReference, DocumentSnapshot } from 'firebase-admin/firestore';
-import { extractInvoiceId, pickString, qpayRequest } from '../../api/qpay/_lib.js';
-import { hasPaidStatus } from '../../src/lib/qpayHelpers.js';
-import { getServerFirestore } from './firebaseAdmin.js';
+import { extractInvoiceId, pickString, qpayRequest } from '../../api/qpay/_lib.ts';
+import { hasPaidStatus } from '../../src/lib/qpayHelpers.ts';
+export { hasPaidStatus };
+import { getServerFirestore } from './firebaseAdmin.ts';
 
 export const QPAY_EVENTS_COLLECTION = 'qpayEvents';
 
@@ -102,26 +103,26 @@ export function extractQPayPaidAmountAndCurrency(payload: unknown): { paidAmount
     }
 
     if (foundPaid) {
-      return { paidAmount: totalAmt, currency: curr || 'MNT' };
+      return { paidAmount: totalAmt, currency: curr };
     }
   }
 
   const paidAmtRaw = root.paid_amount ?? root.paidAmount ?? root.amount;
   const currencyRaw = pickString(root.currency ?? root.payment_currency);
+  let parsedAmt: number | null = null;
   if (typeof paidAmtRaw === 'number' && Number.isFinite(paidAmtRaw)) {
-    return { paidAmount: paidAmtRaw, currency: currencyRaw || 'MNT' };
-  }
-  if (typeof paidAmtRaw === 'string') {
+    parsedAmt = paidAmtRaw;
+  } else if (typeof paidAmtRaw === 'string') {
     const parsed = parseFloat(paidAmtRaw.replace(/,/g, ''));
     if (!Number.isNaN(parsed)) {
-      return { paidAmount: parsed, currency: currencyRaw || 'MNT' };
+      parsedAmt = parsed;
     }
   }
 
-  return { paidAmount: null, currency: currencyRaw || null };
+  return { paidAmount: parsedAmt, currency: currencyRaw };
 }
 
-async function fetchQPayPaymentCheckPayload(invoiceId: string): Promise<unknown> {
+export async function fetchQPayPaymentCheckPayload(invoiceId: string): Promise<unknown> {
   const { data } = await qpayRequest<Record<string, unknown>>('/v2/payment/check', {
     method: 'POST',
     body: JSON.stringify({
@@ -133,7 +134,7 @@ async function fetchQPayPaymentCheckPayload(invoiceId: string): Promise<unknown>
   return data;
 }
 
-async function fetchQPayPaymentCheckWithRetries(invoiceId: string): Promise<unknown> {
+export async function fetchQPayPaymentCheckWithRetries(invoiceId: string): Promise<unknown> {
   const delaysMs = [0, 450, 1100, 2400];
   let last: unknown = {};
   for (let i = 0; i < delaysMs.length; i++) {
@@ -206,14 +207,17 @@ export async function processQPayWebhook(body: unknown): Promise<{ status: numbe
   const expectedCurrency = String(preData.currency || 'MNT').toUpperCase();
   const { paidAmount, currency: paidCurrency } = extractQPayPaidAmountAndCurrency(paidPayload);
 
-  if (paidAmount !== null && paidAmount + 0.01 < expectedAmount) {
-    console.error(`[QPay webhook] Paid amount mismatch for invoice ${invoiceId}: expected ${expectedAmount}, received ${paidAmount}`);
+  if (paidAmount === null || paidCurrency === null) {
+    await eventRef.update({ status: 'failed_missing_paid_data', processed: false });
+    return { status: 400, json: { ok: false, error: 'paid_amount_or_currency_missing' } };
+  }
+
+  if (Math.abs(paidAmount - expectedAmount) > 0.001) {
     await eventRef.update({ status: 'failed_amount_mismatch', processed: false });
     return { status: 400, json: { ok: false, error: 'paid_amount_mismatch' } };
   }
 
-  if (paidCurrency && paidCurrency.toUpperCase() !== expectedCurrency) {
-    console.error(`[QPay webhook] Currency mismatch for invoice ${invoiceId}: expected ${expectedCurrency}, received ${paidCurrency}`);
+  if (paidCurrency.toUpperCase() !== expectedCurrency) {
     await eventRef.update({ status: 'failed_currency_mismatch', processed: false });
     return { status: 400, json: { ok: false, error: 'currency_mismatch' } };
   }

@@ -1,7 +1,7 @@
-import { assertQPayInvoiceConfig, getQPayInvoiceConfig, qpayRequest } from '../../api/qpay/_lib.js';
-import { getServerAuth, getServerFirestore } from './firebaseAdmin.js';
-import { extractInvoiceIdFromQPayInvoiceResponse, savePendingQPayEvent, type PaymentIntent } from './qpayWebhookCore.js';
-import { classData as staticClasses } from '../../src/data/classes.js';
+import { assertQPayInvoiceConfig, getQPayInvoiceConfig, qpayRequest } from '../../api/qpay/_lib.ts';
+import { getServerAuth, getServerFirestore } from './firebaseAdmin.ts';
+import { extractInvoiceIdFromQPayInvoiceResponse, savePendingQPayEvent, type PaymentIntent } from './qpayWebhookCore.ts';
+import { classData as staticClasses } from '../../src/data/classes.ts';
 
 /**
  * Server-managed subscription plans and pricing registry.
@@ -79,26 +79,39 @@ export async function resolveServerItemPriceAndIntent(intent: PaymentIntent): Pr
   const db = getServerFirestore();
 
   if (intent.kind === 'class_month') {
-    const classSnap = await db.collection('classes').doc(intent.classId).get();
     let price: number | undefined;
+    let isFree = false;
     let title = 'Yoga Class';
 
-    if (classSnap.exists) {
-      const d = classSnap.data() as Record<string, unknown>;
-      title = String(d.title || title);
-      if (typeof d.price === 'number') {
-        price = d.price;
-      }
+    const staticMatch = staticClasses.find((c) => c.id === intent.classId);
+    if (staticMatch) {
+      title = staticMatch.title;
+      price = (staticMatch as any).price;
+      isFree = (staticMatch as any).isFree === true;
     } else {
-      const staticMatch = staticClasses.find((c) => c.id === intent.classId);
-      if (staticMatch) {
-        title = staticMatch.title;
-        price = (staticMatch as any).price ?? 0;
+      try {
+        const classSnap = await db.collection('classes').doc(intent.classId).get();
+        if (classSnap.exists) {
+          const d = classSnap.data() as Record<string, unknown>;
+          title = String(d.title || title);
+          if (typeof d.price === 'number') {
+            price = d.price;
+          }
+          if (d.isFree === true) {
+            isFree = true;
+          }
+        }
+      } catch (err) {
+        // Fallback when Firestore is unavailable in test runner
       }
     }
 
-    if (price === undefined || price < 0) {
-      throw new Error('INVALID_PRODUCT');
+    if (price === undefined || price === null || typeof price !== 'number' || price < 0 || Number.isNaN(price)) {
+      throw new Error('INVALID_PRODUCT_PRICE');
+    }
+
+    if (price === 0 && !isFree) {
+      throw new Error('NOT_FREE_EXPLICIT');
     }
 
     return {
@@ -113,11 +126,17 @@ export async function resolveServerItemPriceAndIntent(intent: PaymentIntent): Pr
   }
 
   if (intent.kind === 'schedule_slot') {
-    const scheduleSnap = await db.collection('schedule').doc(intent.scheduleId).get();
-    if (!scheduleSnap.exists) {
+    let sData: Record<string, unknown> | null = null;
+    try {
+      const scheduleSnap = await db.collection('schedule').doc(intent.scheduleId).get();
+      if (!scheduleSnap.exists) {
+        throw new Error('INVALID_SCHEDULE');
+      }
+      sData = scheduleSnap.data() as Record<string, unknown>;
+    } catch (err: any) {
+      if (err?.message === 'INVALID_SCHEDULE') throw err;
       throw new Error('INVALID_SCHEDULE');
     }
-    const sData = scheduleSnap.data() as Record<string, unknown>;
     const status = String(sData.status || 'Active');
     if (status.toLowerCase() === 'inactive') {
       throw new Error('SCHEDULE_INACTIVE');
@@ -130,16 +149,41 @@ export async function resolveServerItemPriceAndIntent(intent: PaymentIntent): Pr
     }
 
     const classId = String(sData.classId || '').trim();
-    let price = 0;
+    let price: number | undefined;
+    let isFree = false;
     let title = String(sData.className || 'Schedule Slot');
 
     if (classId) {
-      const classSnap = await db.collection('classes').doc(classId).get();
-      if (classSnap.exists) {
-        const cData = classSnap.data() as Record<string, unknown>;
-        if (typeof cData.price === 'number') price = cData.price;
-        if (cData.title) title = String(cData.title);
+      const staticMatch = staticClasses.find((c) => c.id === classId);
+      if (staticMatch) {
+        if (typeof (staticMatch as any).price === 'number') price = (staticMatch as any).price;
+        if ((staticMatch as any).isFree === true) isFree = true;
+        if (staticMatch.title) title = staticMatch.title;
+      } else {
+        try {
+          const classSnap = await db.collection('classes').doc(classId).get();
+          if (classSnap.exists) {
+            const cData = classSnap.data() as Record<string, unknown>;
+            if (typeof cData.price === 'number') price = cData.price;
+            if (cData.isFree === true) isFree = true;
+            if (cData.title) title = String(cData.title);
+          }
+        } catch (err) {
+          // Fallback when Firestore is unavailable
+        }
       }
+    }
+    if (price === undefined && typeof sData.price === 'number') {
+      price = sData.price;
+      if (sData.isFree === true) isFree = true;
+    }
+
+    if (price === undefined || price === null || typeof price !== 'number' || price < 0 || Number.isNaN(price)) {
+      throw new Error('INVALID_SCHEDULE_PRICE');
+    }
+
+    if (price === 0 && !isFree) {
+      throw new Error('NOT_FREE_EXPLICIT');
     }
 
     return {
@@ -225,9 +269,16 @@ export async function handleCreateInvoiceRequest(body: Record<string, unknown>):
     }
 
     const { invoiceCode, callbackUrl } = getQPayInvoiceConfig();
-    const receiverCode = typeof body.receiverCode === 'string' ? body.receiverCode : 'terminal';
-    const senderBranchCode = typeof body.senderBranchCode === 'string' ? body.senderBranchCode : 'ONLINE';
-    const receiverData = body.receiverData && typeof body.receiverData === 'object' ? body.receiverData : undefined;
+    const receiverCode = 'terminal';
+    const senderBranchCode = 'ONLINE';
+
+    const db = getServerFirestore();
+    const userSnap = await db.collection('users').doc(uid).get();
+    const userData = (userSnap.exists ? userSnap.data() : {}) as Record<string, unknown>;
+    const receiverData = {
+      name: String(userData.displayName || userData.name || 'JUJU Member'),
+      email: String(userData.email || ''),
+    };
 
     const qpayBody = {
       invoice_code: invoiceCode,
@@ -237,7 +288,7 @@ export async function handleCreateInvoiceRequest(body: Record<string, unknown>):
       invoice_description: description,
       amount,
       callback_url: `${callbackUrl}?orderId=${encodeURIComponent(senderInvoiceNo)}`,
-      ...(receiverData ? { invoice_receiver_data: receiverData } : {}),
+      invoice_receiver_data: receiverData,
     };
 
     let invoiceParsed: Record<string, unknown>;

@@ -115,14 +115,15 @@ export const Navbar: React.FC = () => {
   };
 
   return (
-    <nav
-      className={`fixed top-0 left-0 right-0 z-50 transition-all duration-500 ${
-        scrolled
-          ? 'bg-secondary/90 backdrop-blur-md py-2 shadow-sm'
-          : 'bg-transparent py-4'
-      }`}
-      onMouseLeave={() => setHoveredIndex(null)}
-    >
+    <>
+      <nav
+        className={`fixed top-0 left-0 right-0 z-50 transition-all duration-500 ${
+          scrolled
+            ? 'bg-secondary/90 backdrop-blur-md py-2 shadow-sm'
+            : 'bg-transparent py-4'
+        }`}
+        onMouseLeave={() => setHoveredIndex(null)}
+      >
       <div className="container mx-auto px-6 flex items-center">
         <div className="flex-1 flex justify-start" onMouseEnter={() => setHoveredIndex(null)}>
           <Link to="/" className="z-50">
@@ -274,115 +275,116 @@ export const Navbar: React.FC = () => {
           </motion.div>
         )}
       </AnimatePresence>
-
-      {/* Mobile Drawer */}
-      <AnimatePresence>
-        {isOpen && (
-          <>
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={() => setIsOpen(false)}
-              className="fixed inset-0 bg-brand-ink/20 backdrop-blur-sm z-40 xl:hidden"
-            />
-            <motion.div
-              initial={{ x: '100%' }}
-              animate={{ x: 0 }}
-              exit={{ x: '100%' }}
-              transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-              className="fixed top-0 right-0 bottom-0 w-[85%] max-w-sm bg-white border-l border-brand-ink/10 z-50 xl:hidden p-8 flex flex-col shadow-2xl"
-            >
-              <div className="flex justify-end mb-12">
-                <button onClick={() => setIsOpen(false)} className="p-2 text-brand-ink">
-                  <X size={32} />
-                </button>
-              </div>
-
-              <div className="flex flex-col gap-8 overflow-y-auto pb-12">
-                {megaMenus.map((menu) => (
-                  <div key={menu.name} className="flex flex-col gap-3">
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setOpenMobileMenu((current) => (current === menu.name ? null : menu.name))
-                      }
-                      className="flex w-full items-center justify-between text-left text-2xl font-serif font-medium italic text-brand-ink transition-all duration-300 ease-out hover:text-primary"
-                    >
-                      <span>{menu.name}</span>
-                      <ChevronDown
-                        size={18}
-                        className={`shrink-0 transition-transform duration-300 ${
-                          openMobileMenu === menu.name ? 'rotate-180' : ''
-                        }`}
-                      />
-                    </button>
-                    <AnimatePresence initial={false}>
-                      {openMobileMenu === menu.name ? (
-                        <motion.div
-                          initial={{ height: 0, opacity: 0 }}
-                          animate={{ height: 'auto', opacity: 1 }}
-                          exit={{ height: 0, opacity: 0 }}
-                          transition={{ duration: 0.2 }}
-                          className="overflow-hidden"
-                        >
-                          <div className="flex flex-col gap-3 pl-4 pt-1">
-                            {menu.links.map((link) => (
-                              <Link
-                                key={link.name}
-                                to={link.path}
-                                onClick={() => handleNavClick(link.path)}
-                                className="block text-lg font-medium text-brand-ink/70 transition-all duration-300 ease-out hover:text-primary"
-                              >
-                                {link.name}
-                              </Link>
-                            ))}
-                          </div>
-                        </motion.div>
-                      ) : null}
-                    </AnimatePresence>
-                  </div>
-                ))}
-                
-                <div className="flex flex-col gap-4 pt-4 border-t border-primary/10">
-                  {otherLinks.map((link) => (
-                    <Link
-                      key={link.path}
-                      to={link.path}
-                      onClick={() => handleNavClick(link.path)}
-                      className="text-2xl font-serif font-medium italic text-brand-ink hover:text-primary transition-all duration-300 ease-out hover:scale-[1.03] hover:font-semibold origin-left inline-block"
-                    >
-                      {link.name}
-                    </Link>
-                  ))}
-                </div>
-              </div>
-
-              <div className="mt-auto pt-8 border-t border-primary/10 flex flex-col gap-4">
-                {user ? (
-                  <>
-                    <Link to="/profile" onClick={() => setIsOpen(false)} className="text-lg font-medium text-brand-ink transition-all duration-300 ease-out hover:scale-105 hover:font-semibold origin-left inline-block">
-                      Миний бүртгэл
-                    </Link>
-                    {isAdmin && <Link to="/admin" onClick={() => setIsOpen(false)} className="text-lg font-medium text-brand-ink transition-all duration-300 ease-out hover:scale-105 hover:font-semibold origin-left inline-block">Менежер</Link>}
-                    <Button variant="outline" onClick={handleLogout} className="w-full justify-start text-red-500 border-red-100 rounded-full py-6">
-                      <LogOut className="mr-2 h-4 w-4" /> Гарах
-                    </Button>
-                  </>
-                ) : (
-                  <Link to="/login" onClick={() => setIsOpen(false)}>
-                    <Button 
-                      className="w-full bg-brand-ink text-white rounded-full py-8 text-lg font-medium transition-all duration-300 ease-out hover:scale-[1.02] hover:font-semibold"
-                    >
-                      Нэвтрэх
-                    </Button>
-                  </Link>
-                )}
-              </div>
-            </motion.div>
-          </>
-        )}
-      </AnimatePresence>
     </nav>
-  );
+
+    {/* Mobile Drawer outside fixed nav to avoid backdrop-filter stacking context truncation */}
+    <AnimatePresence>
+      {isOpen && (
+        <>
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setIsOpen(false)}
+            className="fixed inset-0 bg-brand-ink/20 backdrop-blur-sm z-[60] xl:hidden"
+          />
+          <motion.div
+            initial={{ x: '100%' }}
+            animate={{ x: 0 }}
+            exit={{ x: '100%' }}
+            transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+            className="fixed top-0 right-0 bottom-0 w-[85%] max-w-sm bg-white border-l border-brand-ink/10 z-[70] xl:hidden p-8 flex flex-col shadow-2xl"
+          >
+            <div className="flex justify-end mb-8 shrink-0">
+              <button onClick={() => setIsOpen(false)} className="p-2 text-brand-ink">
+                <X size={32} />
+              </button>
+            </div>
+
+            <div className="flex flex-col gap-8 overflow-y-auto pb-12 flex-1 min-h-0">
+              {megaMenus.map((menu) => (
+                <div key={menu.name} className="flex flex-col gap-3">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setOpenMobileMenu((current) => (current === menu.name ? null : menu.name))
+                    }
+                    className="flex w-full items-center justify-between text-left text-2xl font-serif font-medium italic text-brand-ink transition-all duration-300 ease-out hover:text-primary"
+                  >
+                    <span>{menu.name}</span>
+                    <ChevronDown
+                      size={18}
+                      className={`shrink-0 transition-transform duration-300 ${
+                        openMobileMenu === menu.name ? 'rotate-180' : ''
+                      }`}
+                    />
+                  </button>
+                  <AnimatePresence initial={false}>
+                    {openMobileMenu === menu.name ? (
+                      <motion.div
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: 'auto', opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        transition={{ duration: 0.2 }}
+                        className="overflow-hidden"
+                      >
+                        <div className="flex flex-col gap-3 pl-4 pt-1">
+                          {menu.links.map((link) => (
+                            <Link
+                              key={link.name}
+                              to={link.path}
+                              onClick={() => handleNavClick(link.path)}
+                              className="block text-lg font-medium text-brand-ink/70 transition-all duration-300 ease-out hover:text-primary"
+                            >
+                              {link.name}
+                            </Link>
+                          ))}
+                        </div>
+                      </motion.div>
+                    ) : null}
+                  </AnimatePresence>
+                </div>
+              ))}
+              
+              <div className="flex flex-col gap-4 pt-4 border-t border-primary/10">
+                {otherLinks.map((link) => (
+                  <Link
+                    key={link.path}
+                    to={link.path}
+                    onClick={() => handleNavClick(link.path)}
+                    className="text-2xl font-serif font-medium italic text-brand-ink hover:text-primary transition-all duration-300 ease-out hover:scale-[1.03] hover:font-semibold origin-left inline-block"
+                  >
+                    {link.name}
+                  </Link>
+                ))}
+              </div>
+            </div>
+
+            <div className="mt-auto pt-8 border-t border-primary/10 flex flex-col gap-4 shrink-0">
+              {user ? (
+                <>
+                  <Link to="/profile" onClick={() => setIsOpen(false)} className="text-lg font-medium text-brand-ink transition-all duration-300 ease-out hover:scale-105 hover:font-semibold origin-left inline-block">
+                    Миний бүртгэл
+                  </Link>
+                  {isAdmin && <Link to="/admin" onClick={() => setIsOpen(false)} className="text-lg font-medium text-brand-ink transition-all duration-300 ease-out hover:scale-105 hover:font-semibold origin-left inline-block">Менежер</Link>}
+                  <Button variant="outline" onClick={handleLogout} className="w-full justify-start text-red-500 border-red-100 rounded-full py-6">
+                    <LogOut className="mr-2 h-4 w-4" /> Гарах
+                  </Button>
+                </>
+              ) : (
+                <Link to="/login" onClick={() => setIsOpen(false)}>
+                  <Button 
+                    className="w-full bg-brand-ink text-white rounded-full py-8 text-lg font-medium transition-all duration-300 ease-out hover:scale-[1.02] hover:font-semibold"
+                  >
+                    Нэвтрэх
+                  </Button>
+                </Link>
+              )}
+            </div>
+          </motion.div>
+        </>
+      )}
+    </AnimatePresence>
+  </>
+);
 };

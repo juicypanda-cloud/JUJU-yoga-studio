@@ -1,6 +1,6 @@
-import { assertMethod, getBody, jsonResponse } from './_lib.js';
-import { getServerAuth, getServerFirestore } from '../../lib/server/firebaseAdmin.js';
-import { processQPayWebhook, QPAY_EVENTS_COLLECTION } from '../../lib/server/qpayWebhookCore.js';
+import { assertMethod, getBody, jsonResponse } from './_lib.ts';
+import { getServerAuth, getServerFirestore } from '../../lib/server/firebaseAdmin.ts';
+import { processQPayWebhook, QPAY_EVENTS_COLLECTION } from '../../lib/server/qpayWebhookCore.ts';
 
 export const config = {
   runtime: 'nodejs',

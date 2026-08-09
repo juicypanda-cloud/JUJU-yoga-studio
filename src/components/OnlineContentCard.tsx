@@ -1,6 +1,8 @@
 import React from 'react';
 import { Play, Lock } from 'lucide-react';
 import { Card } from './ui/card';
+import { SmartImage } from './SmartImage';
+
 interface OnlineContentCardProps {
   content: {
     id: string;
@@ -27,16 +29,17 @@ export const OnlineContentCard: React.FC<OnlineContentCardProps> = ({ content, o
   return (
     <div className="group cursor-pointer" onClick={onClick}>
       <Card
-        className="border-none shadow-2xl shadow-brand-ink/10 overflow-hidden rounded-[2rem] bg-brand-ink relative mb-8 group-hover:-translate-y-2 transition-all duration-500"
-        style={{ aspectRatio: '16 / 9' }}
+        className="border-none shadow-2xl shadow-brand-ink/10 overflow-hidden rounded-[2rem] bg-brand-ink relative mb-8 group-hover:-translate-y-2 transition-all duration-500 aspect-video"
       >
-        <img
+        <SmartImage
           key={`${content.id}-${thumb}`}
           src={thumb}
           alt={content.title}
-          className="absolute inset-0 h-full w-full object-cover block"
-          loading="eager"
-          fetchPriority="high"
+          fallbackSrc={FALLBACK_THUMBNAIL}
+          className="absolute inset-0 h-full w-full object-cover"
+          loading={priority ? 'eager' : 'lazy'}
+          fetchPriority={priority ? 'high' : 'auto'}
+          sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 25vw"
           decoding="async"
         />
 

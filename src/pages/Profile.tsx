@@ -1,13 +1,13 @@
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { motion } from 'motion/react';
-import { User, Mail, Calendar, CreditCard, ShieldCheck, LogOut, ClipboardCheck, CalendarClock, ClipboardList, Plus, Trash2, Receipt, Loader2 } from 'lucide-react';
+import { Plus, CalendarClock, ClipboardList, Trash2 } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Textarea } from '../components/ui/textarea';
-import { auth } from '../firebase';
+import { auth, db } from '../firebase';
 import { signOut } from 'firebase/auth';
-import { Navigate, useNavigate, Link } from 'react-router-dom';
+import { Navigate, useNavigate } from 'react-router-dom';
 import {
   addDoc,
   collection,
@@ -20,7 +20,6 @@ import {
   where,
   writeBatch,
 } from 'firebase/firestore';
-import { db } from '../firebase';
 import {
   Dialog,
   DialogContent,
@@ -30,28 +29,12 @@ import {
 } from '../components/ui/dialog';
 import { toast } from 'sonner';
 
-type RosterAttendance = 'present' | 'absent' | 'unknown';
+import { ProfileOverview } from '../components/profile/ProfileOverview';
+import { AccountSettings } from '../components/profile/AccountSettings';
+import { BookingsList } from '../components/profile/BookingsList';
+import { TeacherSchedule, TeacherClassSummary, ScheduleRow, RosterStudent, RosterAttendance } from '../components/profile/TeacherSchedule';
 
-type RosterStudent = {
-  key: string;
-  name: string;
-  email: string;
-  attendance: RosterAttendance;
-  bookingIds: string[];
-};
-
-type TeacherClassSummary = {
-  id: string;
-  title: string;
-  teacher: string;
-  teacherId: string;
-  duration: string;
-  participantCount: number;
-  /** Sum of capacity across schedule slots for this class (fallback if none). */
-  capacityTotal: number;
-  sessionCount: number;
-  roster: RosterStudent[];
-};
+const WEEK_DAYS = ['Даваа', 'Мягмар', 'Лхагва', 'Пүрэв', 'Баасан', 'Бямба', 'Ням'];
 
 function attendanceFromBooking(booking: Record<string, unknown>): RosterAttendance {
   const raw = String(booking?.attendanceStatus || '').toLowerCase();
@@ -87,19 +70,6 @@ function resolveDisplayName(record: Record<string, unknown>, fallbackEmail = '',
   return String(record?.userId || fallbackName || 'Unknown user').trim();
 }
 
-type ScheduleRow = {
-  id: string;
-  classId?: string;
-  dayOfWeek?: string;
-  startTime?: string;
-  endTime?: string;
-  room?: string;
-  bookedCount?: number;
-  capacity?: number;
-};
-
-const WEEK_DAYS = ['Даваа', 'Мягмар', 'Лхагва', 'Пүрэв', 'Баасан', 'Бямба', 'Ням'];
-
 function dateMs(value: unknown): number | null {
   if (!value) return null;
   if (typeof value === 'object' && value !== null && 'toDate' in value && typeof (value as Timestamp).toDate === 'function') {
@@ -112,28 +82,6 @@ function dateMs(value: unknown): number | null {
   return null;
 }
 
-function formatUnknownDate(value: unknown): string {
-  const ms = dateMs(value);
-  if (ms != null) return new Date(ms).toLocaleString();
-  return '—';
-}
-
-function paymentIntentLabel(pi: unknown): string {
-  if (!pi || typeof pi !== 'object') return 'Төлбөр';
-  const kind = String((pi as Record<string, unknown>).kind || '').toLowerCase();
-  if (kind === 'subscription') return 'Гишүүнчлэл';
-  if (kind === 'class_month' || kind === 'class_detail') return 'Хичээл';
-  if (kind === 'schedule_slot') return 'Цаг сонголт';
-  return 'Төлбөр';
-}
-
-function qpayStatusLabel(status: unknown, processed: unknown): string {
-  const s = String(status || '').toLowerCase();
-  if (s === 'paid' || processed === true) return 'Төлөгдсөн';
-  if (s === 'failed') return 'Амжилтгүй';
-  return 'Хүлээгдэж буй';
-}
-
 export const Profile: React.FC = () => {
   const { user, profile, isSubscribed, isTeacher } = useAuth();
   const navigate = useNavigate();
@@ -142,7 +90,6 @@ export const Profile: React.FC = () => {
   const [scheduleRows, setScheduleRows] = useState<ScheduleRow[]>([]);
   const [scheduleDialogOpen, setScheduleDialogOpen] = useState(false);
   const [scheduleClassId, setScheduleClassId] = useState('');
-  /** Firestore `schedule` doc id when editing; `null` = add new slot */
   const [scheduleRowId, setScheduleRowId] = useState<string | null>(null);
   const [scheduleStart, setScheduleStart] = useState('08:00');
   const [scheduleEnd, setScheduleEnd] = useState('09:00');
@@ -189,7 +136,6 @@ export const Profile: React.FC = () => {
         toast.message('QPay дээр төлбөр олдсонгүй эсвэл түр хүлээгдэж байна.');
       }
     } catch (e) {
-      console.error(e);
       toast.error('Шалгахад алдаа гарлаа');
     } finally {
       setReconcilingPaymentId(null);
@@ -207,14 +153,6 @@ export const Profile: React.FC = () => {
     setNewClassStart('08:00');
     setNewClassEnd('09:00');
   };
-
-  const subscriptionPlanLabel = (() => {
-    const plan = String(profile?.subscriptionPlan || '').trim().toLowerCase();
-    if (plan === 'online-video') return 'Online Video';
-    if (plan === 'online-audio') return 'Online Audio';
-    if (plan === 'yearly') return 'Жилийн багц';
-    return 'Сарын багц';
-  })();
 
   if (!user) {
     return <Navigate to="/" replace />;
@@ -250,15 +188,6 @@ export const Profile: React.FC = () => {
     signOut(auth);
     navigate('/');
   };
-
-  const scheduleRowsForSelectedClass = scheduleRows
-    .filter((row) => String(row.classId || '') === scheduleClassId)
-    .sort((a, b) => {
-      const da = WEEK_DAYS.indexOf(String(a.dayOfWeek || ''));
-      const db = WEEK_DAYS.indexOf(String(b.dayOfWeek || ''));
-      if (da !== db) return da - db;
-      return String(a.startTime || '').localeCompare(String(b.startTime || ''));
-    });
 
   useEffect(() => {
     if (!user || !isTeacher) {
@@ -342,7 +271,6 @@ export const Profile: React.FC = () => {
           .filter(Boolean)
       );
 
-      /** Firestore `teachers/{id}` doc ids explicitly tied to this signed-in account */
       const myTeacherDocIds = new Set<string>();
       for (const teacher of teachers) {
         const docId = String(teacher?.id || '').trim();
@@ -394,8 +322,7 @@ export const Profile: React.FC = () => {
 
         const participantKeys = new Set<string>();
         classBookings.forEach((booking) => {
-          const key =
-            String(booking?.userId || booking?.userEmail || booking?.id || '').trim();
+          const key = String(booking?.userId || booking?.userEmail || booking?.id || '').trim();
           if (key) participantKeys.add(key);
         });
 
@@ -482,24 +409,6 @@ export const Profile: React.FC = () => {
     };
   }, [isTeacher, profile?.displayName, profile?.email, user]);
 
-  useEffect(() => {
-    if (!scheduleDialogOpen || !scheduleClassId) return;
-    if (scheduleRowId) {
-      const slot = scheduleRows.find(
-        (row) => row.id === scheduleRowId && String(row.classId || '') === scheduleClassId
-      );
-      if (slot) {
-        setScheduleStart(String(slot.startTime || '08:00'));
-        setScheduleEnd(String(slot.endTime || '09:00'));
-        setScheduleRoom(String(slot.room || 'Main Hall'));
-      }
-    } else {
-      setScheduleStart('08:00');
-      setScheduleEnd('09:00');
-      setScheduleRoom('Main Hall');
-    }
-  }, [scheduleDialogOpen, scheduleClassId, scheduleRowId, scheduleRows]);
-
   const openScheduleDialog = (presetClassId: string) => {
     const rows = scheduleRows.filter((row) => String(row.classId || '') === presetClassId);
     setScheduleClassId(presetClassId);
@@ -512,8 +421,6 @@ export const Profile: React.FC = () => {
     setRosterOverride({});
     setRosterDialogOpen(true);
   };
-
-  const rosterClass = teacherClasses.find((c) => c.id === rosterClassId);
 
   const setStudentAttendance = async (student: RosterStudent, next: RosterAttendance) => {
     if (!user) return;
@@ -584,7 +491,6 @@ export const Profile: React.FC = () => {
       toast.success('Хуваарь хадгалагдлаа');
       setScheduleDialogOpen(false);
     } catch (error) {
-      console.error('Schedule save failed:', error);
       toast.error('Хуваарь хадгалахад алдаа гарлаа');
     } finally {
       setScheduleSaving(false);
@@ -639,7 +545,6 @@ export const Profile: React.FC = () => {
       setTeacherClassDialogOpen(false);
       resetNewClassForm();
     } catch (error) {
-      console.error('Create teacher class failed:', error);
       toast.error('Хичээл үүсгэхэд алдаа гарлаа');
     } finally {
       setCreatingClass(false);
@@ -661,10 +566,11 @@ export const Profile: React.FC = () => {
       if (scheduleClassId === classId) setScheduleDialogOpen(false);
       if (rosterClassId === classId) setRosterDialogOpen(false);
     } catch (error) {
-      console.error('Delete teacher class failed:', error);
       toast.error('Устгахад алдаа гарлаа');
     }
   };
+
+  const rosterClass = teacherClasses.find((c) => c.id === rosterClassId);
 
   return (
     <div className="pt-32 pb-32 min-h-screen bg-gray-50/30">
@@ -674,687 +580,152 @@ export const Profile: React.FC = () => {
           animate={{ opacity: 1, y: 0 }}
           className="bg-white rounded-2xl shadow-2xl shadow-brand-ink/5 border border-brand-ink/5 overflow-hidden sm:rounded-[3rem]"
         >
-            {/* Profile Header */}
-            <div className="bg-brand-ink p-6 text-white relative overflow-hidden sm:p-10 md:p-12">
-              <div className="absolute top-0 right-0 w-64 h-64 bg-brand-icon/10 rounded-full -translate-y-1/2 translate-x-1/2 blur-3xl" />
-              <div className="relative z-10 flex flex-col md:flex-row items-center gap-8">
-                <div className="relative h-24 w-24 shrink-0 rounded-full border-4 border-white/10 overflow-hidden bg-secondary/25">
-                  {user.photoURL ? (
-                    <img
-                      src={user.photoURL}
-                      alt={user.displayName || 'Профайл зураг'}
-                      className="h-full w-full object-cover"
-                      loading="eager"
-                      decoding="async"
-                    />
-                  ) : (
-                    <div className="flex h-full w-full items-center justify-center">
-                      <User size={40} className="text-white/40" />
-                    </div>
-                  )}
-                </div>
-                <div className="text-center md:text-left">
-                  <h1 className="text-3xl font-serif mb-2">{user.displayName || 'Хэрэглэгч'}</h1>
-                  <p className="text-white/60 font-light flex items-center justify-center md:justify-start gap-2">
-                    <Mail size={14} />
-                    {user.email}
-                  </p>
-                </div>
-              </div>
-            </div>
+          {/* Profile Overview Header */}
+          <ProfileOverview user={user} profile={profile} />
 
-            {/* Profile Content */}
-            <div className="p-4 sm:p-8 md:p-12">
-              <div className="grid grid-cols-1 gap-8 md:grid-cols-2 md:gap-12">
-                {/* Subscription Info */}
-                <div className="space-y-8">
-                  <h3 className="text-xl font-serif text-brand-ink flex items-center gap-3">
-                    <CreditCard className="text-brand-icon" size={20} />
-                    Гишүүнчлэлийн төлөв
-                  </h3>
-                  
-                  <div className={`rounded-[2rem] border p-5 transition-all duration-500 sm:p-8 ${
-                    isSubscribed 
-                      ? 'bg-green-50/50 border-green-100' 
-                      : 'bg-gray-50 border-brand-ink/5'
-                  }`}>
-                    <div className="flex items-center justify-between mb-6">
-                      <span className={`px-4 py-1 rounded-full text-[10px] font-black tracking-widest uppercase ${
-                        isSubscribed ? 'bg-green-500 text-white' : 'bg-gray-200 text-gray-500'
-                      }`}>
-                        {isSubscribed ? 'Идэвхтэй' : 'Идэвхгүй'}
-                      </span>
-                      {isSubscribed && (
-                        <span className="text-xs text-brand-ink/40 font-light">
-                          {subscriptionPlanLabel}
-                        </span>
-                      )}
-                    </div>
-                    
-                    {isSubscribed ? (
-                      <div className="space-y-4">
-                        <p className="text-sm text-brand-ink/60 font-light leading-relaxed">
-                          Таны гишүүнчлэл {new Date(profile?.subscriptionEndDate).toLocaleDateString()} хүртэл хүчинтэй байна.
-                        </p>
-                        <Link to="/online">
-                          <Button variant="link" className="p-0 h-auto text-brand-icon hover:text-brand-icon/80 text-xs font-bold uppercase tracking-widest">
-                            Хичээл үзэх
-                          </Button>
-                        </Link>
-                      </div>
-                    ) : (
-                      <div className="space-y-6">
-                        <p className="text-sm text-brand-ink/60 font-light leading-relaxed">
-                          Та одоогоор гишүүнчлэлгүй байна. Онлайн сангийн хичээлүүдийг үзэхийн тулд гишүүн болоорой.
-                        </p>
-                        <Link to="/pricing">
-                          <Button className="w-full bg-brand-ink text-white hover:bg-brand-icon rounded-full py-6 text-[10px] font-black tracking-widest uppercase transition-all duration-500">
-                            Гишүүн болох
-                          </Button>
-                        </Link>
-                      </div>
-                    )}
-                  </div>
-                </div>
+          {/* Profile Body */}
+          <div className="p-4 sm:p-8 md:p-12">
+            {/* Account & Subscription Settings */}
+            <AccountSettings profile={profile} isSubscribed={isSubscribed} onLogout={handleLogout} />
 
-                {/* Account Details */}
-                <div className="space-y-8">
-                  <h3 className="text-xl font-serif text-brand-ink flex items-center gap-3">
-                    <ShieldCheck className="text-brand-icon" size={20} />
-                    Бүртгэлийн мэдээлэл
-                  </h3>
-                  
-                  <div className="space-y-6">
-                    <div className="flex items-center justify-between py-4 border-b border-brand-ink/5">
-                      <div className="flex items-center gap-3 text-brand-ink/40">
-                        <Calendar size={16} />
-                        <span className="text-sm font-light">Бүртгүүлсэн огноо</span>
-                      </div>
-                      <span className="text-sm text-brand-ink font-medium">
-                        {profile?.createdAt ? new Date(profile.createdAt).toLocaleDateString() : 'Тодорхойгүй'}
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between py-4 border-b border-brand-ink/5">
-                      <div className="flex items-center gap-3 text-brand-ink/40">
-                        <User size={16} />
-                        <span className="text-sm font-light">Хэрэглэгчийн төрөл</span>
-                      </div>
-                      <span className="text-sm text-brand-ink font-medium capitalize">
-                        {profile?.role || 'Хэрэглэгч'}
-                      </span>
-                    </div>
-                  </div>
+            {/* User Bookings & Payment History */}
+            <BookingsList
+              myPayments={myPayments}
+              myBookings={myBookings}
+              purchasesLoading={purchasesLoading}
+              reconcilingPaymentId={reconcilingPaymentId}
+              onReconcilePayment={handleReconcilePayment}
+            />
 
-                  <div className="pt-8">
-                    <Button 
-                      onClick={handleLogout}
-                      variant="outline" 
-                      className="w-full rounded-full py-6 border-red-100 text-red-500 hover:bg-red-50 hover:text-red-600 transition-all duration-500 text-[10px] font-black tracking-widest uppercase"
-                    >
-                      <LogOut size={16} className="mr-2" />
-                      Системээс гарах
-                    </Button>
-                  </div>
-                </div>
-              </div>
-
-              <div className="mt-12 border-t border-brand-ink/10 pt-12">
-                <h3 className="mb-6 flex items-center gap-3 text-xl font-serif text-brand-ink">
-                  <Receipt className="text-brand-icon" size={20} />
-                  Миний худалдан авалт
-                </h3>
-                {purchasesLoading ? (
-                  <p className="text-sm text-brand-ink/50">Уншиж байна...</p>
-                ) : myPayments.length === 0 && myBookings.length === 0 ? (
-                  <p className="text-sm text-brand-ink/60">
-                    Одоогоор бүртгэлгүй. Хичээл эсвэл гишүүнчлэл худалдан авсны дараа энд харагдана.
-                  </p>
-                ) : (
-                  <div className="space-y-8">
-                    {myPayments.length > 0 ? (
-                      <div>
-                        <h4 className="mb-3 text-xs font-black uppercase tracking-widest text-brand-ink/40">Төлбөрийн түүх</h4>
-                        <ul className="divide-y divide-brand-ink/10 rounded-2xl border border-brand-ink/10 bg-gray-50/50">
-                          {myPayments.map((row) => {
-                            const meta = row.metadata as Record<string, unknown> | undefined;
-                            const desc = String(meta?.description || '').trim();
-                            const pi = row.paymentIntent;
-                            const amount = Number(row.amount ?? 0);
-                            const st = qpayStatusLabel(row.status, row.processed);
-                            const invoiceKey = String(row.invoiceId ?? row.id);
-                            const showReconcile =
-                              String(row.status || '').toLowerCase() !== 'paid' && row.processed !== true;
-                            return (
-                              <li key={row.id} className="flex flex-col gap-2 px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
-                                <div>
-                                  <p className="font-medium text-brand-ink">
-                                    {paymentIntentLabel(pi)}
-                                    {desc ? ` — ${desc}` : ''}
-                                  </p>
-                                  <p className="text-xs text-brand-ink/45">{formatUnknownDate(row.createdAt)}</p>
-                                </div>
-                                <div className="flex flex-wrap items-center gap-3">
-                                  <span className="text-sm font-semibold text-brand-ink">{amount.toLocaleString()} ₮</span>
-                                  <span
-                                    className={`rounded-full px-3 py-0.5 text-[10px] font-black uppercase tracking-wider ${
-                                      st === 'Төлөгдсөн'
-                                        ? 'bg-emerald-100 text-emerald-800'
-                                        : st === 'Амжилтгүй'
-                                          ? 'bg-red-100 text-red-800'
-                                          : 'bg-amber-100 text-amber-900'
-                                    }`}
-                                  >
-                                    {st}
-                                  </span>
-                                  {showReconcile ? (
-                                    <Button
-                                      type="button"
-                                      variant="outline"
-                                      size="sm"
-                                      className="h-8 rounded-full text-[10px] font-black uppercase tracking-wider"
-                                      disabled={reconcilingPaymentId === invoiceKey}
-                                      onClick={() => void handleReconcilePayment(invoiceKey)}
-                                    >
-                                      {reconcilingPaymentId === invoiceKey ? (
-                                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                                      ) : (
-                                        'Төлбөр шалгах'
-                                      )}
-                                    </Button>
-                                  ) : null}
-                                </div>
-                              </li>
-                            );
-                          })}
-                        </ul>
-                      </div>
-                    ) : null}
-
-                    {myBookings.length > 0 ? (
-                      <div>
-                        <h4 className="mb-3 text-xs font-black uppercase tracking-widest text-brand-ink/40">Бүртгэл / захиалга</h4>
-                        <ul className="divide-y divide-brand-ink/10 rounded-2xl border border-brand-ink/10 bg-gray-50/50">
-                          {myBookings.map((b) => {
-                            const classId = String(b.classId || b.itemId || '').trim();
-                            const bookingStatus = String(b.status || '').toLowerCase();
-                            const typeRaw = String(b.type || '').toLowerCase();
-                            const typeLabel =
-                              typeRaw === 'class_month' ? 'Сарын хичээл' : typeRaw === 'class' ? 'Хуваарь' : 'Бүртгэл';
-                            return (
-                              <li key={b.id} className="flex flex-col gap-2 px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
-                                <div>
-                                  <p className="font-medium text-brand-ink">{typeLabel}</p>
-                                  <p className="text-xs text-brand-ink/45">
-                                    {formatUnknownDate(b.createdAt)}
-                                    {String(b.monthKey || '').trim() ? ` · ${b.monthKey}` : ''}
-                                  </p>
-                                </div>
-                                <div className="flex flex-wrap items-center gap-3">
-                                  <span className="rounded-full bg-brand-ink/5 px-3 py-0.5 text-[10px] font-black uppercase tracking-wider text-brand-ink/70">
-                                    {bookingStatus === 'confirmed' ? 'Баталгаажсан' : bookingStatus || '—'}
-                                  </span>
-                                  {classId ? (
-                                    <Link
-                                      to={`/classes/${classId}`}
-                                      className="text-xs font-bold uppercase tracking-wider text-brand-icon hover:underline"
-                                    >
-                                      Хичээл рүү
-                                    </Link>
-                                  ) : null}
-                                  <Link
-                                    to="/schedule"
-                                    className="text-xs font-bold uppercase tracking-wider text-brand-ink/50 hover:text-brand-ink"
-                                  >
-                                    Хуваарь
-                                  </Link>
-                                </div>
-                              </li>
-                            );
-                          })}
-                        </ul>
-                      </div>
-                    ) : null}
-                  </div>
-                )}
-              </div>
-
-              <div className="mt-12 border-t border-brand-ink/10 pt-12">
-                {isTeacher && (
-                  <div className="mb-12 rounded-2xl border border-brand-ink/10 p-4 sm:rounded-[2rem] sm:p-8">
-                    <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                      <h3 className="flex items-center gap-3 text-xl font-serif text-brand-ink">
-                        <ClipboardCheck className="text-brand-icon" size={20} />
-                        Миний бүртгэл
-                      </h3>
-                      {!teacherLoading ? (
-                        <Button
-                          type="button"
-                          className="shrink-0 rounded-full bg-brand-ink px-5 text-white hover:bg-brand-icon"
-                          onClick={() => {
-                            resetNewClassForm();
-                            setTeacherClassDialogOpen(true);
-                          }}
-                        >
-                          <Plus size={16} className="mr-2" />
-                          Шинэ хичээл нэмэх
-                        </Button>
-                      ) : null}
-                    </div>
-
-                    <Dialog open={teacherClassDialogOpen} onOpenChange={setTeacherClassDialogOpen}>
-                      <DialogContent className="sm:max-w-lg rounded-[2rem] p-6 sm:p-8" showCloseButton>
-                        <DialogHeader>
-                          <DialogTitle className="font-serif text-2xl text-brand-ink">Шинэ хичээл</DialogTitle>
-                          <DialogDescription className="text-brand-ink/60">
-                            Үүссэн хичээл «Хичээлүүд» болон тухайн хичээлийн дэлгэрэнгүй хуудсанд шууд харагдана.
-                          </DialogDescription>
-                        </DialogHeader>
-                        <div className="max-h-[min(70vh,32rem)] space-y-4 overflow-y-auto pr-1 pt-2">
-                          <div className="space-y-2">
-                            <label className="text-xs font-black uppercase tracking-widest text-brand-ink/40">Гарчиг</label>
-                            <Input
-                              value={newClassTitle}
-                              onChange={(e) => setNewClassTitle(e.target.value)}
-                              placeholder="Жишээ: Өглөөний Vinyasa"
-                              className="rounded-xl"
-                            />
-                          </div>
-                          <div className="space-y-2">
-                            <label className="text-xs font-black uppercase tracking-widest text-brand-ink/40">Тайлбар</label>
-                            <Textarea
-                              value={newClassDescription}
-                              onChange={(e) => setNewClassDescription(e.target.value)}
-                              placeholder="Хичээлийн товч агуулга..."
-                              className="min-h-[88px] rounded-xl"
-                            />
-                          </div>
-                          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                            <div className="space-y-2">
-                              <label className="text-xs font-black uppercase tracking-widest text-brand-ink/40">Хугацаа</label>
-                              <Input
-                                value={newClassDuration}
-                                onChange={(e) => setNewClassDuration(e.target.value)}
-                                placeholder="60 мин"
-                                className="rounded-xl"
-                              />
-                            </div>
-                            <div className="space-y-2">
-                              <label className="text-xs font-black uppercase tracking-widest text-brand-ink/40">Төрөл</label>
-                              <select
-                                value={newClassCategory}
-                                onChange={(e) => setNewClassCategory(e.target.value)}
-                                className="h-11 w-full rounded-xl border border-input bg-background px-3 text-sm text-brand-ink focus:outline-none focus:ring-2 focus:ring-brand-icon/20"
-                              >
-                                <option value="Yoga">Yoga</option>
-                                <option value="Meditation">Meditation</option>
-                                <option value="Hatha">Hatha</option>
-                              </select>
-                            </div>
-                          </div>
-                          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                            <div className="space-y-2">
-                              <label className="text-xs font-black uppercase tracking-widest text-brand-ink/40">Үнэ (₮)</label>
-                              <Input
-                                type="number"
-                                min={0}
-                                value={newClassPrice}
-                                onChange={(e) => setNewClassPrice(e.target.value)}
-                                placeholder="0"
-                                className="rounded-xl"
-                              />
-                            </div>
-                            <div className="space-y-2">
-                              <label className="text-xs font-black uppercase tracking-widest text-brand-ink/40">Зураг URL</label>
-                              <Input
-                                value={newClassImage}
-                                onChange={(e) => setNewClassImage(e.target.value)}
-                                placeholder="Хоосон бол өгөгдмөл зураг"
-                                className="rounded-xl"
-                              />
-                            </div>
-                          </div>
-                          <div className="rounded-xl border border-brand-ink/10 bg-secondary/20 p-4">
-                            <p className="mb-3 text-xs font-bold uppercase tracking-[0.12em] text-brand-ink/50">
-                              Эхний хуваарь
-                            </p>
-                            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-                              <div className="space-y-1">
-                                <span className="text-[10px] font-bold uppercase text-brand-ink/40">Өдөр</span>
-                                <select
-                                  value={newClassDay}
-                                  onChange={(e) => setNewClassDay(e.target.value)}
-                                  className="h-11 w-full rounded-xl border border-input bg-background px-3 text-sm text-brand-ink"
-                                >
-                                  {WEEK_DAYS.map((d) => (
-                                    <option key={d} value={d}>
-                                      {d}
-                                    </option>
-                                  ))}
-                                </select>
-                              </div>
-                              <div className="space-y-1">
-                                <span className="text-[10px] font-bold uppercase text-brand-ink/40">Эхлэх</span>
-                                <Input
-                                  type="time"
-                                  value={newClassStart}
-                                  onChange={(e) => setNewClassStart(e.target.value)}
-                                  className="rounded-xl"
-                                />
-                              </div>
-                              <div className="space-y-1">
-                                <span className="text-[10px] font-bold uppercase text-brand-ink/40">Дуусах</span>
-                                <Input
-                                  type="time"
-                                  value={newClassEnd}
-                                  onChange={(e) => setNewClassEnd(e.target.value)}
-                                  className="rounded-xl"
-                                />
-                              </div>
-                            </div>
-                          </div>
-                          <div className="flex flex-col gap-2 pt-2 sm:flex-row sm:justify-end">
-                            <Button
-                              type="button"
-                              variant="outline"
-                              className="rounded-full"
-                              onClick={() => setTeacherClassDialogOpen(false)}
-                              disabled={creatingClass}
-                            >
-                              Буцах
-                            </Button>
-                            <Button
-                              type="button"
-                              className="rounded-full bg-brand-ink text-white"
-                              onClick={() => void handleCreateTeacherClass()}
-                              disabled={creatingClass}
-                            >
-                              {creatingClass ? 'Үүсгэж байна...' : 'Үүсгэх'}
-                            </Button>
-                          </div>
-                        </div>
-                      </DialogContent>
-                    </Dialog>
-
-                    {teacherLoading ? (
-                      <p className="text-sm text-brand-ink/50">Хичээлийн мэдээлэл ачаалж байна...</p>
-                    ) : (
-                      <>
-                        <Dialog open={scheduleDialogOpen} onOpenChange={setScheduleDialogOpen}>
-                          <DialogContent className="sm:max-w-md rounded-[2rem] p-6 sm:p-8" showCloseButton>
-                            <DialogHeader>
-                              <DialogTitle className="font-serif text-2xl text-brand-ink">Хуваарь засах</DialogTitle>
-                              <DialogDescription className="text-brand-ink/60">
-                                Хичээл сонгоод цаг, өрөөг тохируулна уу. Шинэ цаг нэмэх бол «Шинэ хуваарь нэмэх» дарна уу.
-                              </DialogDescription>
-                            </DialogHeader>
-                            <div className="space-y-4 pt-2">
-                              <div className="space-y-2">
-                                <label className="text-xs font-black uppercase tracking-widest text-brand-ink/40">Хичээл</label>
-                                <select
-                                  value={scheduleClassId}
-                                  onChange={(e) => {
-                                    const nextClassId = e.target.value;
-                                    const rows = scheduleRows.filter(
-                                      (row) => String(row.classId || '') === nextClassId
-                                    );
-                                    setScheduleClassId(nextClassId);
-                                    setScheduleRowId(rows[0]?.id ?? null);
-                                  }}
-                                  className="h-11 w-full rounded-xl border border-input bg-background px-3 text-sm text-brand-ink focus:outline-none focus:ring-2 focus:ring-brand-icon/20"
-                                >
-                                  {teacherClasses.map((item) => (
-                                    <option key={item.id} value={item.id}>
-                                      {item.title}
-                                    </option>
-                                  ))}
-                                </select>
-                              </div>
-                              <div className="space-y-2">
-                                <label className="text-xs font-black uppercase tracking-widest text-brand-ink/40">
-                                  Хуваарь
-                                </label>
-                                <div className="flex flex-wrap gap-2">
-                                  <button
-                                    type="button"
-                                    onClick={() => setScheduleRowId(null)}
-                                    className={`inline-flex items-center gap-2 rounded-full border px-3 py-2 text-xs font-semibold transition-colors ${
-                                      scheduleRowId === null
-                                        ? 'border-brand-icon bg-brand-icon text-white'
-                                        : 'border-brand-ink/10 bg-white text-brand-ink/70 hover:border-brand-icon/40'
-                                    }`}
-                                  >
-                                    <Plus size={14} />
-                                    Шинэ хуваарь нэмэх
-                                  </button>
-                                  {scheduleRowsForSelectedClass.map((row) => {
-                                    const active = scheduleRowId === row.id;
-                                    const label = [row.startTime, row.endTime].filter(Boolean).join('–');
-                                    return (
-                                      <button
-                                        key={row.id}
-                                        type="button"
-                                        onClick={() => setScheduleRowId(row.id)}
-                                        className={`rounded-full border px-3 py-2 text-xs font-semibold transition-colors ${
-                                          active
-                                            ? 'border-brand-icon bg-brand-icon text-white'
-                                            : 'border-brand-ink/10 bg-white text-brand-ink/70 hover:border-brand-icon/40'
-                                        }`}
-                                      >
-                                        {label || 'Цаг'} {row.room ? `· ${row.room}` : ''}
-                                      </button>
-                                    );
-                                  })}
-                                </div>
-                                {scheduleRowId === null && scheduleRowsForSelectedClass.length === 0 ? (
-                                  <p className="text-xs text-brand-ink/45">
-                                    Эхний хуваариа доорх цаг, өрөөгөөр үүсгэнэ үү.
-                                  </p>
-                                ) : null}
-                              </div>
-                              <div className="rounded-xl border border-brand-ink/10 bg-secondary/20 p-4">
-                                <p className="mb-3 text-xs font-bold uppercase tracking-[0.12em] text-brand-ink/50">
-                                  Одоогийн цаг
-                                </p>
-                                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                                  <div className="space-y-1">
-                                    <span className="text-[10px] font-bold uppercase text-brand-ink/40">Эхлэх</span>
-                                    <Input
-                                      type="time"
-                                      value={scheduleStart}
-                                      onChange={(e) => setScheduleStart(e.target.value)}
-                                      className="rounded-xl"
-                                    />
-                                  </div>
-                                  <div className="space-y-1">
-                                    <span className="text-[10px] font-bold uppercase text-brand-ink/40">Дуусах</span>
-                                    <Input
-                                      type="time"
-                                      value={scheduleEnd}
-                                      onChange={(e) => setScheduleEnd(e.target.value)}
-                                      className="rounded-xl"
-                                    />
-                                  </div>
-                                </div>
-                                <div className="mt-3 space-y-1">
-                                  <span className="text-[10px] font-bold uppercase text-brand-ink/40">Өрөө / заал</span>
-                                  <Input
-                                    value={scheduleRoom}
-                                    onChange={(e) => setScheduleRoom(e.target.value)}
-                                    className="rounded-xl"
-                                    placeholder="Main Hall"
-                                  />
-                                </div>
-                              </div>
-                              <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
-                                <Button
-                                  type="button"
-                                  variant="outline"
-                                  className="rounded-full"
-                                  onClick={() => setScheduleDialogOpen(false)}
-                                  disabled={scheduleSaving}
-                                >
-                                  Буцах
-                                </Button>
-                                <Button
-                                  type="button"
-                                  className="rounded-full bg-brand-ink text-white"
-                                  onClick={() => void handleSaveSchedule()}
-                                  disabled={scheduleSaving}
-                                >
-                                  {scheduleSaving ? 'Хадгалж байна...' : 'Хадгалах'}
-                                </Button>
-                              </div>
-                            </div>
-                          </DialogContent>
-                        </Dialog>
-
-                        <Dialog open={rosterDialogOpen} onOpenChange={setRosterDialogOpen}>
-                          <DialogContent className="sm:max-w-lg rounded-[2rem] p-6 sm:p-8" showCloseButton>
-                            <DialogHeader>
-                              <DialogTitle className="font-serif text-2xl text-brand-ink">
-                                {rosterClass?.title ?? 'Ирц'}
-                              </DialogTitle>
-                              <DialogDescription className="text-brand-ink/60">
-                                Бүртгэлтэй суралцагчид болон ирцийн төлөв.
-                              </DialogDescription>
-                            </DialogHeader>
-                            <div className="max-h-[min(60vh,28rem)] space-y-2 overflow-y-auto pr-1 pt-2">
-                              {rosterClass && rosterClass.roster.length === 0 ? (
-                                <p className="text-sm text-brand-ink/50">
-                                  Энэ хичээлд суралцагчийн бүртгэл байхгүй.
-                                </p>
-                              ) : (
-                                rosterClass?.roster.map((student) => (
-                                  (() => {
-                                    const effectiveAttendance =
-                                      rosterOverride[student.key] ?? student.attendance;
-                                    const saving = rosterSavingKey === student.key;
-                                    return (
-                                  <div
-                                    key={student.key}
-                                    className="flex flex-col gap-1 rounded-xl border border-brand-ink/10 bg-secondary/15 px-4 py-3 sm:flex-row sm:items-center sm:justify-between"
-                                  >
-                                    <div className="min-w-0">
-                                      <p className="font-medium text-brand-ink">{student.name}</p>
-                                      {student.email ? (
-                                        <p className="truncate text-xs text-brand-ink/45">{student.email}</p>
-                                      ) : null}
-                                    </div>
-                                    <div className="flex flex-wrap items-center gap-2 pt-2 sm:justify-end sm:pt-0">
-                                      <Button
-                                        type="button"
-                                        variant={effectiveAttendance === 'present' ? 'default' : 'outline'}
-                                        size="sm"
-                                        className={
-                                          effectiveAttendance === 'present'
-                                            ? 'rounded-full bg-emerald-600 text-white hover:bg-emerald-700'
-                                            : 'rounded-full'
-                                        }
-                                        disabled={saving}
-                                        onClick={() => void setStudentAttendance(student, 'present')}
-                                      >
-                                        Ирсэн
-                                      </Button>
-                                      <Button
-                                        type="button"
-                                        variant={effectiveAttendance === 'absent' ? 'default' : 'outline'}
-                                        size="sm"
-                                        className={
-                                          effectiveAttendance === 'absent'
-                                            ? 'rounded-full bg-red-600 text-white hover:bg-red-700'
-                                            : 'rounded-full'
-                                        }
-                                        disabled={saving}
-                                        onClick={() => void setStudentAttendance(student, 'absent')}
-                                      >
-                                        Ирээгүй
-                                      </Button>
-                                    </div>
-                                  </div>
-                                    );
-                                  })()
-                                ))
-                              )}
-                            </div>
-                          </DialogContent>
-                        </Dialog>
-
-                        {teacherClasses.length > 0 ? (
-                          <div className="mt-4 space-y-4">
-                            {teacherClasses.map((classItem) => (
-                          <div
-                            key={classItem.id}
-                            className="flex flex-col gap-4 rounded-2xl border border-brand-ink/5 p-5 sm:flex-row sm:items-center sm:justify-between"
-                          >
-                            <button
-                              type="button"
-                              className="min-w-0 flex-1 rounded-xl p-1 text-left outline-none ring-offset-background transition-colors hover:bg-brand-ink/[0.03] focus-visible:ring-2 focus-visible:ring-brand-icon/25 -m-1"
-                              onClick={() => openRosterDialog(classItem.id)}
-                            >
-                              <p className="text-lg font-medium text-brand-ink">{classItem.title}</p>
-                              <p className="text-xs uppercase tracking-[0.2em] text-brand-ink/40">
-                                {classItem.duration} • {classItem.sessionCount} хуваарь
-                              </p>
-                            </button>
-                            <div className="flex w-full shrink-0 flex-row flex-wrap items-center justify-end gap-x-4 gap-y-2 sm:w-auto sm:gap-x-5">
-                              <span className="text-sm tabular-nums tracking-tight text-brand-ink/55">
-                                {classItem.participantCount}/{classItem.capacityTotal}
-                              </span>
-                              <div className="flex flex-wrap items-center gap-2">
-                                <Button
-                                  type="button"
-                                  variant="outline"
-                                  size="sm"
-                                  className="rounded-full px-4 text-xs font-semibold"
-                                  onClick={() => openRosterDialog(classItem.id)}
-                                >
-                                  <ClipboardList size={14} className="mr-2" />
-                                  Ирц
-                                </Button>
-                                <Button
-                                  type="button"
-                                  variant="outline"
-                                  size="sm"
-                                  className="rounded-full px-4 text-xs font-semibold whitespace-nowrap"
-                                  onClick={() => openScheduleDialog(classItem.id)}
-                                >
-                                  <CalendarClock size={14} className="mr-2" />
-                                  Хуваарь засах
-                                </Button>
-                                <Button type="button" variant="outline" size="sm" asChild className="rounded-full px-4 text-xs font-semibold">
-                                  <Link to={`/classes/${classItem.id}`}>Дэлгэрэнгүй</Link>
-                                </Button>
-                                {user?.uid && classItem.teacherId === user.uid ? (
-                                  <Button
-                                    type="button"
-                                    variant="outline"
-                                    size="sm"
-                                    className="rounded-full border-red-200 px-4 text-xs font-semibold text-red-600 hover:bg-red-50"
-                                    onClick={() => void handleDeleteTeacherClass(classItem.id)}
-                                  >
-                                    <Trash2 size={14} className="mr-2" />
-                                    Устгах
-                                  </Button>
-                                ) : null}
-                              </div>
-                            </div>
-                          </div>
-                            ))}
-                          </div>
-                        ) : (
-                          <p className="rounded-2xl border border-dashed border-brand-ink/15 p-6 text-center text-sm text-brand-ink/50">
-                            Жагсаалт хоосон. «Шинэ хичээл нэмэх» товчоор өөрийн хичээлээ үүсгэнэ үү. Админаар оноогдсон хичээлүүд энд бас харагдана.
-                          </p>
-                        )}
-                      </>
-                    )}
-                  </div>
-                )}
-
-              </div>
-            </div>
-          </motion.div>
+            {/* Teacher Schedule & Roster (if applicable) */}
+            {isTeacher && (
+              <TeacherSchedule
+                teacherClasses={teacherClasses}
+                teacherLoading={teacherLoading}
+                scheduleRows={scheduleRows}
+                onOpenScheduleDialog={openScheduleDialog}
+                onOpenRosterDialog={openRosterDialog}
+                onDeleteClass={handleDeleteTeacherClass}
+                onOpenNewClassDialog={() => {
+                  resetNewClassForm();
+                  setTeacherClassDialogOpen(true);
+                }}
+              />
+            )}
+          </div>
+        </motion.div>
       </div>
+
+      {/* Teacher Schedule Modal */}
+      <Dialog open={scheduleDialogOpen} onOpenChange={setScheduleDialogOpen}>
+        <DialogContent className="sm:max-w-md rounded-[2rem] p-6 sm:p-8" showCloseButton>
+          <DialogHeader>
+            <DialogTitle className="font-serif text-2xl text-brand-ink">Хуваарь тохируулах</DialogTitle>
+            <DialogDescription className="text-brand-ink/60">
+              Хичээлийн орох цагийг шинэчлэх.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 pt-2">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <label className="text-xs font-black uppercase tracking-widest text-brand-ink/40">Эхлэх цаг</label>
+                <Input
+                  type="time"
+                  value={scheduleStart}
+                  onChange={(e) => setScheduleStart(e.target.value)}
+                  className="rounded-xl"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-xs font-black uppercase tracking-widest text-brand-ink/40">Дуусах цаг</label>
+                <Input
+                  type="time"
+                  value={scheduleEnd}
+                  onChange={(e) => setScheduleEnd(e.target.value)}
+                  className="rounded-xl"
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <label className="text-xs font-black uppercase tracking-widest text-brand-ink/40">Танхим / өрөө</label>
+              <Input
+                value={scheduleRoom}
+                onChange={(e) => setScheduleRoom(e.target.value)}
+                placeholder="Main Hall"
+                className="rounded-xl"
+              />
+            </div>
+            <Button
+              className="w-full rounded-full bg-brand-ink py-6 text-[10px] font-black uppercase tracking-widest text-white hover:bg-brand-icon"
+              disabled={scheduleSaving}
+              onClick={handleSaveSchedule}
+            >
+              {scheduleSaving ? 'Хадгалж байна...' : 'Хадгалах'}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Teacher Roster Modal */}
+      <Dialog open={rosterDialogOpen} onOpenChange={setRosterDialogOpen}>
+        <DialogContent className="sm:max-w-xl rounded-[2rem] p-6 sm:p-8" showCloseButton>
+          <DialogHeader>
+            <DialogTitle className="font-serif text-2xl text-brand-ink">
+              Сурагчдын ирц — {rosterClass?.title || 'Хичээл'}
+            </DialogTitle>
+            <DialogDescription className="text-brand-ink/60">
+              Нийт бүртгүүлсэн сурагчдын ирцийг тэмдэглэнэ үү.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="max-h-[min(60vh,28rem)] space-y-3 overflow-y-auto pr-1 pt-2">
+            {rosterClass?.roster.length === 0 ? (
+              <p className="py-6 text-center text-sm text-brand-ink/50">Одоогоор бүртгүүлсэн сурагч байхгүй байна.</p>
+            ) : (
+              rosterClass?.roster.map((s) => {
+                const currentAtt = rosterOverride[s.key] ?? s.attendance;
+                const saving = rosterSavingKey === s.key;
+                return (
+                  <div
+                    key={s.key}
+                    className="flex flex-col gap-2 rounded-2xl border border-brand-ink/10 p-4 sm:flex-row sm:items-center sm:justify-between"
+                  >
+                    <div>
+                      <p className="font-semibold text-brand-ink">{s.name}</p>
+                      {s.email ? <p className="text-xs text-brand-ink/50">{s.email}</p> : null}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant={currentAtt === 'present' ? 'default' : 'outline'}
+                        className={`rounded-full px-3 text-xs font-bold ${
+                          currentAtt === 'present' ? 'bg-emerald-600 text-white hover:bg-emerald-700' : ''
+                        }`}
+                        disabled={saving}
+                        onClick={() => void setStudentAttendance(s, 'present')}
+                      >
+                        Ирсэн
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant={currentAtt === 'absent' ? 'default' : 'outline'}
+                        className={`rounded-full px-3 text-xs font-bold ${
+                          currentAtt === 'absent' ? 'bg-rose-600 text-white hover:bg-rose-700' : ''
+                        }`}
+                        disabled={saving}
+                        onClick={() => void setStudentAttendance(s, 'absent')}
+                      >
+                        Тасалсан
+                      </Button>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
