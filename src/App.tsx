@@ -190,7 +190,7 @@ export default function App() {
               </Suspense>
             </ErrorBoundary>
           </Layout>
-          <Toaster position="top-center" />
+          <Toaster position="top-center" offset={{ top: 'calc(1rem + env(safe-area-inset-top))' }} />
         </Router>
       </AuthProvider>
     </ErrorBoundary>

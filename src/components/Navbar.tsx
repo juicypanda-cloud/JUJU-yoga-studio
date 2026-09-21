@@ -119,8 +119,8 @@ export const Navbar: React.FC = () => {
       <nav
         className={`fixed top-0 left-0 right-0 z-50 transition-all duration-500 ${
           scrolled
-            ? 'bg-secondary/90 backdrop-blur-md py-2 shadow-sm'
-            : 'bg-transparent py-4'
+            ? 'bg-secondary/90 backdrop-blur-md pb-2 pt-[calc(0.5rem+env(safe-area-inset-top))]'
+            : 'bg-transparent pb-4 pt-[calc(1rem+env(safe-area-inset-top))]'
         }`}
         onMouseLeave={() => setHoveredIndex(null)}
       >
@@ -292,9 +292,9 @@ export const Navbar: React.FC = () => {
             initial={{ x: '100%' }}
             animate={{ x: 0 }}
             exit={{ x: '100%' }}
-            transition={{ type: 'tween', duration: 0.28, ease: [0.32, 0.72, 0, 1] }}
+            transition={{ type: 'tween', duration: 0.4, ease: [0.32, 0.72, 0, 1] }}
             style={{ willChange: 'transform' }}
-            className="fixed top-0 right-0 bottom-0 w-[85%] max-w-sm bg-white border-l border-brand-ink/10 z-[70] xl:hidden p-8 flex flex-col shadow-2xl"
+            className="fixed top-0 right-0 bottom-0 w-[85%] max-w-sm bg-white border-l border-brand-ink/10 z-[70] xl:hidden px-8 pt-[calc(2rem+env(safe-area-inset-top))] pb-[calc(2rem+env(safe-area-inset-bottom))] flex flex-col shadow-2xl"
           >
             <div className="flex justify-end mb-8 shrink-0">
               <button onClick={() => setIsOpen(false)} className="p-2 text-brand-ink">
