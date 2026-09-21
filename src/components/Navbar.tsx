@@ -292,7 +292,7 @@ export const Navbar: React.FC = () => {
             initial={{ x: '100%' }}
             animate={{ x: 0 }}
             exit={{ x: '100%' }}
-            transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+            transition={{ type: 'tween', duration: 0.28, ease: [0.32, 0.72, 0, 1] }}
             style={{ willChange: 'transform' }}
             className="fixed top-0 right-0 bottom-0 w-[85%] max-w-sm bg-white border-l border-brand-ink/10 z-[70] xl:hidden p-8 flex flex-col shadow-2xl"
           >
@@ -310,6 +310,8 @@ export const Navbar: React.FC = () => {
                     onClick={() =>
                       setOpenMobileMenu((current) => (current === menu.name ? null : menu.name))
                     }
+                    aria-expanded={openMobileMenu === menu.name}
+                    aria-controls={`mobile-submenu-${menu.path.replace(/\//g, '')}`}
                     className="flex w-full items-center justify-between text-left text-2xl font-serif font-medium italic text-brand-ink transition-all duration-300 ease-out hover:text-primary"
                   >
                     <span>{menu.name}</span>
@@ -320,30 +322,33 @@ export const Navbar: React.FC = () => {
                       }`}
                     />
                   </button>
-                  <AnimatePresence initial={false}>
-                    {openMobileMenu === menu.name ? (
-                      <motion.div
-                        initial={{ height: 0, opacity: 0 }}
-                        animate={{ height: 'auto', opacity: 1 }}
-                        exit={{ height: 0, opacity: 0 }}
-                        transition={{ duration: 0.2 }}
-                        className="overflow-hidden"
-                      >
-                        <div className="flex flex-col gap-3 pl-4 pt-1">
-                          {menu.links.map((link) => (
-                            <Link
-                              key={link.name}
-                              to={link.path}
-                              onClick={() => handleNavClick(link.path)}
-                              className="block text-lg font-medium text-brand-ink/70 transition-all duration-300 ease-out hover:text-primary"
-                            >
-                              {link.name}
-                            </Link>
-                          ))}
-                        </div>
-                      </motion.div>
-                    ) : null}
-                  </AnimatePresence>
+                  {/* CSS grid-rows trick instead of animating height: 'auto' — avoids
+                      per-frame JS layout measurement, which was causing jank and
+                      visible reflow of the links below as the panel expanded. The
+                      content stays mounted for a smooth transition, so `inert` keeps
+                      it out of tab order and the accessibility tree while collapsed. */}
+                  <div
+                    id={`mobile-submenu-${menu.path.replace(/\//g, '')}`}
+                    inert={openMobileMenu !== menu.name}
+                    className={`grid overflow-hidden transition-[grid-template-rows,opacity] duration-300 ease-out ${
+                      openMobileMenu === menu.name ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'
+                    }`}
+                  >
+                    <div className="min-h-0">
+                      <div className="flex flex-col gap-3 pl-4 pt-1">
+                        {menu.links.map((link) => (
+                          <Link
+                            key={link.name}
+                            to={link.path}
+                            onClick={() => handleNavClick(link.path)}
+                            className="block text-lg font-medium text-brand-ink/70 transition-all duration-300 ease-out hover:text-primary"
+                          >
+                            {link.name}
+                          </Link>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
                 </div>
               ))}
               
