@@ -87,7 +87,10 @@ export const Classes: React.FC = () => {
     );
     setClasses(staticClasses);
     setLoading(false);
-    preloadClassImages(staticClasses.map((item) => item.image));
+    // Only preload the above-the-fold cards — preloading every class image
+    // via a plain Image() fetch bypasses loading="lazy" on the real <img>
+    // elements and competed for bandwidth with the ones actually visible.
+    preloadClassImages(staticClasses.slice(0, 4).map((item) => item.image));
 
     const q = query(collection(db, 'classes'), orderBy('createdAt', 'desc'));
     const unsubscribe = onSnapshot(
@@ -99,7 +102,7 @@ export const Classes: React.FC = () => {
 
         const normalizedData = firestoreClasses.length > 0 ? firestoreClasses : staticClasses;
         setClasses(normalizedData);
-        preloadClassImages(normalizedData.map((item) => item.image));
+        preloadClassImages(normalizedData.slice(0, 4).map((item) => item.image));
       },
       (error) => {
         console.error('Error subscribing to classes:', error);
@@ -248,7 +251,11 @@ export const Classes: React.FC = () => {
         ) : (
         <div className="grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           <AnimatePresence mode="popLayout">
-            {filteredClasses?.map((item) => {
+            {filteredClasses?.map((item, index) => {
+              // Only the first row (up to 4 cards on the widest layout) is
+              // above the fold — eager/high-priority loading every card
+              // competed for bandwidth with the ones actually visible.
+              const isAboveFold = index < 4;
               const scheduleDays = item?.scheduleDays || [];
               const categoryLabel =
                 item?.category === 'Yoga'
@@ -279,8 +286,8 @@ export const Classes: React.FC = () => {
                         src={item.image}
                         alt={item.title}
                         className="absolute inset-0 h-full w-full object-cover"
-                        loading="eager"
-                        fetchPriority="high"
+                        loading={isAboveFold ? 'eager' : 'lazy'}
+                        fetchPriority={isAboveFold ? 'high' : 'auto'}
                       />
                       <div
                         className="pointer-events-none absolute inset-0 bg-gradient-to-t from-brand-ink/55 via-brand-ink/10 to-transparent opacity-80 transition-opacity duration-500 group-hover:opacity-95"

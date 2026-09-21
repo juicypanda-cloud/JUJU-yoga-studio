@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { cn } from '@/lib/utils';
 
 type SmartImageProps = React.ImgHTMLAttributes<HTMLImageElement> & {
@@ -68,6 +68,7 @@ export const SmartImage: React.FC<SmartImageProps> = ({
   const [currentSrc, setCurrentSrc] = useState<string>(() => initialSrc || effectiveFallback);
   const [hasFailed, setHasFailed] = useState(false);
   const [loaded, setLoaded] = useState(false);
+  const imgRef = useRef<HTMLImageElement>(null);
 
   useEffect(() => {
     const fresh = String(src || '').trim();
@@ -75,6 +76,16 @@ export const SmartImage: React.FC<SmartImageProps> = ({
     setHasFailed(!fresh);
     setLoaded(false);
   }, [src, effectiveFallback]);
+
+  useEffect(() => {
+    // The browser may serve an already-cached image so fast that the native
+    // `load` event fires before this element's onLoad handler is attached
+    // (or doesn't fire again at all), leaving the skeleton stuck forever.
+    // Catch that case explicitly once the <img> has this src committed.
+    if (imgRef.current?.complete && imgRef.current.naturalWidth > 0) {
+      setLoaded(true);
+    }
+  }, [currentSrc]);
 
   const activeSrc = currentSrc || effectiveFallback;
   if (!activeSrc) return null;
@@ -108,6 +119,7 @@ export const SmartImage: React.FC<SmartImageProps> = ({
       </div>
 
       <img
+        ref={imgRef}
         src={activeSrc}
         alt={alt ?? ''}
         srcSet={computedSrcSet || undefined}
