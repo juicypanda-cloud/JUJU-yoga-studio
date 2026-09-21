@@ -220,13 +220,14 @@ export const AdminLayout: React.FC = () => {
               {mobileSidebarOpen ? (
                 <button
                   type="button"
-                  className="fixed inset-0 z-[1000] bg-zinc-950/60 backdrop-blur-sm md:hidden"
+                  className="fixed inset-0 z-[1000] bg-zinc-950/70 md:hidden"
                   onClick={() => setMobileSidebarOpen(false)}
                   aria-label="Close admin sidebar overlay"
                 />
               ) : null}
               <aside
                 aria-hidden={!mobileSidebarOpen}
+                style={{ willChange: 'transform' }}
                 className={`fixed left-0 top-0 z-[1001] flex h-[100dvh] max-h-[100dvh] w-[min(20rem,88vw)] flex-col overflow-hidden border-r border-zinc-800 shadow-2xl transition-transform duration-300 ease-out md:hidden ${
                   mobileSidebarOpen ? 'translate-x-0' : '-translate-x-full pointer-events-none'
                 }`}

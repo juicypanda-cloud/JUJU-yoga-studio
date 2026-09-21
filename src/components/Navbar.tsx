@@ -286,13 +286,14 @@ export const Navbar: React.FC = () => {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={() => setIsOpen(false)}
-            className="fixed inset-0 bg-brand-ink/20 backdrop-blur-sm z-[60] xl:hidden"
+            className="fixed inset-0 bg-brand-ink/40 z-[60] xl:hidden"
           />
           <motion.div
             initial={{ x: '100%' }}
             animate={{ x: 0 }}
             exit={{ x: '100%' }}
             transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+            style={{ willChange: 'transform' }}
             className="fixed top-0 right-0 bottom-0 w-[85%] max-w-sm bg-white border-l border-brand-ink/10 z-[70] xl:hidden p-8 flex flex-col shadow-2xl"
           >
             <div className="flex justify-end mb-8 shrink-0">
