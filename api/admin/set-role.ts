@@ -1,5 +1,5 @@
-import { assertMethod, getBody, jsonResponse } from '../qpay/_lib.ts';
-import { getServerAuth, getServerFirestore } from '../../lib/server/firebaseAdmin.ts';
+import { assertMethod, getBody, jsonResponse } from '../qpay/_lib.js';
+import { getServerAuth, getServerFirestore } from '../../lib/server/firebaseAdmin.js';
 
 export const config = {
   runtime: 'nodejs',

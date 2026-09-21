@@ -1,9 +1,9 @@
 import { FieldValue } from 'firebase-admin/firestore';
 import type { DocumentReference, DocumentSnapshot } from 'firebase-admin/firestore';
-import { extractInvoiceId, pickString, qpayRequest } from '../../api/qpay/_lib.ts';
-import { hasPaidStatus } from '../../src/lib/qpayHelpers.ts';
+import { extractInvoiceId, pickString, qpayRequest } from '../../api/qpay/_lib.js';
+import { hasPaidStatus } from '../../src/lib/qpayHelpers.js';
 export { hasPaidStatus };
-import { getServerFirestore } from './firebaseAdmin.ts';
+import { getServerFirestore } from './firebaseAdmin.js';
 
 export const QPAY_EVENTS_COLLECTION = 'qpayEvents';
 

@@ -1,5 +1,5 @@
-import { assertMethod, getBody, jsonResponse } from './_lib.ts';
-import { handleCreateInvoiceRequest } from '../../lib/server/qpayCreateInvoice.ts';
+import { assertMethod, getBody, jsonResponse } from './_lib.js';
+import { handleCreateInvoiceRequest } from '../../lib/server/qpayCreateInvoice.js';
 
 export const config = {
   runtime: 'nodejs',

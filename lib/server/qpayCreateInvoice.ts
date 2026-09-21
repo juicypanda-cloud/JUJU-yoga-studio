@@ -1,7 +1,7 @@
-import { assertQPayInvoiceConfig, getQPayInvoiceConfig, qpayRequest } from '../../api/qpay/_lib.ts';
-import { getServerAuth, getServerFirestore } from './firebaseAdmin.ts';
-import { extractInvoiceIdFromQPayInvoiceResponse, savePendingQPayEvent, type PaymentIntent } from './qpayWebhookCore.ts';
-import { classData as staticClasses } from '../../src/data/classes.ts';
+import { assertQPayInvoiceConfig, getQPayInvoiceConfig, qpayRequest } from '../../api/qpay/_lib.js';
+import { getServerAuth, getServerFirestore } from './firebaseAdmin.js';
+import { extractInvoiceIdFromQPayInvoiceResponse, savePendingQPayEvent, type PaymentIntent } from './qpayWebhookCore.js';
+import { classData as staticClasses } from '../../src/data/classes.js';
 
 /**
  * Server-managed subscription plans and pricing registry.
