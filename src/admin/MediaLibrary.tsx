@@ -72,12 +72,14 @@ export const MediaLibrary: React.FC = () => {
 
         let fileToUpload = file;
 
-        // Compress image if it's an image
+        // Compress image if it's an image, converting to WebP for smaller
+        // file sizes at the same visual quality as the original format.
         if (mediaType === 'image') {
           const options = {
             maxSizeMB: 1,
             maxWidthOrHeight: 1920,
-            useWebWorker: true
+            useWebWorker: true,
+            fileType: 'image/webp',
           };
           try {
             fileToUpload = await imageCompression(file, options);
@@ -92,7 +94,11 @@ export const MediaLibrary: React.FC = () => {
           continue;
         }
 
-        const storageRef = ref(storage, `${STORAGE_FOLDER_BY_TYPE[mediaType]}/${Date.now()}_${file.name}`);
+        const uploadFileName =
+          mediaType === 'image' && fileToUpload.type === 'image/webp'
+            ? `${file.name.replace(/\.[^./]+$/, '')}.webp`
+            : file.name;
+        const storageRef = ref(storage, `${STORAGE_FOLDER_BY_TYPE[mediaType]}/${Date.now()}_${uploadFileName}`);
         console.log(`[MediaLibrary] Starting resumable upload for: ${file.name}`);
         
         const uploadTask = uploadBytesResumable(storageRef, fileToUpload);
@@ -130,8 +136,8 @@ export const MediaLibrary: React.FC = () => {
 
         try {
           await addDoc(collection(db, 'media'), {
-            filename: file.name,
-            name: file.name,
+            filename: uploadFileName,
+            name: uploadFileName,
             url,
             type: mediaType,
             size: fileToUpload.size,

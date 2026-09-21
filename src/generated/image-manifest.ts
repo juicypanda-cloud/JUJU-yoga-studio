@@ -2,6 +2,8 @@
 // Do not edit manually.
 
 export const imageOptimizationManifest: Record<string, string> = {
+  "/images/about-body-mind-peace.png": "/images/about-body-mind-peace.webp",
+  "/images/about-mission-community.png": "/images/about-mission-community.webp",
   "/images/home-hero-flipped-source.png": "/images/home-hero-flipped-source.webp",
   "/images/home-hero-rotated-90.jpg": "/images/home-hero-rotated-90.webp",
   "/images/home-hero-rotated-90.png": "/images/home-hero-rotated-90.webp",
@@ -10,5 +12,7 @@ export const imageOptimizationManifest: Record<string, string> = {
   "/images/home-hero-source.png": "/images/home-hero-source.webp",
   "/images/juju-notebook.png": "/images/juju-notebook.webp",
   "/images/logo-luju-wordmark-backup.png": "/images/logo-luju-wordmark-backup.webp",
-  "/images/logo-luju-wordmark.png": "/images/logo-luju-wordmark.webp"
+  "/images/logo-luju-wordmark.png": "/images/logo-luju-wordmark.webp",
+  "/images/oxford-mindfulness-omf.png": "/images/oxford-mindfulness-omf.webp",
+  "/images/oxford-mindfulness-section.png": "/images/oxford-mindfulness-section.webp"
 };

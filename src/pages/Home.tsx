@@ -360,7 +360,7 @@ export const Home: React.FC = () => {
       title: 'Студийн хичээлүүд',
       description:
         'Өдрийн хуваарь, багш нар, түвшин болон хичээлийн төрлөөр шүүж өөрт тохирох хичээлээ сонгоно уу. Бүх жагсаалт, дэлгэрэнгүй мэдээллийг «Хичээлүүд» хуудаснаас үзээрэй.',
-      image: '/images/oxford-mindfulness-section.png',
+      image: resolveLocalImage('/images/oxford-mindfulness-section.png'),
       meta: 'Хичээлүүд хуудас руу →',
       path: '/classes',
     },
@@ -649,7 +649,7 @@ export const Home: React.FC = () => {
               className="relative aspect-square lg:aspect-auto lg:h-[500px] rounded-2xl overflow-hidden"
             >
               <SmartImage
-                src="/images/oxford-mindfulness-omf.png"
+                src={resolveLocalImage('/images/oxford-mindfulness-omf.png')}
                 alt="Oxford Mindfulness — бүлгийн бясалгал, студи"
                 className="absolute inset-0 h-full w-full object-cover"
                 sizes="(max-width: 1024px) 100vw, 50vw"

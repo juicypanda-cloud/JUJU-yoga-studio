@@ -3,6 +3,7 @@ import { motion } from 'motion/react';
 import { Heart, Users, Sparkles, Wind, ArrowRight } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { Button } from '../components/ui/button';
+import { resolveLocalImage } from '../lib/local-image';
 export const About: React.FC = () => {
   return (
     <div className="w-full bg-white">
@@ -46,7 +47,7 @@ export const About: React.FC = () => {
               className="relative md:col-span-7 aspect-[4/3] rounded-[2rem] overflow-hidden shadow-2xl shadow-brand-ink/5"
             >
               <img
-                src="/images/about-body-mind-peace.png"
+                src={resolveLocalImage('/images/about-body-mind-peace.png')}
                 alt="Бие болон сэтгэлийн амар амгалан — бясалгал, студийн орчин"
                 className="absolute inset-0 h-full w-full object-cover"
                 loading="lazy"
@@ -146,7 +147,7 @@ export const About: React.FC = () => {
               className="relative aspect-square rounded-[3rem] overflow-hidden"
             >
               <img
-                src="/images/about-mission-community.png"
+                src={resolveLocalImage('/images/about-mission-community.png')}
                 alt="Бидний эрхэм зорилго — студийн хамт олон"
                 className="absolute inset-0 h-full w-full object-cover object-[center_68%]"
                 loading="lazy"
