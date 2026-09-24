@@ -42,6 +42,7 @@ import { ProfileOverview } from '../components/profile/ProfileOverview';
 import { AccountSettings } from '../components/profile/AccountSettings';
 import { BookingsList } from '../components/profile/BookingsList';
 import { TeacherSchedule, TeacherClassSummary, ScheduleRow, RosterStudent, RosterAttendance } from '../components/profile/TeacherSchedule';
+import { MediaImageField } from '../admin/MediaImageField';
 
 const WEEK_DAYS = ['Даваа', 'Мягмар', 'Лхагва', 'Пүрэв', 'Баасан', 'Бямба', 'Ням'];
 
@@ -823,6 +824,114 @@ export const Profile: React.FC = () => {
                 );
               })
             )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* New Teacher Class Modal */}
+      <Dialog open={teacherClassDialogOpen} onOpenChange={setTeacherClassDialogOpen}>
+        <DialogContent className="sm:max-w-lg rounded-[2rem] p-6 sm:p-8" showCloseButton>
+          <DialogHeader>
+            <DialogTitle className="font-serif text-2xl text-brand-ink">Шинэ хичээл нэмэх</DialogTitle>
+            <DialogDescription className="text-brand-ink/60">
+              Хичээлээ үүсгээд дараа нь хуваарийн нэмэлт цагийг "Цагийн хуваарь засах" товчоор нэмнэ үү.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 pt-2">
+            <div className="space-y-2">
+              <label className="text-xs font-black uppercase tracking-widest text-brand-ink/40">Нэр</label>
+              <Input
+                value={newClassTitle}
+                onChange={(e) => setNewClassTitle(e.target.value)}
+                placeholder="Хичээлийн нэр"
+                className="rounded-xl"
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-xs font-black uppercase tracking-widest text-brand-ink/40">Тайлбар</label>
+              <Textarea
+                value={newClassDescription}
+                onChange={(e) => setNewClassDescription(e.target.value)}
+                placeholder="Хичээлийн дэлгэрэнгүй тайлбар..."
+                className="rounded-xl h-24"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <label className="text-xs font-black uppercase tracking-widest text-brand-ink/40">Төрөл</label>
+                <Input
+                  value={newClassCategory}
+                  onChange={(e) => setNewClassCategory(e.target.value)}
+                  placeholder="Yoga эсвэл Meditation"
+                  className="rounded-xl"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-xs font-black uppercase tracking-widest text-brand-ink/40">Хугацаа</label>
+                <Input
+                  value={newClassDuration}
+                  onChange={(e) => setNewClassDuration(e.target.value)}
+                  placeholder="60 мин"
+                  className="rounded-xl"
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-3 gap-4">
+              <div className="space-y-2">
+                <label className="text-xs font-black uppercase tracking-widest text-brand-ink/40">Өдөр</label>
+                <select
+                  value={newClassDay}
+                  onChange={(e) => setNewClassDay(e.target.value)}
+                  className="w-full h-10 px-3 rounded-xl border border-input bg-background text-sm text-brand-ink focus:outline-none focus:ring-2 focus:ring-brand-icon/20"
+                >
+                  {WEEK_DAYS.map((day) => (
+                    <option key={day} value={day}>{day}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="space-y-2">
+                <label className="text-xs font-black uppercase tracking-widest text-brand-ink/40">Эхлэх цаг</label>
+                <Input
+                  type="time"
+                  value={newClassStart}
+                  onChange={(e) => setNewClassStart(e.target.value)}
+                  className="rounded-xl"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-xs font-black uppercase tracking-widest text-brand-ink/40">Дуусах цаг</label>
+                <Input
+                  type="time"
+                  value={newClassEnd}
+                  onChange={(e) => setNewClassEnd(e.target.value)}
+                  className="rounded-xl"
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <MediaImageField
+                label="Зураг"
+                description="Зөвхөн медиа сангаас сонгоно."
+                value={newClassImage}
+                onChange={setNewClassImage}
+              />
+              <div className="space-y-2">
+                <label className="text-xs font-black uppercase tracking-widest text-brand-ink/40">Үнэ (₮)</label>
+                <Input
+                  value={newClassPrice}
+                  onChange={(e) => setNewClassPrice(e.target.value)}
+                  placeholder="45000 (хоосон = үнэгүй)"
+                  className="rounded-xl"
+                />
+              </div>
+            </div>
+            <Button
+              className="w-full rounded-full bg-brand-ink py-6 text-[10px] font-black uppercase tracking-widest text-white hover:bg-brand-icon"
+              disabled={creatingClass}
+              onClick={() => void handleCreateTeacherClass()}
+            >
+              {creatingClass ? 'Үүсгэж байна...' : 'Хичээл үүсгэх'}
+            </Button>
           </div>
         </DialogContent>
       </Dialog>
