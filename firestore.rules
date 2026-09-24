@@ -39,8 +39,10 @@ service cloud.firestore {
     }
 
     function teacherCanAccessBooking(bookingData) {
+      // `class_month` is the real, live booking type written by the QPay webhook and
+      // the free-booking server flow; `class` is the legacy schedule_slot type.
       return isTeacher() &&
-        bookingData.type == 'class' &&
+        (bookingData.type == 'class' || bookingData.type == 'class_month') &&
         (
           (bookingData.classId is string && teacherOwnsClass(bookingData.classId)) ||
           (bookingData.itemId is string && teacherOwnsClass(bookingData.itemId)) ||
@@ -220,15 +222,35 @@ service cloud.firestore {
       );
       // Direct creation of confirmed bookings by clients via Web SDK is forbidden.
       allow create: if isAdmin();
-      allow update: if isAdmin() || (
-        teacherCanAccessBooking(resource.data) &&
-        isBookingEditableNow(resource.data) &&
-        request.resource.data.diff(resource.data).changedKeys().hasOnly(['attendanceStatus', 'attendanceMarkedAt']) &&
-        request.resource.data.attendanceStatus is string &&
-        request.resource.data.attendanceStatus in ['attended', 'missed', 'unknown', 'present', 'absent'] &&
-        request.resource.data.attendanceMarkedAt is timestamp
-      );
+      allow update: if isAdmin();
       allow delete: if isAdmin();
+
+      // Security boundary: Per-session attendance. Each doc represents one real calendar
+      // occurrence of the class and carries its own classStartTime, so the edit window
+      // below is checked against the actual session date, not the whole month enrollment.
+      match /sessions/{sessionId} {
+        allow read: if isAuthenticated() && (
+          get(/databases/$(database)/documents/bookings/$(id)).data.userId == request.auth.uid ||
+          isAdmin() ||
+          teacherCanAccessBooking(get(/databases/$(database)/documents/bookings/$(id)).data)
+        );
+        allow create, update: if isAdmin() || (
+          teacherCanAccessBooking(get(/databases/$(database)/documents/bookings/$(id)).data) &&
+          request.resource.data.classStartTime is timestamp &&
+          isBookingEditableNow(request.resource.data) &&
+          request.resource.data.attendanceStatus is string &&
+          request.resource.data.attendanceStatus in ['attended', 'missed', 'unknown'] &&
+          request.resource.data.attendanceMarkedAt is timestamp
+        );
+        allow delete: if isAdmin();
+      }
+    }
+
+    // Security boundary: Server-only monthly enrollment counters for class_month capacity
+    // enforcement. Never written by clients; Admin SDK writes bypass rules entirely.
+    match /classes/{classId}/enrollmentByMonth/{monthKey} {
+      allow read: if isAdmin();
+      allow write: if false;
     }
   }
 }

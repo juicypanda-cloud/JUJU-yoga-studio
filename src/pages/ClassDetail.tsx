@@ -1,11 +1,11 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { motion } from 'motion/react';
 import { ArrowLeft, Clock, Calendar, CheckCircle2, Loader2, QrCode, Smartphone } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { classData } from '../data/classes';
 import { db } from '../firebase';
-import { addDoc, collection, doc, getDoc, getDocs, onSnapshot, query, where } from 'firebase/firestore';
+import { collection, doc, getDoc, getDocs, onSnapshot, query, where } from 'firebase/firestore';
 import { useAuth } from '../context/AuthContext';
 import type { ClassItem } from '../types/class';
 import { toast } from 'sonner';
@@ -41,16 +41,20 @@ type ClassDetailItem = ClassItem & {
   image: string;
 };
 
-const normalizeClassDetail = (id: string, raw: any): ClassDetailItem => {
+type ScheduleSlotRaw = { dayOfWeek?: string; startTime?: string; endTime?: string };
+
+// Schedule slots live only in the `schedule` collection (the single source of truth
+// for a class's weekly times — see ClassesAdmin/ScheduleAdmin/Profile.tsx), not on
+// the class doc itself.
+const normalizeClassDetail = (id: string, raw: any, scheduleSlots: ScheduleSlotRaw[]): ClassDetailItem => {
   const normalizedCategory = (() => {
     const categoryRaw = typeof raw?.category === 'string' ? raw.category.trim() : '';
     if (!categoryRaw) return 'Yoga';
     return categoryRaw.toLowerCase() === 'hatha' ? 'Yoga' : categoryRaw;
   })();
 
-  const scheduleSlots = Array.isArray(raw?.scheduleSlots) ? raw.scheduleSlots : [];
   const scheduleEntries = scheduleSlots
-    .map((slot: any) => {
+    .map((slot) => {
       const day = String(slot?.dayOfWeek || '').trim();
       const startTime = String(slot?.startTime || '').trim();
       const endTime = String(slot?.endTime || '').trim();
@@ -63,11 +67,11 @@ const normalizeClassDetail = (id: string, raw: any): ClassDetailItem => {
     })
     .filter((item): item is { day: string; time: string } => Boolean(item));
   const schedule = scheduleSlots.length > 0
-    ? scheduleSlots.map((slot: any) => slot?.dayOfWeek).filter(Boolean).join(', ')
+    ? scheduleSlots.map((slot) => slot?.dayOfWeek).filter(Boolean).join(', ')
     : 'Хуваарь удахгүй';
   const time = scheduleSlots.length > 0
     ? scheduleSlots
-      .map((slot: any) => {
+      .map((slot) => {
         const startTime = slot?.startTime || '';
         const endTime = slot?.endTime || '';
         return startTime && endTime ? `${startTime}-${endTime}` : startTime || endTime;
@@ -106,8 +110,14 @@ const normalizeClassDetail = (id: string, raw: any): ClassDetailItem => {
 export const ClassDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const { user, profile } = useAuth();
-  const [classItem, setClassItem] = useState<ClassDetailItem | null>(null);
+  const [classDoc, setClassDoc] = useState<{ id: string; raw: any } | null>(null);
+  const [scheduleSlots, setScheduleSlots] = useState<ScheduleSlotRaw[]>([]);
   const [loading, setLoading] = useState(true);
+
+  const classItem = useMemo(
+    () => (classDoc ? normalizeClassDetail(classDoc.id, classDoc.raw, scheduleSlots) : null),
+    [classDoc, scheduleSlots]
+  );
   const [showBookingPayment, setShowBookingPayment] = useState(false);
   const [bookingLoading, setBookingLoading] = useState(false);
   const [bookingSuccess, setBookingSuccess] = useState(false);
@@ -119,7 +129,7 @@ export const ClassDetail: React.FC = () => {
 
   useEffect(() => {
     if (!id) {
-      setClassItem(null);
+      setClassDoc(null);
       setLoading(false);
       return;
     }
@@ -129,43 +139,42 @@ export const ClassDetail: React.FC = () => {
 
     const staticItem = classData.find((item) => item.id === id);
     if (staticItem) {
-      const normalizedStatic = normalizeClassDetail(staticItem.id, staticItem);
-      setClassItem(normalizedStatic);
-      preloadClassImages([normalizedStatic.image]);
+      setClassDoc({ id: staticItem.id, raw: staticItem });
+      preloadClassImages([resolveClassImageUrl((staticItem as any)?.image)]);
       setLoading(false);
     }
 
     const classRef = doc(db, 'classes', id);
 
-    const applyClassDoc = (classDoc: { exists: () => boolean; id: string; data: () => unknown }) => {
+    const applySnapshot = (snapshot: { exists: () => boolean; id: string; data: () => unknown }) => {
       if (cancelled) return;
-      if (classDoc.exists()) {
-        const normalized = normalizeClassDetail(classDoc.id, classDoc.data());
-        setClassItem(normalized);
-        preloadClassImages([normalized.image]);
+      if (snapshot.exists()) {
+        const raw = snapshot.data();
+        setClassDoc({ id: snapshot.id, raw });
+        preloadClassImages([resolveClassImageUrl((raw as any)?.image)]);
       } else if (!staticItem) {
-        setClassItem(null);
+        setClassDoc(null);
       }
       setLoading(false);
     };
 
     getDoc(classRef)
-      .then(applyClassDoc)
+      .then(applySnapshot)
       .catch((error) => {
         console.error('[ClassDetail] Class fetch error:', error);
         if (cancelled) return;
-        if (!staticItem) setClassItem(null);
+        if (!staticItem) setClassDoc(null);
         setLoading(false);
       });
 
     const unsubscribe = onSnapshot(
       classRef,
-      applyClassDoc,
+      applySnapshot,
       (error) => {
         console.error('[ClassDetail] Class subscription error:', error);
         if (cancelled) return;
         if (!staticItem) {
-          setClassItem(null);
+          setClassDoc(null);
         }
         setLoading(false);
       }
@@ -175,6 +184,27 @@ export const ClassDetail: React.FC = () => {
       cancelled = true;
       unsubscribe();
     };
+  }, [id]);
+
+  // Schedule slots are the single source of truth in the `schedule` collection.
+  useEffect(() => {
+    if (!id) {
+      setScheduleSlots([]);
+      return;
+    }
+    const q = query(collection(db, 'schedule'), where('classId', '==', id));
+    const unsubscribe = onSnapshot(
+      q,
+      (snapshot) => {
+        const rows = snapshot.docs.map((d) => d.data() as ScheduleSlotRaw);
+        setScheduleSlots(rows);
+      },
+      (error) => {
+        console.error('[ClassDetail] Schedule fetch error:', error);
+        setScheduleSlots([]);
+      }
+    );
+    return () => unsubscribe();
   }, [id]);
 
   useEffect(() => {
@@ -211,37 +241,6 @@ export const ClassDetail: React.FC = () => {
       }
       return false;
     });
-  };
-
-  const finalizeClassBooking = async () => {
-    if (!user?.uid || !id || !classItem) return;
-    const alreadyBooked = await ensureNotAlreadyBooked();
-    if (alreadyBooked) {
-      toast.error('Та энэ хичээлд аль хэдийн бүртгүүлсэн байна');
-      return;
-    }
-    setBookingLoading(true);
-    try {
-    const monthKey = currentMonthKey();
-    await addDoc(collection(db, 'bookings'), {
-      userId: user.uid,
-      classId: id,
-      itemId: id,
-      type: 'class_month',
-      monthKey,
-      status: 'confirmed',
-      source: 'class-detail',
-      amountPaid: Number(classItem.price || 0),
-      createdAt: new Date().toISOString(),
-    });
-    setBookingSuccess(true);
-    toast.success('Хичээл таны хуваарьт нэмэгдлээ');
-    } catch (error) {
-      console.error(error);
-      toast.error('Бүртгүүлэхэд алдаа гарлаа');
-    } finally {
-      setBookingLoading(false);
-    }
   };
 
   const createBookingInvoice = async () => {
@@ -288,6 +287,13 @@ export const ClassDetail: React.FC = () => {
       }
       if (!response.ok) {
         throw new Error(pickString(data?.error) ?? 'QPay invoice үүсгэхэд алдаа гарлаа');
+      }
+
+      // Free (₮0) classes are fulfilled directly server-side — no invoice/QR to show.
+      if (data?.free === true) {
+        setBookingSuccess(true);
+        toast.success('Хичээл таны хуваарьт нэмэгдлээ');
+        return;
       }
 
       const links = Array.isArray(data?.urls) ? data.urls : [];
@@ -541,7 +547,7 @@ export const ClassDetail: React.FC = () => {
                             Энэ хичээл төлбөргүй. Доорх товч дарж бүртгэлээ баталгаажуулна уу.
                           </p>
                           <Button
-                            onClick={() => void finalizeClassBooking()}
+                            onClick={() => void createBookingInvoice()}
                             disabled={bookingLoading}
                             className="w-full rounded-full bg-brand-ink py-6 text-[11px] font-black uppercase tracking-[0.2em] text-white hover:bg-brand-icon"
                           >

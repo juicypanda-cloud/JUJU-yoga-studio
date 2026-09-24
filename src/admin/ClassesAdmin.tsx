@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  collection, 
-  onSnapshot, 
-  addDoc, 
-  updateDoc, 
-  deleteDoc, 
-  doc, 
-  query, 
+import {
+  collection,
+  onSnapshot,
+  addDoc,
+  updateDoc,
+  deleteDoc,
+  doc,
+  query,
   orderBy,
   Timestamp,
   where,
@@ -18,23 +18,16 @@ import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { MediaImageField } from './MediaImageField';
 import { Textarea } from '../components/ui/textarea';
-import { 
-  Plus, 
-  Pencil, 
-  Trash2, 
-  X, 
+import {
+  Plus,
+  Pencil,
+  Trash2,
+  X,
   Save,
-  Image as ImageIcon,
   Clock,
   Users
 } from 'lucide-react';
 import { toast } from 'sonner';
-
-interface ScheduleSlot {
-  dayOfWeek: string;
-  startTime: string;
-  endTime: string;
-}
 
 type ClassContentType = 'offline' | 'online' | 'audio';
 
@@ -76,15 +69,40 @@ interface YogaClass {
   image: string;
   category: string;
   price?: string | number;
+  capacity?: string | number;
   benefits?: string[];
-  scheduleSlots?: ScheduleSlot[];
   createdAt: any;
+}
+
+interface ScheduleRow {
+  id: string;
+  classId: string;
+  dayOfWeek: string;
+  startTime: string;
+  endTime: string;
+  room?: string;
 }
 
 const normalizeClassCategory = (value?: string) => {
   const raw = String(value || '').trim();
   if (!raw) return 'Yoga';
   return raw.toLowerCase() === 'hatha' ? 'Yoga' : raw;
+};
+
+const EMPTY_CLASS: Partial<YogaClass> = {
+  title: '',
+  type: 'offline',
+  videoUrl: '',
+  audioUrl: '',
+  description: '',
+  duration: '60 мин',
+  teacherId: '',
+  teacher: '',
+  image: '',
+  category: 'Yoga',
+  price: '',
+  capacity: '',
+  benefits: [''],
 };
 
 export const ClassesAdmin: React.FC = () => {
@@ -94,101 +112,14 @@ export const ClassesAdmin: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
-  const [currentClass, setCurrentClass] = useState<Partial<YogaClass>>({
-    title: '',
-    type: 'offline',
-    videoUrl: '',
-    audioUrl: '',
-    description: '',
-    duration: '60 мин',
-    teacherId: '',
-    teacher: '',
-    image: '',
-    category: 'Yoga',
-    price: '',
-    benefits: [''],
-    scheduleSlots: [{ dayOfWeek: 'Даваа', startTime: '08:00', endTime: '09:00' }]
-  });
-
+  const [currentClass, setCurrentClass] = useState<Partial<YogaClass>>(EMPTY_CLASS);
   const [deleteId, setDeleteId] = useState<string | null>(null);
 
-  const updateScheduleSlot = (index: number, field: keyof ScheduleSlot, value: string) => {
-    const existingSlots = currentClass.scheduleSlots || [{ dayOfWeek: 'Даваа', startTime: '08:00', endTime: '09:00' }];
-    const nextSlots = [...existingSlots];
-    nextSlots[index] = { ...nextSlots[index], [field]: value };
-    setCurrentClass({ ...currentClass, scheduleSlots: nextSlots });
-  };
-
-  const syncClassSchedule = async (
-    classId: string,
-    className: string,
-    teacherName: string,
-    scheduleSlots: ScheduleSlot[]
-  ) => {
-    const scheduleQuery = query(collection(db, 'schedule'), where('classId', '==', classId));
-    const existingSnapshot = await getDocs(scheduleQuery);
-    const existingByKey = new Map<string, any>();
-
-    existingSnapshot.docs.forEach((scheduleDoc) => {
-      const data = scheduleDoc.data() as any;
-      const key = `${data?.dayOfWeek || ''}|${data?.startTime || ''}|${data?.endTime || ''}`;
-      existingByKey.set(key, scheduleDoc);
-    });
-
-    const batch = writeBatch(db);
-    const usedKeys = new Set<string>();
-
-    scheduleSlots.forEach((slot) => {
-      const key = `${slot.dayOfWeek}|${slot.startTime}|${slot.endTime}`;
-      const existingDoc = existingByKey.get(key);
-      usedKeys.add(key);
-
-      if (existingDoc) {
-        batch.update(existingDoc.ref, {
-          className,
-          teacherName,
-          dayOfWeek: slot.dayOfWeek,
-          startTime: slot.startTime,
-          endTime: slot.endTime,
-          updatedAt: Timestamp.now(),
-        });
-      } else {
-        const newScheduleRef = doc(collection(db, 'schedule'));
-        batch.set(newScheduleRef, {
-          classId,
-          className,
-          teacherName,
-          dayOfWeek: slot.dayOfWeek,
-          startTime: slot.startTime,
-          endTime: slot.endTime,
-          capacity: 20,
-          bookedCount: 0,
-          createdAt: Timestamp.now(),
-          updatedAt: Timestamp.now(),
-        });
-      }
-    });
-
-    existingSnapshot.docs.forEach((scheduleDoc) => {
-      const data = scheduleDoc.data() as any;
-      const key = `${data?.dayOfWeek || ''}|${data?.startTime || ''}|${data?.endTime || ''}`;
-      if (!usedKeys.has(key)) {
-        batch.delete(scheduleDoc.ref);
-      }
-    });
-
-    await batch.commit();
-  };
-
-  const deleteClassSchedule = async (classId: string) => {
-    const scheduleQuery = query(collection(db, 'schedule'), where('classId', '==', classId));
-    const snapshot = await getDocs(scheduleQuery);
-    if (snapshot.empty) return;
-
-    const batch = writeBatch(db);
-    snapshot.docs.forEach((scheduleDoc) => batch.delete(scheduleDoc.ref));
-    await batch.commit();
-  };
+  // Schedule rows are the single source of truth for a class's weekly times —
+  // this admin, ScheduleAdmin, and the teacher's own dialog all edit the same
+  // `schedule` docs directly by id, so there is nothing left to fall out of sync.
+  const [scheduleRows, setScheduleRows] = useState<ScheduleRow[]>([]);
+  const [savingSlotId, setSavingSlotId] = useState<string | null>(null);
 
   useEffect(() => {
     const q = query(collection(db, 'classes'), orderBy('createdAt', 'desc'));
@@ -219,6 +150,88 @@ export const ClassesAdmin: React.FC = () => {
     };
   }, []);
 
+  // Live schedule rows for whichever class is currently open in the editor.
+  useEffect(() => {
+    if (!isEditing || !currentClass.id) {
+      setScheduleRows([]);
+      return;
+    }
+    const q = query(collection(db, 'schedule'), where('classId', '==', currentClass.id));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const rows = snapshot.docs.map((d) => ({ id: d.id, ...d.data() })) as ScheduleRow[];
+      rows.sort((a, b) => a.startTime?.localeCompare(b.startTime || '') || 0);
+      setScheduleRows(rows);
+    });
+    return () => unsubscribe();
+  }, [isEditing, currentClass.id]);
+
+  const addScheduleSlot = async () => {
+    if (!currentClass.id) return;
+    try {
+      await addDoc(collection(db, 'schedule'), {
+        classId: currentClass.id,
+        className: currentClass.title || '',
+        teacherName: currentClass.teacher || '',
+        teacherId: currentClass.teacherId || '',
+        dayOfWeek: 'Даваа',
+        startTime: '08:00',
+        endTime: '09:00',
+        capacity: 20,
+        bookedCount: 0,
+        createdAt: Timestamp.now(),
+        updatedAt: Timestamp.now(),
+      });
+    } catch (error) {
+      console.error('Error adding schedule slot:', error);
+      toast.error('Хуваарь нэмэхэд алдаа гарлаа');
+    }
+  };
+
+  const updateScheduleSlotField = (id: string, field: keyof ScheduleRow, value: string) => {
+    setScheduleRows((prev) => prev.map((row) => (row.id === id ? { ...row, [field]: value } : row)));
+  };
+
+  const saveScheduleSlot = async (row: ScheduleRow) => {
+    setSavingSlotId(row.id);
+    try {
+      await updateDoc(doc(db, 'schedule', row.id), {
+        dayOfWeek: row.dayOfWeek,
+        startTime: row.startTime,
+        endTime: row.endTime,
+        className: currentClass.title || '',
+        teacherName: currentClass.teacher || '',
+        teacherId: currentClass.teacherId || '',
+        updatedAt: Timestamp.now(),
+      });
+      toast.success('Хуваарь хадгалагдлаа');
+    } catch (error) {
+      console.error('Error saving schedule slot:', error);
+      toast.error('Хуваарь хадгалахад алдаа гарлаа');
+    } finally {
+      setSavingSlotId(null);
+    }
+  };
+
+  const deleteScheduleSlot = async (id: string) => {
+    try {
+      await deleteDoc(doc(db, 'schedule', id));
+      toast.success('Хуваарь устгагдлаа');
+    } catch (error) {
+      console.error('Error deleting schedule slot:', error);
+      toast.error('Устгахад алдаа гарлаа');
+    }
+  };
+
+  const deleteClassSchedule = async (classId: string) => {
+    const scheduleQuery = query(collection(db, 'schedule'), where('classId', '==', classId));
+    const snapshot = await getDocs(scheduleQuery);
+    if (snapshot.empty) return;
+
+    const batch = writeBatch(db);
+    snapshot.docs.forEach((scheduleDoc) => batch.delete(scheduleDoc.ref));
+    await batch.commit();
+  };
+
   const handleSave = async () => {
     if (isSaving) return;
 
@@ -230,14 +243,12 @@ export const ClassesAdmin: React.FC = () => {
     const selectedTeacher = teachers.find((teacher) => teacher.id === currentClass.teacherId);
     const classType: ClassContentType = 'offline';
 
-    const validScheduleSlots = (currentClass.scheduleSlots || []).filter(
-      (slot) => slot?.dayOfWeek && slot?.startTime && slot?.endTime
-    );
     const validBenefits = (currentClass.benefits || []).map((benefit) => benefit.trim()).filter(Boolean);
-    const className = currentClass.title || '';
     const teacherName = selectedTeacher?.name || currentClass.teacher || '';
     const priceRaw = String(currentClass.price ?? '').trim();
     const classPrice = priceRaw === '' ? 0 : Number(priceRaw.replace(/\D/g, '')) || 0;
+    const capacityRaw = String(currentClass.capacity ?? '').trim();
+    const classCapacity = capacityRaw === '' ? 0 : Number(capacityRaw.replace(/\D/g, '')) || 0;
     const normalizedCategory = normalizeClassCategory(currentClass.category);
 
     setIsSaving(true);
@@ -252,12 +263,14 @@ export const ClassesAdmin: React.FC = () => {
           teacher: teacherName,
           category: normalizedCategory,
           price: Number.isFinite(classPrice) ? classPrice : 0,
+          isFree: classPrice === 0,
+          capacity: classCapacity > 0 ? classCapacity : 0,
           benefits: validBenefits,
-          scheduleSlots: validScheduleSlots,
           updatedAt: Timestamp.now()
         });
-        await syncClassSchedule(currentClass.id, className, teacherName, validScheduleSlots);
         toast.success('Хичээл амжилттай шинэчлэгдлээ');
+        setIsEditing(false);
+        setCurrentClass(EMPTY_CLASS);
       } else {
         const createdClassRef = await addDoc(collection(db, 'classes'), {
           ...currentClass,
@@ -267,30 +280,17 @@ export const ClassesAdmin: React.FC = () => {
           teacher: teacherName,
           category: normalizedCategory,
           price: Number.isFinite(classPrice) ? classPrice : 0,
+          isFree: classPrice === 0,
+          capacity: classCapacity > 0 ? classCapacity : 0,
           benefits: validBenefits,
-          scheduleSlots: validScheduleSlots,
           createdAt: Timestamp.now(),
           updatedAt: Timestamp.now()
         });
-        await syncClassSchedule(createdClassRef.id, className, teacherName, validScheduleSlots);
-        toast.success('Шинэ хичээл амжилттай нэмэгдлээ');
+        toast.success('Шинэ хичээл нэмэгдлээ. Одоо хуваарийн цагаа нэмнэ үү.');
+        // Stay in the editor, now pointed at the created class, so the admin can
+        // immediately add schedule slots without a separate save step.
+        setCurrentClass({ ...currentClass, id: createdClassRef.id, teacher: teacherName });
       }
-      setIsEditing(false);
-      setCurrentClass({
-        title: '',
-        type: 'offline',
-        videoUrl: '',
-        audioUrl: '',
-        description: '',
-        duration: '60 мин',
-        teacherId: '',
-        teacher: '',
-        image: '',
-        category: 'Yoga',
-        price: '',
-        benefits: [''],
-        scheduleSlots: [{ dayOfWeek: 'Даваа', startTime: '08:00', endTime: '09:00' }]
-      });
     } catch (error) {
       console.error('Error saving class:', error);
       try {
@@ -329,23 +329,9 @@ export const ClassesAdmin: React.FC = () => {
       <div className="flex justify-between items-center mb-8">
         <h1 className="text-3xl font-light">Хичээл удирдлага</h1>
         {!isEditing && (
-          <Button 
+          <Button
             onClick={() => {
-              setCurrentClass({
-                title: '',
-                type: 'offline',
-                videoUrl: '',
-                audioUrl: '',
-                description: '',
-                duration: '60 мин',
-                teacherId: '',
-                teacher: '',
-                image: '',
-                category: 'Yoga',
-                price: '',
-                benefits: [''],
-                scheduleSlots: [{ dayOfWeek: 'Даваа', startTime: '08:00', endTime: '09:00' }]
-              });
+              setCurrentClass(EMPTY_CLASS);
               setIsEditing(true);
             }}
             className="bg-brand-ink text-white rounded-full px-6"
@@ -359,7 +345,7 @@ export const ClassesAdmin: React.FC = () => {
         <div className="bg-white p-8 rounded-3xl shadow-sm border border-gray-100 space-y-6">
           <div className="flex justify-between items-center mb-4">
             <h2 className="text-xl font-serif">{currentClass.id ? 'Хичээл засах' : 'Шинэ хичээл нэмэх'}</h2>
-            <Button variant="ghost" onClick={() => setIsEditing(false)}>
+            <Button variant="ghost" onClick={() => { setIsEditing(false); setCurrentClass(EMPTY_CLASS); }}>
               <X size={20} />
             </Button>
           </div>
@@ -367,7 +353,7 @@ export const ClassesAdmin: React.FC = () => {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="space-y-2">
               <label className="text-xs font-black uppercase tracking-widest text-black">Гарчиг</label>
-              <Input 
+              <Input
                 value={currentClass.title}
                 onChange={(e) => setCurrentClass({ ...currentClass, title: e.target.value })}
                 placeholder="Хичээлийн нэр"
@@ -401,7 +387,7 @@ export const ClassesAdmin: React.FC = () => {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="space-y-2">
               <label className="text-xs font-black uppercase tracking-widest text-black">Төрөл</label>
-              <Input 
+              <Input
                 value={currentClass.category}
                 onChange={(e) => setCurrentClass({ ...currentClass, category: normalizeClassCategory(e.target.value) })}
                 placeholder="Yoga эсвэл Meditation"
@@ -410,7 +396,7 @@ export const ClassesAdmin: React.FC = () => {
             </div>
             <div className="space-y-2">
               <label className="text-xs font-black uppercase tracking-widest text-black">Хугацаа</label>
-              <Input 
+              <Input
                 value={currentClass.duration}
                 onChange={(e) => setCurrentClass({ ...currentClass, duration: e.target.value })}
                 placeholder="60 мин"
@@ -419,109 +405,117 @@ export const ClassesAdmin: React.FC = () => {
             </div>
           </div>
 
-          <div className="space-y-2">
-            <label className="text-xs font-black uppercase tracking-widest text-black">Долоо хоногийн өдөр ба цаг</label>
-            <div className="space-y-3">
-              {(currentClass.scheduleSlots || [{ dayOfWeek: 'Даваа', startTime: '08:00', endTime: '09:00' }]).map((slot, index) => (
-                <div key={`schedule-slot-${index}`} className="flex gap-3">
-                  <select
-                    value={slot.dayOfWeek}
-                    onChange={(e) => updateScheduleSlot(index, 'dayOfWeek', e.target.value)}
-                    className="w-full h-10 px-3 rounded-xl border border-input bg-background text-sm text-black focus:outline-none focus:ring-2 focus:ring-brand-icon/20"
-                  >
-                    {weekDays.map((day) => (
-                      <option key={day} value={day}>{day}</option>
-                    ))}
-                  </select>
-                  <div className="flex items-center rounded-xl border border-input overflow-hidden bg-background">
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      onClick={() => updateScheduleSlot(index, 'startTime', shiftTime(slot.startTime, -15))}
-                      className="h-10 rounded-none border-r px-3"
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-black uppercase tracking-widest text-black">Долоо хоногийн өдөр ба цаг</label>
+              {currentClass.id ? (
+                <Button type="button" variant="outline" size="sm" onClick={addScheduleSlot} className="rounded-xl">
+                  <Plus size={14} className="mr-1" /> Цаг нэмэх
+                </Button>
+              ) : null}
+            </div>
+
+            {!currentClass.id ? (
+              <p className="rounded-xl border border-dashed border-gray-200 bg-gray-50/60 px-4 py-6 text-center text-xs text-brand-ink/50">
+                Эхлээд хичээлээ хадгална уу, дараа нь хуваарийн цагаа нэмнэ.
+              </p>
+            ) : scheduleRows.length === 0 ? (
+              <p className="rounded-xl border border-dashed border-gray-200 bg-gray-50/60 px-4 py-6 text-center text-xs text-brand-ink/50">
+                Одоогоор хуваарийн цаг байхгүй. "Цаг нэмэх" дарж эхэлнэ үү.
+              </p>
+            ) : (
+              <div className="space-y-3">
+                {scheduleRows.map((slot) => (
+                  <div key={slot.id} className="flex gap-3">
+                    <select
+                      value={slot.dayOfWeek}
+                      onChange={(e) => updateScheduleSlotField(slot.id, 'dayOfWeek', e.target.value)}
+                      className="w-full h-10 px-3 rounded-xl border border-input bg-background text-sm text-black focus:outline-none focus:ring-2 focus:ring-brand-icon/20"
                     >
-                      -
-                    </Button>
-                    <Input
-                      type="text"
-                      inputMode="numeric"
-                      value={slot.startTime}
-                      onChange={(e) => updateScheduleSlot(index, 'startTime', formatTimeInput(e.target.value))}
-                      onBlur={(e) => updateScheduleSlot(index, 'startTime', normalizeTime(e.target.value, '08:00'))}
-                      placeholder="08:00"
-                      className="rounded-none border-0 text-center shadow-none focus-visible:ring-0"
-                    />
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      onClick={() => updateScheduleSlot(index, 'startTime', shiftTime(slot.startTime, 15))}
-                      className="h-10 rounded-none border-l px-3"
-                    >
-                      +
-                    </Button>
-                  </div>
-                  <div className="flex items-center rounded-xl border border-input overflow-hidden bg-background">
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      onClick={() => updateScheduleSlot(index, 'endTime', shiftTime(slot.endTime, -15))}
-                      className="h-10 rounded-none border-r px-3"
-                    >
-                      -
-                    </Button>
-                    <Input
-                      type="text"
-                      inputMode="numeric"
-                      value={slot.endTime}
-                      onChange={(e) => updateScheduleSlot(index, 'endTime', formatTimeInput(e.target.value))}
-                      onBlur={(e) => updateScheduleSlot(index, 'endTime', normalizeTime(e.target.value, '09:00'))}
-                      placeholder="09:00"
-                      className="rounded-none border-0 text-center shadow-none focus-visible:ring-0"
-                    />
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      onClick={() => updateScheduleSlot(index, 'endTime', shiftTime(slot.endTime, 15))}
-                      className="h-10 rounded-none border-l px-3"
-                    >
-                      +
-                    </Button>
-                  </div>
-                  {(currentClass.scheduleSlots || []).length > 1 && (
+                      {weekDays.map((day) => (
+                        <option key={day} value={day}>{day}</option>
+                      ))}
+                    </select>
+                    <div className="flex items-center rounded-xl border border-input overflow-hidden bg-background">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        onClick={() => updateScheduleSlotField(slot.id, 'startTime', shiftTime(slot.startTime, -15))}
+                        className="h-10 rounded-none border-r px-3"
+                      >
+                        -
+                      </Button>
+                      <Input
+                        type="text"
+                        inputMode="numeric"
+                        value={slot.startTime}
+                        onChange={(e) => updateScheduleSlotField(slot.id, 'startTime', formatTimeInput(e.target.value))}
+                        onBlur={(e) => updateScheduleSlotField(slot.id, 'startTime', normalizeTime(e.target.value, '08:00'))}
+                        placeholder="08:00"
+                        className="rounded-none border-0 text-center shadow-none focus-visible:ring-0"
+                      />
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        onClick={() => updateScheduleSlotField(slot.id, 'startTime', shiftTime(slot.startTime, 15))}
+                        className="h-10 rounded-none border-l px-3"
+                      >
+                        +
+                      </Button>
+                    </div>
+                    <div className="flex items-center rounded-xl border border-input overflow-hidden bg-background">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        onClick={() => updateScheduleSlotField(slot.id, 'endTime', shiftTime(slot.endTime, -15))}
+                        className="h-10 rounded-none border-r px-3"
+                      >
+                        -
+                      </Button>
+                      <Input
+                        type="text"
+                        inputMode="numeric"
+                        value={slot.endTime}
+                        onChange={(e) => updateScheduleSlotField(slot.id, 'endTime', formatTimeInput(e.target.value))}
+                        onBlur={(e) => updateScheduleSlotField(slot.id, 'endTime', normalizeTime(e.target.value, '09:00'))}
+                        placeholder="09:00"
+                        className="rounded-none border-0 text-center shadow-none focus-visible:ring-0"
+                      />
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        onClick={() => updateScheduleSlotField(slot.id, 'endTime', shiftTime(slot.endTime, 15))}
+                        className="h-10 rounded-none border-l px-3"
+                      >
+                        +
+                      </Button>
+                    </div>
                     <Button
                       type="button"
                       variant="outline"
-                      onClick={() => {
-                        const nextSlots = (currentClass.scheduleSlots || []).filter((_, i) => i !== index);
-                        setCurrentClass({ 
-                          ...currentClass, 
-                          scheduleSlots: nextSlots.length > 0 ? nextSlots : [{ dayOfWeek: 'Даваа', startTime: '08:00', endTime: '09:00' }]
-                        });
-                      }}
+                      disabled={savingSlotId === slot.id}
+                      onClick={() => saveScheduleSlot(slot)}
                       className="rounded-xl"
                     >
-                      Устгах
+                      <Save size={14} />
                     </Button>
-                  )}
-                </div>
-              ))}
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setCurrentClass({ 
-                  ...currentClass, 
-                  scheduleSlots: [...(currentClass.scheduleSlots || []), { dayOfWeek: 'Даваа', startTime: '08:00', endTime: '09:00' }]
-                })}
-                className="rounded-xl"
-              >
-                Өдөр/цаг нэмэх
-              </Button>
-            </div>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => deleteScheduleSlot(slot.id)}
+                      className="rounded-xl text-red-600 hover:bg-red-50"
+                    >
+                      <Trash2 size={14} />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
           <div className="space-y-2">
             <label className="text-xs font-black uppercase tracking-widest text-black">Тайлбар</label>
-            <Textarea 
+            <Textarea
               value={currentClass.description}
               onChange={(e) => setCurrentClass({ ...currentClass, description: e.target.value })}
               placeholder="Хичээлийн дэлгэрэнгүй тайлбар..."
@@ -570,7 +564,7 @@ export const ClassesAdmin: React.FC = () => {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <MediaImageField
               label="Зураг"
               description="Зөвхөн медиа сангаас сонгоно."
@@ -582,15 +576,24 @@ export const ClassesAdmin: React.FC = () => {
               <Input
                 value={String(currentClass.price ?? '')}
                 onChange={(e) => setCurrentClass({ ...currentClass, price: e.target.value })}
-                placeholder="45000"
+                placeholder="45000 (хоосон = үнэгүй)"
+                className="rounded-xl"
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-xs font-black uppercase tracking-widest text-black">Сарын багтаамж</label>
+              <Input
+                value={String(currentClass.capacity ?? '')}
+                onChange={(e) => setCurrentClass({ ...currentClass, capacity: e.target.value })}
+                placeholder="Хоосон = хязгааргүй"
                 className="rounded-xl"
               />
             </div>
           </div>
 
           <div className="pt-6 flex justify-end gap-4">
-            <Button variant="outline" onClick={() => !isSaving && setIsEditing(false)} disabled={isSaving} className="rounded-full px-8">
-              Цуцлах
+            <Button variant="outline" onClick={() => { if (!isSaving) { setIsEditing(false); setCurrentClass(EMPTY_CLASS); } }} disabled={isSaving} className="rounded-full px-8">
+              Хаах
             </Button>
             <Button onClick={handleSave} disabled={isSaving} className="bg-brand-ink text-white rounded-full px-8 disabled:opacity-70 disabled:cursor-not-allowed">
               <Save size={18} className="mr-2" /> {isSaving ? 'Хадгалж байна...' : 'Хадгалах'}
@@ -605,8 +608,8 @@ export const ClassesAdmin: React.FC = () => {
             </div>
           ) : (
             classes.map((item) => (
-              <div 
-                key={item.id} 
+              <div
+                key={item.id}
                 className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex gap-6 group hover:border-brand-icon/30 transition-all"
               >
                 <div className="h-32 w-32 shrink-0 overflow-hidden rounded-xl bg-gray-100">
@@ -630,30 +633,25 @@ export const ClassesAdmin: React.FC = () => {
                     <div className="flex items-center gap-2 text-xs text-brand-ink/60">
                       <Clock size={14} /> <span>{item.duration}</span>
                     </div>
-                    {item.scheduleSlots && item.scheduleSlots.length > 0 && (
-                      <div className="text-xs text-brand-ink/60">
-                        Хуваарь: {item.scheduleSlots.map((slot) => `${slot.dayOfWeek} ${slot.startTime}-${slot.endTime}`).join(', ')}
-                      </div>
-                    )}
                   </div>
                   <div className="flex justify-between items-center">
                     <span className="text-sm font-bold text-brand-ink">
-                      {Number(item.price || 0) > 0 ? `${Number(item.price).toLocaleString()} ₮` : normalizeClassCategory(item.category)}
+                      {Number(item.price || 0) > 0 ? `${Number(item.price).toLocaleString()} ₮` : 'Үнэгүй'}
                     </span>
                     <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                       {deleteId === item.id ? (
                         <div className="flex items-center gap-1 bg-red-50 px-2 py-1 rounded-lg border border-red-100">
-                          <Button 
-                            variant="ghost" 
-                            size="sm" 
+                          <Button
+                            variant="ghost"
+                            size="sm"
                             onClick={() => handleDelete(item.id)}
                             className="h-7 px-2 text-red-600 hover:bg-red-100 text-[10px] font-bold"
                           >
                             Тийм
                           </Button>
-                          <Button 
-                            variant="ghost" 
-                            size="sm" 
+                          <Button
+                            variant="ghost"
+                            size="sm"
                             onClick={() => setDeleteId(null)}
                             className="h-7 px-2 text-gray-500 hover:bg-gray-100 text-[10px] font-bold"
                           >
@@ -662,9 +660,9 @@ export const ClassesAdmin: React.FC = () => {
                         </div>
                       ) : (
                         <>
-                          <Button 
-                            variant="ghost" 
-                            size="icon" 
+                          <Button
+                            variant="ghost"
+                            size="icon"
                             onClick={() => {
                               setCurrentClass({
                                 ...item,
@@ -672,9 +670,6 @@ export const ClassesAdmin: React.FC = () => {
                                 videoUrl: item.videoUrl || '',
                                 audioUrl: item.audioUrl || '',
                                 benefits: item.benefits && item.benefits.length > 0 ? item.benefits : [''],
-                                scheduleSlots: item.scheduleSlots && item.scheduleSlots.length > 0
-                                  ? item.scheduleSlots
-                                  : [{ dayOfWeek: 'Даваа', startTime: '08:00', endTime: '09:00' }]
                               });
                               setIsEditing(true);
                             }}
@@ -682,9 +677,9 @@ export const ClassesAdmin: React.FC = () => {
                           >
                             <Pencil size={16} />
                           </Button>
-                          <Button 
-                            variant="ghost" 
-                            size="icon" 
+                          <Button
+                            variant="ghost"
+                            size="icon"
                             onClick={() => setDeleteId(item.id)}
                             className="text-red-600 hover:bg-red-50 h-8 w-8"
                           >

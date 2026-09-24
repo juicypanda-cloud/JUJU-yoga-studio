@@ -1,8 +1,15 @@
+// Must be the first import: ES module imports are hoisted and evaluated before
+// any other code in this file, so loading dotenv as a side-effect here (instead
+// of calling dotenv.config() further down) ensures process.env is populated
+// before qpayCreateInvoice.ts -> api/qpay/_lib.ts reads QPAY_* into top-level
+// consts at their own module-load time. Doing it later left those permanently
+// undefined for the local dev/self-hosted server (Vercel is unaffected, since
+// it injects env vars before any code runs at all).
+import 'dotenv/config';
 import express from 'express';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { createServer as createViteServer } from 'vite';
-import dotenv from 'dotenv';
 import { handleCreateInvoiceRequest } from './lib/server/qpayCreateInvoice.ts';
 import { processQPayWebhook } from './lib/server/qpayWebhookCore.ts';
 import { handlePaymentCheckRequest } from './api/qpay/payment/check.ts';
@@ -11,8 +18,6 @@ import { getServerAuth, getServerFirestore } from './lib/server/firebaseAdmin.ts
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-
-dotenv.config();
 
 async function startServer() {
   const app = express();

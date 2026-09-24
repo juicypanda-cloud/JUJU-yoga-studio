@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { motion } from 'motion/react';
 import { Plus, CalendarClock, ClipboardList, Trash2 } from 'lucide-react';
@@ -12,14 +12,23 @@ import {
   addDoc,
   collection,
   doc,
+  getDoc,
   getDocs,
   onSnapshot,
   query,
+  setDoc,
   Timestamp,
   updateDoc,
   where,
   writeBatch,
 } from 'firebase/firestore';
+import {
+  currentMonthKey,
+  defaultSessionDate,
+  listClassSessionsInMonth,
+  sessionTimestamp,
+  type SessionOccurrence,
+} from '../lib/attendance';
 import {
   Dialog,
   DialogContent,
@@ -99,6 +108,8 @@ export const Profile: React.FC = () => {
   const [rosterClassId, setRosterClassId] = useState('');
   const [rosterOverride, setRosterOverride] = useState<Record<string, RosterAttendance>>({});
   const [rosterSavingKey, setRosterSavingKey] = useState<string>('');
+  const [rosterDate, setRosterDate] = useState('');
+  const [rosterSessionsLoading, setRosterSessionsLoading] = useState(false);
   const [teacherClassDialogOpen, setTeacherClassDialogOpen] = useState(false);
   const [newClassTitle, setNewClassTitle] = useState('');
   const [newClassDescription, setNewClassDescription] = useState('');
@@ -310,7 +321,9 @@ export const Profile: React.FC = () => {
         const classBookings = bookings.filter((booking) => {
           const bookingType = String(booking?.type || '').toLowerCase();
           const bookingStatus = String(booking?.status || '').toLowerCase();
-          if (bookingType && bookingType !== 'class') return false;
+          // `class_month` is the real, live booking type (see qpayWebhookCore.ts);
+          // `class` is the legacy schedule_slot type. Both represent a real seat.
+          if (bookingType && bookingType !== 'class' && bookingType !== 'class_month') return false;
           if (bookingStatus === 'cancelled') return false;
 
           return (
@@ -361,10 +374,13 @@ export const Profile: React.FC = () => {
           .map(([k, v]) => ({ key: k, ...v }))
           .sort((a, b) => a.name.localeCompare(b.name, 'mn'));
 
+        const classLevelCapacity = Number((classItem as Record<string, unknown>)?.capacity || 0);
         const capacityTotal =
-          classSchedules.length > 0
-            ? classSchedules.reduce((sum, slot) => sum + (Number(slot?.capacity) || 20), 0)
-            : 20;
+          classLevelCapacity > 0
+            ? classLevelCapacity
+            : classSchedules.length > 0
+              ? classSchedules.reduce((sum, slot) => sum + (Number(slot?.capacity) || 20), 0)
+              : 20;
 
         return {
           id: classId,
@@ -416,10 +432,67 @@ export const Profile: React.FC = () => {
     setScheduleDialogOpen(true);
   };
 
+  const rosterClassSessions: SessionOccurrence[] = useMemo(() => {
+    if (!rosterClassId) return [];
+    const slots = scheduleRows
+      .filter((row) => String(row.classId || '') === rosterClassId && row.dayOfWeek && row.startTime)
+      .map((row) => ({
+        id: row.id,
+        classId: rosterClassId,
+        day: row.dayOfWeek as string,
+        startTime: row.startTime,
+        time: row.startTime || '',
+      }));
+    return listClassSessionsInMonth(currentMonthKey(), slots);
+  }, [scheduleRows, rosterClassId]);
+
+  const loadRosterSessionStatuses = async (students: RosterStudent[], dateKey: string) => {
+    if (!dateKey || students.length === 0) {
+      setRosterOverride({});
+      return;
+    }
+    setRosterSessionsLoading(true);
+    try {
+      const entries = await Promise.all(
+        students.map(async (student) => {
+          let merged: RosterAttendance = 'unknown';
+          for (const bookingId of student.bookingIds) {
+            const snap = await getDoc(doc(db, 'bookings', bookingId, 'sessions', dateKey));
+            const raw = snap.exists() ? String((snap.data() as Record<string, unknown>)?.attendanceStatus || 'unknown') : 'unknown';
+            const status: RosterAttendance = raw === 'attended' ? 'present' : raw === 'missed' ? 'absent' : 'unknown';
+            merged = mergeAttendance(merged, status);
+          }
+          return [student.key, merged] as const;
+        })
+      );
+      setRosterOverride(Object.fromEntries(entries));
+    } finally {
+      setRosterSessionsLoading(false);
+    }
+  };
+
   const openRosterDialog = (classId: string) => {
     setRosterClassId(classId);
     setRosterOverride({});
     setRosterDialogOpen(true);
+  };
+
+  // Once the dialog's target class is set, resolve a default date from that
+  // class's real occurrences and load each student's status for it.
+  useEffect(() => {
+    if (!rosterDialogOpen || !rosterClassId) return;
+    const cls = teacherClasses.find((c) => c.id === rosterClassId);
+    if (!cls) return;
+    const date = defaultSessionDate(rosterClassSessions);
+    setRosterDate(date);
+    void loadRosterSessionStatuses(cls.roster, date);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rosterDialogOpen, rosterClassId, rosterClassSessions]);
+
+  const changeRosterDate = (dateKey: string) => {
+    setRosterDate(dateKey);
+    const cls = teacherClasses.find((c) => c.id === rosterClassId);
+    void loadRosterSessionStatuses(cls?.roster ?? [], dateKey);
   };
 
   const setStudentAttendance = async (student: RosterStudent, next: RosterAttendance) => {
@@ -428,9 +501,14 @@ export const Profile: React.FC = () => {
       toast.error('Бүртгэлийн бичлэг олдсонгүй');
       return;
     }
+    const occurrence = rosterClassSessions.find((s) => s.dateKey === rosterDate);
+    if (!rosterDate || !occurrence) {
+      toast.error('Тухайн өдрийн хичээлийн цаг тодорхойгүй байна');
+      return;
+    }
     if (rosterSavingKey) return;
 
-    const previous = rosterOverride[student.key] ?? student.attendance;
+    const previous = rosterOverride[student.key] ?? 'unknown';
     setRosterSavingKey(student.key);
     setRosterOverride((current) => ({ ...current, [student.key]: next }));
 
@@ -438,7 +516,8 @@ export const Profile: React.FC = () => {
       const attendanceStatus = next === 'present' ? 'attended' : next === 'absent' ? 'missed' : 'unknown';
       await Promise.all(
         student.bookingIds.map((bookingId) =>
-          updateDoc(doc(db, 'bookings', bookingId), {
+          setDoc(doc(db, 'bookings', bookingId, 'sessions', rosterDate), {
+            classStartTime: sessionTimestamp(occurrence.date),
             attendanceStatus,
             attendanceMarkedAt: Timestamp.now(),
           })
@@ -521,8 +600,8 @@ export const Profile: React.FC = () => {
         category: newClassCategory,
         image,
         price: priceNum,
+        isFree: priceNum === 0,
         benefits: ['Сунгалт, амьсгал, төвлөрөл сайжруулна'],
-        scheduleSlots: [{ dayOfWeek: newClassDay, startTime: newClassStart, endTime: newClassEnd }],
         videoUrl: '',
         audioUrl: '',
         createdAt: Timestamp.now(),
@@ -674,16 +753,37 @@ export const Profile: React.FC = () => {
               Сурагчдын ирц — {rosterClass?.title || 'Хичээл'}
             </DialogTitle>
             <DialogDescription className="text-brand-ink/60">
-              Нийт бүртгүүлсэн сурагчдын ирцийг тэмдэглэнэ үү.
+              Тухайн өдрийн ирцийг тэмдэглэнэ үү. Ирц өдөр бүрээр тусад нь хадгалагдана.
             </DialogDescription>
           </DialogHeader>
+          {rosterClassSessions.length > 0 ? (
+            <div className="flex items-center gap-2 rounded-xl bg-secondary/20 px-4 py-2.5">
+              <span className="text-[10px] font-black uppercase tracking-widest text-brand-ink/40">Огноо:</span>
+              <select
+                value={rosterDate}
+                onChange={(e) => changeRosterDate(e.target.value)}
+                className="h-9 rounded-lg border border-input bg-background px-2 text-xs text-brand-ink"
+              >
+                {rosterClassSessions.map((s) => (
+                  <option key={s.dateKey} value={s.dateKey}>
+                    {s.dateKey} ({s.time})
+                  </option>
+                ))}
+              </select>
+            </div>
+          ) : (
+            <p className="rounded-xl bg-amber-50 px-4 py-2.5 text-xs text-amber-700">
+              Энэ сард хуваарийн цаг байхгүй тул ирц тэмдэглэх боломжгүй.
+            </p>
+          )}
           <div className="max-h-[min(60vh,28rem)] space-y-3 overflow-y-auto pr-1 pt-2">
             {rosterClass?.roster.length === 0 ? (
               <p className="py-6 text-center text-sm text-brand-ink/50">Одоогоор бүртгүүлсэн сурагч байхгүй байна.</p>
             ) : (
               rosterClass?.roster.map((s) => {
-                const currentAtt = rosterOverride[s.key] ?? s.attendance;
+                const currentAtt = rosterOverride[s.key] ?? 'unknown';
                 const saving = rosterSavingKey === s.key;
+                const disabled = saving || rosterSessionsLoading || rosterClassSessions.length === 0;
                 return (
                   <div
                     key={s.key}
@@ -701,7 +801,7 @@ export const Profile: React.FC = () => {
                         className={`rounded-full px-3 text-xs font-bold ${
                           currentAtt === 'present' ? 'bg-emerald-600 text-white hover:bg-emerald-700' : ''
                         }`}
-                        disabled={saving}
+                        disabled={disabled}
                         onClick={() => void setStudentAttendance(s, 'present')}
                       >
                         Ирсэн
@@ -713,7 +813,7 @@ export const Profile: React.FC = () => {
                         className={`rounded-full px-3 text-xs font-bold ${
                           currentAtt === 'absent' ? 'bg-rose-600 text-white hover:bg-rose-700' : ''
                         }`}
-                        disabled={saving}
+                        disabled={disabled}
                         onClick={() => void setStudentAttendance(s, 'absent')}
                       >
                         Тасалсан

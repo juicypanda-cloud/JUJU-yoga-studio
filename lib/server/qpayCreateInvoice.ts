@@ -1,7 +1,28 @@
-import { assertQPayInvoiceConfig, getQPayInvoiceConfig, qpayRequest } from '../../api/qpay/_lib.js';
+import { FieldValue } from 'firebase-admin/firestore';
+import { assertQPayInvoiceConfig, fetchQPayToken, getQPayInvoiceConfig, qpayRequest } from '../../api/qpay/_lib.js';
 import { getServerAuth, getServerFirestore } from './firebaseAdmin.js';
 import { extractInvoiceIdFromQPayInvoiceResponse, savePendingQPayEvent, type PaymentIntent } from './qpayWebhookCore.js';
 import { classData as staticClasses } from '../../src/data/classes.js';
+
+/**
+ * Security boundary: server-side capacity check for a class_month enrollment.
+ * `capacity` unset/0 means unlimited (preserves prior no-limit behavior). This is a
+ * best-effort pre-check before payment; the webhook transaction re-checks atomically.
+ */
+async function assertClassMonthCapacity(classId: string, monthKey: string, capacity: number | undefined): Promise<void> {
+  if (!capacity || capacity <= 0) return;
+  const db = getServerFirestore();
+  const enrollmentSnap = await db
+    .collection('classes')
+    .doc(classId)
+    .collection('enrollmentByMonth')
+    .doc(monthKey)
+    .get();
+  const count = enrollmentSnap.exists ? Number((enrollmentSnap.data() as Record<string, unknown>)?.count ?? 0) : 0;
+  if (count >= capacity) {
+    throw new Error('CLASS_FULL');
+  }
+}
 
 /**
  * Server-managed subscription plans and pricing registry.
@@ -82,6 +103,7 @@ export async function resolveServerItemPriceAndIntent(intent: PaymentIntent): Pr
     let price: number | undefined;
     let isFree = false;
     let title = 'Yoga Class';
+    let capacity: number | undefined;
 
     const staticMatch = staticClasses.find((c) => c.id === intent.classId);
     if (staticMatch) {
@@ -100,6 +122,9 @@ export async function resolveServerItemPriceAndIntent(intent: PaymentIntent): Pr
           if (d.isFree === true) {
             isFree = true;
           }
+          if (typeof d.capacity === 'number' && d.capacity > 0) {
+            capacity = d.capacity;
+          }
         }
       } catch (err) {
         // Fallback when Firestore is unavailable in test runner
@@ -113,6 +138,8 @@ export async function resolveServerItemPriceAndIntent(intent: PaymentIntent): Pr
     if (price === 0 && !isFree) {
       throw new Error('NOT_FREE_EXPLICIT');
     }
+
+    await assertClassMonthCapacity(intent.classId, intent.monthKey, capacity);
 
     return {
       amount: price,
@@ -212,16 +239,6 @@ export async function handleCreateInvoiceRequest(body: Record<string, unknown>):
       return { status: 401, payload: { error: 'Authentication required' } };
     }
 
-    // Security boundary: Authenticate user using Firebase Admin Auth
-    let uid: string;
-    try {
-      const decoded = await getServerAuth().verifyIdToken(idToken);
-      uid = decoded.uid;
-    } catch (authErr) {
-      console.error('[QPay invoice] Invalid ID token:', authErr);
-      return { status: 401, payload: { error: 'Invalid authentication token' } };
-    }
-
     const rawIntent = parseIntent(body.paymentIntent);
     if (!rawIntent) {
       return { status: 400, payload: { error: 'Invalid payment request parameters' } };
@@ -233,27 +250,42 @@ export async function handleCreateInvoiceRequest(body: Record<string, unknown>):
     }
     const senderInvoiceNo = toQPaySenderInvoiceNo(orderId);
 
-    // Security boundary: Calculate item price & duration server-side, ignoring client-provided amount
-    let itemDetails: { amount: number; validatedIntent: PaymentIntent; description: string };
-    try {
-      itemDetails = await resolveServerItemPriceAndIntent(rawIntent);
-    } catch (itemErr: any) {
-      const code = itemErr?.message || '';
+    // Perf: auth verification and the item price/capacity lookup are independent
+    // reads (one hits Firebase Auth, the other Firestore) — run them concurrently
+    // instead of back-to-back so the request only waits for the slower of the two.
+    const [authResult, itemResult] = await Promise.allSettled([
+      getServerAuth().verifyIdToken(idToken),
+      resolveServerItemPriceAndIntent(rawIntent),
+    ]);
+
+    if (authResult.status === 'rejected') {
+      console.error('[QPay invoice] Invalid ID token:', authResult.reason);
+      return { status: 401, payload: { error: 'Invalid authentication token' } };
+    }
+    const uid = authResult.value.uid;
+
+    if (itemResult.status === 'rejected') {
+      const code = (itemResult.reason as any)?.message || '';
       console.error('[QPay invoice] Item resolution failed:', code);
       if (code === 'SLOT_FULL') {
         return { status: 400, payload: { error: 'The selected class slot is fully booked' } };
       }
+      if (code === 'CLASS_FULL') {
+        return { status: 400, payload: { error: 'This class is fully booked for the selected month' } };
+      }
       return { status: 400, payload: { error: 'Invalid, inactive, or unavailable product requested' } };
     }
 
-    const { amount, validatedIntent, description } = itemDetails;
+    const { amount, validatedIntent, description } = itemResult.value;
 
     // Handle free ($0) items directly server-side without generating QPay invoice
     if (amount === 0) {
       const db = getServerFirestore();
       if (validatedIntent.kind === 'class_month') {
         const bookingId = `free_${uid}_${validatedIntent.classId}_${validatedIntent.monthKey}`;
-        await db.collection('bookings').doc(bookingId).set({
+        const bookingRef = db.collection('bookings').doc(bookingId);
+        const alreadyBooked = (await bookingRef.get()).exists;
+        await bookingRef.set({
           userId: uid,
           classId: validatedIntent.classId,
           itemId: validatedIntent.classId,
@@ -264,6 +296,14 @@ export async function handleCreateInvoiceRequest(body: Record<string, unknown>):
           createdAt: new Date().toISOString(),
           fulfillment: 'free_server_flow',
         });
+        if (!alreadyBooked) {
+          await db
+            .collection('classes')
+            .doc(validatedIntent.classId)
+            .collection('enrollmentByMonth')
+            .doc(validatedIntent.monthKey)
+            .set({ count: FieldValue.increment(1) }, { merge: true });
+        }
         return { status: 200, payload: { free: true, fulfilled: true, bookingId } };
       }
     }
@@ -272,8 +312,15 @@ export async function handleCreateInvoiceRequest(body: Record<string, unknown>):
     const receiverCode = 'terminal';
     const senderBranchCode = 'ONLINE';
 
+    // Perf: fetchQPayToken() caches its result (see api/qpay/_lib.ts), so starting
+    // it now — concurrently with the user-profile read below — means the later
+    // qpayRequest() call below usually finds a warm token instead of fetching one
+    // sequentially after this read completes.
+    const tokenPrefetch = fetchQPayToken().catch(() => null);
+
     const db = getServerFirestore();
     const userSnap = await db.collection('users').doc(uid).get();
+    await tokenPrefetch;
     const userData = (userSnap.exists ? userSnap.data() : {}) as Record<string, unknown>;
     const receiverData = {
       name: String(userData.displayName || userData.name || 'JUJU Member'),

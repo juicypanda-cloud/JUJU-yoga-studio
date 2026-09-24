@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { collection, getDocs, updateDoc, deleteDoc, doc, query, orderBy } from 'firebase/firestore';
+import { collection, getDocs } from 'firebase/firestore';
 import { auth, db } from '../firebase';
 import { Button } from '../components/ui/button';
 import { 
@@ -79,12 +79,26 @@ export const UsersAdmin: React.FC = () => {
   const handleDelete = async (userId: string) => {
     if (!window.confirm('Та энэ хэрэглэгчийг устгахдаа итгэлтэй байна уу?')) return;
     try {
-      await deleteDoc(doc(db, 'users', userId));
+      const authUser = auth.currentUser;
+      if (!authUser) {
+        toast.error('Эхлээд нэвтэрнэ үү');
+        return;
+      }
+      const idToken = await authUser.getIdToken();
+      const res = await fetch('/api/admin/delete-user', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ idToken, targetUserId: userId }),
+      });
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || 'Устгахад алдаа гарлаа');
+      }
       toast.success('Хэрэглэгч устгагдлаа');
       fetchUsers();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error deleting user:', error);
-      toast.error('Устгахад алдаа гарлаа');
+      toast.error(error?.message || 'Устгахад алдаа гарлаа');
     }
   };
 

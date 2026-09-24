@@ -247,6 +247,8 @@ export async function processQPayWebhook(body: unknown): Promise<{ status: numbe
       let scheduleSnap: DocumentSnapshot | null = null;
       let userRef: DocumentReference | null = null;
       let userSnap: DocumentSnapshot | null = null;
+      let enrollmentRef: DocumentReference | null = null;
+      let enrollmentCount = 0;
 
       if (intent.kind === 'schedule_slot') {
         scheduleRef = db.collection('schedule').doc(intent.scheduleId);
@@ -254,6 +256,19 @@ export async function processQPayWebhook(body: unknown): Promise<{ status: numbe
       } else if (intent.kind === 'subscription') {
         userRef = db.collection('users').doc(userId);
         userSnap = await t.get(userRef);
+      } else if (intent.kind === 'class_month') {
+        // Security boundary: atomic capacity check — re-reads the class's capacity and
+        // this month's enrollment count inside the transaction so two concurrent
+        // payments can't both slip past a one-seat-left check.
+        const classRef = db.collection('classes').doc(intent.classId);
+        const classSnap = await t.get(classRef);
+        const capacity = classSnap.exists ? Number((classSnap.data() as Record<string, unknown>)?.capacity ?? 0) : 0;
+        enrollmentRef = classRef.collection('enrollmentByMonth').doc(intent.monthKey);
+        const enrollmentSnap = await t.get(enrollmentRef);
+        enrollmentCount = enrollmentSnap.exists ? Number((enrollmentSnap.data() as Record<string, unknown>)?.count ?? 0) : 0;
+        if (capacity > 0 && enrollmentCount >= capacity) {
+          throw new Error('CAPACITY_FULL');
+        }
       }
 
       // Mark payment event paid/processed
@@ -282,6 +297,9 @@ export async function processQPayWebhook(body: unknown): Promise<{ status: numbe
           createdAt: FieldValue.serverTimestamp(),
           fulfillment: 'qpay_webhook',
         });
+        if (enrollmentRef) {
+          t.set(enrollmentRef, { count: enrollmentCount + 1 }, { merge: true });
+        }
         return;
       }
 
