@@ -9,6 +9,11 @@ import '@fontsource/inter/400.css';
 import '@fontsource/inter/500.css';
 import '@fontsource/inter/600.css';
 import '@fontsource/inter/700.css';
+// font-black (weight 900, e.g. active nav links) has no matching @font-face
+// without this: the browser fake-bolds the fallback font at 900 until Inter
+// loads, then snaps to the nearest *registered* weight (700, real glyphs are
+// narrower than the synthesized fallback), which reads as the text shrinking.
+import '@fontsource/inter/900.css';
 import '@fontsource/cormorant-garamond/300.css';
 import '@fontsource/cormorant-garamond/400.css';
 import '@fontsource/cormorant-garamond/500.css';
