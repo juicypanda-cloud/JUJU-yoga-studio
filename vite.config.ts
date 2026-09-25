@@ -6,15 +6,18 @@ import {defineConfig, loadEnv, type Plugin} from 'vite';
 // @fontsource ships every face with font-display: swap, which paints text in
 // the fallback font first and swaps to the real font once it downloads. The
 // nav's uppercase, letter-spaced labels visibly reflow during that swap.
-// `optional` keeps the fallback for the whole render if the (self-hosted,
-// same-origin, so already-fast) font isn't ready almost immediately, instead
-// of swapping later and causing that reflow.
+// `fallback` gives the font a short (~3s) window to swap in before locking,
+// instead of `swap`'s unbounded later swap (the nav reflow) or `optional`'s
+// instant lock to the fallback face if it's not ready within ~100ms — which
+// made the serif hero headline (Cormorant Garamond, a less-warm face than
+// Inter) render in a generic fallback serif's heavier synthesized weight
+// whenever it missed that tiny window.
 function fontsourceNoSwap(): Plugin {
   return {
-    name: 'fontsource-font-display-optional',
+    name: 'fontsource-font-display-fallback',
     transform(code, id) {
       if (id.includes('@fontsource') && id.endsWith('.css')) {
-        return code.replace(/font-display:\s*swap/g, 'font-display: optional');
+        return code.replace(/font-display:\s*swap/g, 'font-display: fallback');
       }
     },
   };
