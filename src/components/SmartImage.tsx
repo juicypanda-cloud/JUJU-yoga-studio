@@ -5,6 +5,8 @@ import { getLocalImageSrcSet } from '@/lib/local-image';
 type SmartImageProps = React.ImgHTMLAttributes<HTMLImageElement> & {
   wrapperClassName?: string;
   fallbackSrc?: string;
+  /** Explicit AVIF/WebP srcset (e.g. per-record remote variants) — takes priority over the local manifest lookup. */
+  pictureSources?: { avifSrcSet: string; webpSrcSet: string };
 };
 
 const buildResponsiveSrcSet = (rawSrc: string) => {
@@ -60,6 +62,7 @@ export const SmartImage: React.FC<SmartImageProps> = ({
   decoding = 'async',
   fetchPriority = 'auto',
   fallbackSrc = DEFAULT_FALLBACK,
+  pictureSources,
   onLoad,
   onError,
   ...rest
@@ -96,7 +99,9 @@ export const SmartImage: React.FC<SmartImageProps> = ({
   // Locally generated images have their own AVIF/WebP srcset (see
   // scripts/optimize-images.ts); prefer it over a plain <img> so the browser
   // can pick a format/size instead of always downloading the full-res WebP.
-  const localSources = !hasFailed && !srcSet ? getLocalImageSrcSet(activeSrc) : undefined;
+  // An explicit `pictureSources` prop (e.g. per-record remote variants) wins
+  // over the local manifest lookup.
+  const localSources = !hasFailed && !srcSet ? (pictureSources || getLocalImageSrcSet(activeSrc)) : undefined;
 
   const handleError = (event: React.SyntheticEvent<HTMLImageElement, Event>) => {
     setLoaded(true);

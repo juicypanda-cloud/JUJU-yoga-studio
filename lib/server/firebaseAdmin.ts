@@ -1,8 +1,10 @@
 import { cert, getApps, initializeApp } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
 import { getAuth } from 'firebase-admin/auth';
+import { getStorage } from 'firebase-admin/storage';
 
 const DEFAULT_FIRESTORE_DATABASE_ID = 'ai-studio-106d753f-3d40-40e6-9d7e-4f7b7903479c';
+const STORAGE_BUCKET = 'gen-lang-client-0968768098.firebasestorage.app';
 
 function initFromServiceAccountJson() {
   const raw = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
@@ -37,4 +39,11 @@ export function getServerAuth() {
     initFromServiceAccountJson();
   }
   return getAuth();
+}
+
+export function getServerStorageBucket() {
+  if (!getApps().length) {
+    initFromServiceAccountJson();
+  }
+  return getStorage().bucket(STORAGE_BUCKET);
 }

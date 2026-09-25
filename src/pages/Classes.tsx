@@ -24,6 +24,8 @@ type RawClassItem = {
   id?: string;
   title?: string;
   image?: string;
+  imageAvifSrcSet?: string;
+  imageWebpSrcSet?: string;
   category?: string;
   teacherId?: string;
   teacher?: string;
@@ -62,6 +64,8 @@ const normalizeClassItem = (raw: RawClassItem, fallbackId: string): ClassItem =>
   title: typeof raw?.title === 'string' ? raw.title : 'Untitled class',
   type: raw?.type === 'online' || raw?.type === 'audio' ? raw.type : 'offline',
   image: resolveClassImageUrl(raw?.image),
+  imageAvifSrcSet: typeof raw?.imageAvifSrcSet === 'string' ? raw.imageAvifSrcSet : undefined,
+  imageWebpSrcSet: typeof raw?.imageWebpSrcSet === 'string' ? raw.imageWebpSrcSet : undefined,
   videoUrl: typeof raw?.videoUrl === 'string' ? raw.videoUrl : undefined,
   audioUrl: typeof raw?.audioUrl === 'string' ? raw.audioUrl : undefined,
   createdAt: raw?.createdAt,
@@ -284,6 +288,8 @@ export const Classes: React.FC = () => {
                     <div className="relative aspect-[5/4] shrink-0 overflow-hidden bg-secondary/20">
                       <ClassCoverImage
                         src={item.image}
+                        avifSrcSet={item.imageAvifSrcSet}
+                        webpSrcSet={item.imageWebpSrcSet}
                         alt={item.title}
                         className="absolute inset-0 h-full w-full object-cover"
                         loading={isAboveFold ? 'eager' : 'lazy'}

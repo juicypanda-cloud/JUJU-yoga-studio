@@ -9,6 +9,9 @@ type ClassCoverImageProps = {
   loading?: 'eager' | 'lazy';
   fetchPriority?: 'high' | 'low' | 'auto';
   sizes?: string;
+  /** Responsive AVIF/WebP srcset generated for this class's cover image (see api/admin/process-class-image.ts). */
+  avifSrcSet?: string;
+  webpSrcSet?: string;
 };
 
 export const ClassCoverImage: React.FC<ClassCoverImageProps> = ({
@@ -18,8 +21,11 @@ export const ClassCoverImage: React.FC<ClassCoverImageProps> = ({
   loading = 'lazy',
   fetchPriority = 'auto',
   sizes,
+  avifSrcSet,
+  webpSrcSet,
 }) => {
   const resolved = resolveClassImageUrl(src);
+  const pictureSources = avifSrcSet && webpSrcSet ? { avifSrcSet, webpSrcSet } : undefined;
 
   return (
     <SmartImage
@@ -31,6 +37,7 @@ export const ClassCoverImage: React.FC<ClassCoverImageProps> = ({
       fetchPriority={fetchPriority}
       decoding="async"
       sizes={sizes}
+      pictureSources={pictureSources}
     />
   );
 };

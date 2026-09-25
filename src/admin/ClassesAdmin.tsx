@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   collection,
   onSnapshot,
@@ -13,7 +13,7 @@ import {
   getDocs,
   writeBatch
 } from 'firebase/firestore';
-import { db, handleFirestoreError, OperationType } from '../firebase';
+import { auth, db, handleFirestoreError, OperationType } from '../firebase';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { MediaImageField } from './MediaImageField';
@@ -114,6 +114,9 @@ export const ClassesAdmin: React.FC = () => {
   const [isEditing, setIsEditing] = useState(false);
   const [currentClass, setCurrentClass] = useState<Partial<YogaClass>>(EMPTY_CLASS);
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  // The cover image at the moment editing started, so handleSave only
+  // triggers responsive-variant generation when the image actually changed.
+  const originalImageRef = useRef<string>('');
 
   // Schedule rows are the single source of truth for a class's weekly times —
   // this admin, ScheduleAdmin, and the teacher's own dialog all edit the same
@@ -232,6 +235,25 @@ export const ClassesAdmin: React.FC = () => {
     await batch.commit();
   };
 
+  // Fire-and-forget: regenerates the responsive AVIF/WebP srcset for a class's
+  // cover image server-side (see api/admin/process-class-image.ts). Doesn't
+  // block the save UX — the class list picks up the new fields via its live
+  // onSnapshot listener once it finishes.
+  const triggerImageProcessing = async (classId: string) => {
+    try {
+      const authUser = auth.currentUser;
+      if (!authUser) return;
+      const idToken = await authUser.getIdToken();
+      await fetch('/api/admin/process-class-image', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ idToken, classId }),
+      });
+    } catch (error) {
+      console.error('Error processing class image:', error);
+    }
+  };
+
   const handleSave = async () => {
     if (isSaving) return;
 
@@ -269,6 +291,10 @@ export const ClassesAdmin: React.FC = () => {
           updatedAt: Timestamp.now()
         });
         toast.success('Хичээл амжилттай шинэчлэгдлээ');
+        const newImage = String(currentClass.image || '');
+        if (newImage && newImage !== originalImageRef.current && newImage.includes('firebasestorage.googleapis.com')) {
+          void triggerImageProcessing(currentClass.id);
+        }
         setIsEditing(false);
         setCurrentClass(EMPTY_CLASS);
       } else {
@@ -287,9 +313,14 @@ export const ClassesAdmin: React.FC = () => {
           updatedAt: Timestamp.now()
         });
         toast.success('Шинэ хичээл нэмэгдлээ. Одоо хуваарийн цагаа нэмнэ үү.');
+        const newImage = String(currentClass.image || '');
+        if (newImage.includes('firebasestorage.googleapis.com')) {
+          void triggerImageProcessing(createdClassRef.id);
+        }
         // Stay in the editor, now pointed at the created class, so the admin can
         // immediately add schedule slots without a separate save step.
         setCurrentClass({ ...currentClass, id: createdClassRef.id, teacher: teacherName });
+        originalImageRef.current = newImage;
       }
     } catch (error) {
       console.error('Error saving class:', error);
@@ -332,6 +363,7 @@ export const ClassesAdmin: React.FC = () => {
           <Button
             onClick={() => {
               setCurrentClass(EMPTY_CLASS);
+              originalImageRef.current = '';
               setIsEditing(true);
             }}
             className="bg-brand-ink text-white rounded-full px-6"
@@ -671,6 +703,7 @@ export const ClassesAdmin: React.FC = () => {
                                 audioUrl: item.audioUrl || '',
                                 benefits: item.benefits && item.benefits.length > 0 ? item.benefits : [''],
                               });
+                              originalImageRef.current = item.image || '';
                               setIsEditing(true);
                             }}
                             className="text-blue-600 hover:bg-blue-50 h-8 w-8"

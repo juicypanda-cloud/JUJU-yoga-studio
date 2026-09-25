@@ -15,6 +15,7 @@ import { processQPayWebhook } from './lib/server/qpayWebhookCore.ts';
 import { handlePaymentCheckRequest } from './api/qpay/payment/check.ts';
 import { handlePaymentDetailRequest } from './api/qpay/payment/[paymentId].ts';
 import { getServerAuth, getServerFirestore } from './lib/server/firebaseAdmin.ts';
+import processClassImage from './api/admin/process-class-image.ts';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -92,6 +93,8 @@ async function startServer() {
       return res.status(500).json({ error: 'Failed to update user role' });
     }
   });
+
+  app.post('/api/admin/process-class-image', (req, res) => processClassImage(req, res));
 
   if (process.env.NODE_ENV !== 'production') {
     const vite = await createViteServer({

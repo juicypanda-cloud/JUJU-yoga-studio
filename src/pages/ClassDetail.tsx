@@ -96,6 +96,8 @@ const normalizeClassDetail = (id: string, raw: any, scheduleSlots: ScheduleSlotR
     audioUrl: typeof raw?.audioUrl === 'string' ? raw.audioUrl : '',
     createdAt: raw?.createdAt,
     image: resolveClassImageUrl(raw?.image),
+    imageAvifSrcSet: typeof raw?.imageAvifSrcSet === 'string' ? raw.imageAvifSrcSet : undefined,
+    imageWebpSrcSet: typeof raw?.imageWebpSrcSet === 'string' ? raw.imageWebpSrcSet : undefined,
     category: normalizedCategory,
     schedule,
     time,
@@ -431,6 +433,8 @@ export const ClassDetail: React.FC = () => {
             <div className="relative aspect-[4/3] rounded-[2rem] overflow-hidden shadow-2xl shadow-brand-ink/10">
               <ClassCoverImage
                 src={classItem.image}
+                avifSrcSet={classItem.imageAvifSrcSet}
+                webpSrcSet={classItem.imageWebpSrcSet}
                 alt={classItem.title}
                 className="absolute inset-0 h-full w-full object-cover"
                 loading="eager"
