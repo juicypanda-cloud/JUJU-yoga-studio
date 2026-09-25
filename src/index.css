@@ -19,6 +19,11 @@
   }
   body {
     @apply bg-white text-brand-ink font-sans antialiased;
+    /* Without this, the browser fake-bolds/fake-italicizes the fallback font
+       for a weight/style it doesn't have while the real face is still
+       loading, then swaps to the real (differently-proportioned) glyphs —
+       one more source of text visibly resizing on first load. */
+    font-synthesis: none;
   }
   h1, h2, h3, h4, h5, h6 {
     @apply font-serif font-medium tracking-tight;

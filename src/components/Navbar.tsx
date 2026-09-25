@@ -1,17 +1,18 @@
 import React, { useState, useEffect } from 'react';
-import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { 
-  Menu, X, User, LogOut, LayoutDashboard, 
-  Book, Users, Shield, Mail, 
-  Sprout, Flame, Star, Calendar,
-  Play, Radio, Wind, PenTool,
-  ChevronRight, ChevronDown,
+import { Link, useLocation } from 'react-router-dom';
+import {
+  Menu, X, LogOut,
+  Book, Users, Mail,
+  Flame, Calendar,
+  Play, Wind, PenTool,
+  ChevronDown,
   Heart, Sparkles
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useAuth } from '../context/AuthContext';
 import { auth } from '../firebase';
 import { signOut } from 'firebase/auth';
+import { cn } from '../lib/utils';
 import { Button } from './ui/button';
 import { Logo } from './ui/Logo';
 
@@ -58,13 +59,55 @@ const otherLinks = [
   { name: 'Гишүүнчлэл', path: '/pricing' },
 ];
 
+/**
+ * Every top-level desktop nav link (mega-menu triggers, plain links, admin,
+ * profile) renders through this so the hover/active treatment can't drift
+ * out of sync between them. Weight stays constant (no font-bold -> font-black
+ * jump, which read as an overly heavy hover and doesn't animate smoothly
+ * between discrete weights) — emphasis comes from color plus a thin underline
+ * that never affects layout width.
+ */
+const NavLink: React.FC<{
+  to: string;
+  isActive: boolean;
+  light: boolean;
+  onMouseEnter?: () => void;
+  onClick?: () => void;
+  className?: string;
+  children: React.ReactNode;
+}> = ({ to, isActive, light, onMouseEnter, onClick, className, children }) => (
+  <Link
+    to={to}
+    onMouseEnter={onMouseEnter}
+    onClick={onClick}
+    className={cn(
+      'group relative inline-flex h-6 items-center gap-1.5 text-[12px] font-semibold uppercase tracking-[0.2em] transition-colors duration-300 ease-out',
+      isActive
+        ? light ? 'text-white' : 'text-brand-ink'
+        : light ? 'text-white/60 hover:text-white' : 'text-brand-ink/60 hover:text-brand-ink',
+      className
+    )}
+  >
+    {children}
+    <span
+      aria-hidden
+      className={cn(
+        'absolute -bottom-1 left-0 h-px w-full origin-left scale-x-0 bg-current transition-transform duration-300 ease-out group-hover:scale-x-100',
+        isActive && 'scale-x-100'
+      )}
+    />
+  </Link>
+);
+
+/** Mobile drawer links: constant weight, tap feedback via opacity (real hover rarely applies on touch). */
+const MOBILE_LINK_CLASS = 'transition-colors duration-300 ease-out hover:text-primary active:opacity-60';
+
 export const Navbar: React.FC = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
   const [openMobileMenu, setOpenMobileMenu] = useState<string | null>(null);
   const location = useLocation();
-  const navigate = useNavigate();
   const { user, isAdmin } = useAuth();
 
   useEffect(() => {
@@ -88,17 +131,38 @@ export const Navbar: React.FC = () => {
   }, [isOpen]);
 
   useEffect(() => {
+    // Plain `overflow: hidden` on body doesn't stop background scroll/bounce
+    // on iOS Safari. Pinning the body via `position: fixed` at its current
+    // scroll offset (and restoring it on close) is the standard fix.
     if (!isOpen) return;
-    const previous = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
+    const scrollY = window.scrollY;
+    const body = document.body;
+    const previous = {
+      position: body.style.position,
+      top: body.style.top,
+      left: body.style.left,
+      right: body.style.right,
+      overflow: body.style.overflow,
+    };
+    body.style.position = 'fixed';
+    body.style.top = `-${scrollY}px`;
+    body.style.left = '0';
+    body.style.right = '0';
+    body.style.overflow = 'hidden';
     return () => {
-      document.body.style.overflow = previous;
+      body.style.position = previous.position;
+      body.style.top = previous.top;
+      body.style.left = previous.left;
+      body.style.right = previous.right;
+      body.style.overflow = previous.overflow;
+      window.scrollTo(0, scrollY);
     };
   }, [isOpen]);
 
   const handleLogout = () => signOut(auth);
 
   const isHomePage = location.pathname === '/';
+  const light = !scrolled && isHomePage;
 
   const handleNavClick = (path: string) => {
     setIsOpen(false);
@@ -127,7 +191,7 @@ export const Navbar: React.FC = () => {
       <div className="container mx-auto px-6 flex items-center">
         <div className="flex-1 flex justify-start" onMouseEnter={() => setHoveredIndex(null)}>
           <Link to="/" className="z-50">
-            <Logo light={!scrolled && isHomePage} />
+            <Logo light={light} />
           </Link>
         </div>
 
@@ -135,63 +199,40 @@ export const Navbar: React.FC = () => {
         <div className="hidden xl:flex items-center gap-10">
           <div className="flex items-center gap-12">
             {megaMenus.map((menu, idx) => (
-              <div 
-                key={menu.name}
-                className="relative"
-                onMouseEnter={() => setHoveredIndex(idx)}
-              >
-                <Link
+              <div key={menu.name} className="relative" onMouseEnter={() => setHoveredIndex(idx)}>
+                <NavLink
                   to={menu.path}
-                  className={`text-[12px] tracking-[0.2em] uppercase transition-all duration-300 ease-out flex items-center gap-1.5 h-6 origin-center hover:scale-105 ${
-                    location.pathname.startsWith(menu.path) ? 'font-black' : 'font-bold hover:font-black'
-                  } ${
-                    location.pathname.startsWith(menu.path) || hoveredIndex === idx
-                      ? (scrolled || !isHomePage) ? 'text-brand-ink' : 'text-white'
-                      : (scrolled || !isHomePage) ? 'text-brand-ink/60' : 'text-white/60'
-                  }`}
+                  isActive={location.pathname.startsWith(menu.path) || hoveredIndex === idx}
+                  light={light}
                 >
                   {menu.name}
-                  <ChevronDown 
-                    size={12} 
-                    className={`transition-transform duration-300 ${hoveredIndex === idx ? 'rotate-180' : ''}`} 
+                  <ChevronDown
+                    size={12}
+                    className={`transition-transform duration-300 ${hoveredIndex === idx ? 'rotate-180' : ''}`}
                   />
-                </Link>
+                </NavLink>
               </div>
             ))}
             {otherLinks.map((link) => (
               <div key={link.path} className="relative flex items-center" onMouseEnter={() => setHoveredIndex(null)}>
-                <Link
+                <NavLink
                   to={link.path}
+                  isActive={location.pathname === link.path}
+                  light={light}
                   onClick={() => handleNavClick(link.path)}
-                  className={`text-[12px] tracking-[0.2em] uppercase transition-all duration-300 ease-out h-6 flex items-center origin-center hover:scale-105 ${
-                    location.pathname === link.path ? 'font-black' : 'font-bold hover:font-black'
-                  } ${
-                    location.pathname === link.path 
-                      ? (scrolled || !isHomePage) ? 'text-brand-ink' : 'text-white'
-                      : (scrolled || !isHomePage) ? 'text-brand-ink/60' : 'text-white/60'
-                  }`}
                 >
                   {link.name}
-                </Link>
+                </NavLink>
               </div>
             ))}
           </div>
-          
+
           {/* Admin Link */}
           {isAdmin && (
             <div onMouseEnter={() => setHoveredIndex(null)}>
-            <Link
-              to="/admin"
-              className={`text-[12px] tracking-[0.2em] uppercase transition-all duration-300 ease-out h-6 flex items-center origin-center hover:scale-105 ${
-                location.pathname.startsWith('/admin') ? 'font-black' : 'font-bold hover:font-black'
-              } ${
-                location.pathname.startsWith('/admin')
-                  ? (scrolled || !isHomePage) ? 'text-brand-ink' : 'text-white'
-                  : (scrolled || !isHomePage) ? 'text-brand-ink/60 hover:text-brand-ink' : 'text-white/60 hover:text-white'
-              }`}
-            >
-              Менежер
-            </Link>
+              <NavLink to="/admin" isActive={location.pathname.startsWith('/admin')} light={light}>
+                Менежер
+              </NavLink>
             </div>
           )}
         </div>
@@ -199,25 +240,16 @@ export const Navbar: React.FC = () => {
         {/* Auth Button */}
         <div className="flex-1 hidden xl:flex items-center justify-end gap-6 z-50" onMouseEnter={() => setHoveredIndex(null)}>
           {user ? (
-            <div className="flex items-center">
-              <Link 
-                to="/profile" 
-                className={`text-[12px] tracking-[0.2em] uppercase transition-all duration-300 ease-out h-6 flex items-center origin-center hover:scale-105 ${
-                  location.pathname === '/profile' ? 'font-black' : 'font-bold hover:font-black'
-                } ${
-                  (scrolled || !isHomePage) ? 'text-brand-ink hover:text-primary' : 'text-white hover:text-white/80'
-                }`}
-              >
-                Миний бүртгэл
-              </Link>
-            </div>
+            <NavLink to="/profile" isActive={location.pathname === '/profile'} light={light}>
+              Миний бүртгэл
+            </NavLink>
           ) : (
             <Link to="/login">
-              <Button 
-                variant="ghost" 
-                className={`text-[12px] font-bold tracking-[0.2em] uppercase rounded-full px-8 py-5 transition-all duration-300 ease-out hover:scale-105 hover:font-black ${
-                  (scrolled || !isHomePage) 
-                    ? 'text-brand-ink hover:bg-primary/10 hover:text-primary' 
+              <Button
+                variant="ghost"
+                className={`text-[12px] font-semibold tracking-[0.2em] uppercase rounded-full px-8 py-5 transition-colors duration-300 ease-out ${
+                  (scrolled || !isHomePage)
+                    ? 'text-brand-ink hover:bg-primary/10 hover:text-primary'
                     : 'text-white hover:bg-white/10 hover:text-white'
                 }`}
               >
@@ -251,8 +283,8 @@ export const Navbar: React.FC = () => {
             <div className="container mx-auto bg-white rounded-[32px] shadow-2xl border border-secondary overflow-hidden p-12">
               <div className="grid grid-cols-4 gap-x-12 gap-y-8 bg-white">
                 {megaMenus[hoveredIndex].links.map((link) => (
-                  <Link 
-                    key={link.name} 
+                  <Link
+                    key={link.name}
                     to={link.path}
                     onClick={() => handleNavClick(link.path)}
                     className="flex items-start gap-4 group transition-transform duration-300 ease-out hover:scale-[1.02] origin-left"
@@ -261,7 +293,7 @@ export const Navbar: React.FC = () => {
                       {typeof link.icon !== 'string' && <link.icon size={20} />}
                     </div>
                     <div>
-                      <h4 className="text-lg font-semibold text-brand-ink transition-colors duration-300 group-hover:text-primary group-hover:font-bold">
+                      <h4 className="text-lg font-semibold text-brand-ink transition-colors duration-300 group-hover:text-primary">
                         {link.name}
                       </h4>
                       <p className="text-sm text-brand-ink/40 font-light mt-1">
@@ -286,7 +318,7 @@ export const Navbar: React.FC = () => {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={() => setIsOpen(false)}
-            className="fixed inset-0 bg-brand-ink/40 z-[60] xl:hidden"
+            className="fixed inset-0 bg-brand-ink/40 z-[60] xl:hidden touch-none"
           />
           <motion.div
             initial={{ x: '100%' }}
@@ -302,7 +334,7 @@ export const Navbar: React.FC = () => {
               </button>
             </div>
 
-            <div className="flex flex-col gap-8 overflow-y-auto pb-12 flex-1 min-h-0">
+            <div className="flex flex-col gap-8 overflow-y-auto overscroll-contain pb-12 flex-1 min-h-0">
               {megaMenus.map((menu) => (
                 <div key={menu.name} className="flex flex-col gap-3">
                   <button
@@ -312,7 +344,10 @@ export const Navbar: React.FC = () => {
                     }
                     aria-expanded={openMobileMenu === menu.name}
                     aria-controls={`mobile-submenu-${menu.path.replace(/\//g, '')}`}
-                    className="flex w-full items-center justify-between text-left text-2xl font-serif font-medium italic text-brand-ink transition-all duration-300 ease-out hover:text-primary"
+                    className={cn(
+                      'flex w-full items-center justify-between text-left text-2xl font-serif font-medium italic text-brand-ink',
+                      MOBILE_LINK_CLASS
+                    )}
                   >
                     <span>{menu.name}</span>
                     <ChevronDown
@@ -341,7 +376,7 @@ export const Navbar: React.FC = () => {
                             key={link.name}
                             to={link.path}
                             onClick={() => handleNavClick(link.path)}
-                            className="block text-lg font-medium text-brand-ink/70 transition-all duration-300 ease-out hover:text-primary"
+                            className={cn('block text-lg font-medium text-brand-ink/70', MOBILE_LINK_CLASS)}
                           >
                             {link.name}
                           </Link>
@@ -351,14 +386,14 @@ export const Navbar: React.FC = () => {
                   </div>
                 </div>
               ))}
-              
+
               <div className="flex flex-col gap-4 pt-4 border-t border-primary/10">
                 {otherLinks.map((link) => (
                   <Link
                     key={link.path}
                     to={link.path}
                     onClick={() => handleNavClick(link.path)}
-                    className="text-2xl font-serif font-medium italic text-brand-ink hover:text-primary transition-all duration-300 ease-out hover:scale-[1.03] hover:font-semibold origin-left inline-block"
+                    className={cn('text-2xl font-serif font-medium italic text-brand-ink inline-block', MOBILE_LINK_CLASS)}
                   >
                     {link.name}
                   </Link>
@@ -369,19 +404,21 @@ export const Navbar: React.FC = () => {
             <div className="mt-auto pt-8 border-t border-primary/10 flex flex-col gap-4 shrink-0">
               {user ? (
                 <>
-                  <Link to="/profile" onClick={() => setIsOpen(false)} className="text-lg font-medium text-brand-ink transition-all duration-300 ease-out hover:scale-105 hover:font-semibold origin-left inline-block">
+                  <Link to="/profile" onClick={() => setIsOpen(false)} className={cn('text-lg font-medium text-brand-ink inline-block', MOBILE_LINK_CLASS)}>
                     Миний бүртгэл
                   </Link>
-                  {isAdmin && <Link to="/admin" onClick={() => setIsOpen(false)} className="text-lg font-medium text-brand-ink transition-all duration-300 ease-out hover:scale-105 hover:font-semibold origin-left inline-block">Менежер</Link>}
+                  {isAdmin && (
+                    <Link to="/admin" onClick={() => setIsOpen(false)} className={cn('text-lg font-medium text-brand-ink inline-block', MOBILE_LINK_CLASS)}>
+                      Менежер
+                    </Link>
+                  )}
                   <Button variant="outline" onClick={handleLogout} className="w-full justify-start text-red-500 border-red-100 rounded-full py-6">
                     <LogOut className="mr-2 h-4 w-4" /> Гарах
                   </Button>
                 </>
               ) : (
                 <Link to="/login" onClick={() => setIsOpen(false)}>
-                  <Button 
-                    className="w-full bg-brand-ink text-white rounded-full py-8 text-lg font-medium transition-all duration-300 ease-out hover:scale-[1.02] hover:font-semibold"
-                  >
+                  <Button className="w-full bg-brand-ink text-white rounded-full py-8 text-lg font-medium transition-colors duration-300 ease-out">
                     Нэвтрэх
                   </Button>
                 </Link>
