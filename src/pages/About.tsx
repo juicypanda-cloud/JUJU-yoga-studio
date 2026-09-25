@@ -3,7 +3,13 @@ import { motion } from 'motion/react';
 import { Heart, Users, Sparkles, Wind, ArrowRight } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { Button } from '../components/ui/button';
-import { resolveLocalImage } from '../lib/local-image';
+import { resolveLocalImage, getLocalImageSrcSet } from '../lib/local-image';
+
+const BODY_MIND_SRC = resolveLocalImage('/images/about-body-mind-peace.png');
+const BODY_MIND_SOURCES = getLocalImageSrcSet(BODY_MIND_SRC);
+const MISSION_COMMUNITY_SRC = resolveLocalImage('/images/about-mission-community.png');
+const MISSION_COMMUNITY_SOURCES = getLocalImageSrcSet(MISSION_COMMUNITY_SRC);
+
 export const About: React.FC = () => {
   return (
     <div className="w-full bg-white">
@@ -46,13 +52,21 @@ export const About: React.FC = () => {
               transition={{ duration: 1 }}
               className="relative md:col-span-7 aspect-[4/3] rounded-[2rem] overflow-hidden shadow-2xl shadow-brand-ink/5"
             >
-              <img
-                src={resolveLocalImage('/images/about-body-mind-peace.png')}
-                alt="Бие болон сэтгэлийн амар амгалан — бясалгал, студийн орчин"
-                className="absolute inset-0 h-full w-full object-cover"
-                loading="lazy"
-                decoding="async"
-              />
+              <picture>
+                {BODY_MIND_SOURCES ? (
+                  <>
+                    <source type="image/avif" srcSet={BODY_MIND_SOURCES.avifSrcSet} sizes="(max-width: 768px) 100vw, 60vw" />
+                    <source type="image/webp" srcSet={BODY_MIND_SOURCES.webpSrcSet} sizes="(max-width: 768px) 100vw, 60vw" />
+                  </>
+                ) : null}
+                <img
+                  src={BODY_MIND_SRC}
+                  alt="Бие болон сэтгэлийн амар амгалан — бясалгал, студийн орчин"
+                  className="absolute inset-0 h-full w-full object-cover"
+                  loading="lazy"
+                  decoding="async"
+                />
+              </picture>
             </motion.div>
             <motion.div 
               initial={{ opacity: 0, x: 20 }}
@@ -146,13 +160,21 @@ export const About: React.FC = () => {
               transition={{ duration: 1 }}
               className="relative aspect-square rounded-[3rem] overflow-hidden"
             >
-              <img
-                src={resolveLocalImage('/images/about-mission-community.png')}
-                alt="Бидний эрхэм зорилго — студийн хамт олон"
-                className="absolute inset-0 h-full w-full object-cover object-[center_68%]"
-                loading="lazy"
-                decoding="async"
-              />
+              <picture>
+                {MISSION_COMMUNITY_SOURCES ? (
+                  <>
+                    <source type="image/avif" srcSet={MISSION_COMMUNITY_SOURCES.avifSrcSet} sizes="(max-width: 768px) 100vw, 50vw" />
+                    <source type="image/webp" srcSet={MISSION_COMMUNITY_SOURCES.webpSrcSet} sizes="(max-width: 768px) 100vw, 50vw" />
+                  </>
+                ) : null}
+                <img
+                  src={MISSION_COMMUNITY_SRC}
+                  alt="Бидний эрхэм зорилго — студийн хамт олон"
+                  className="absolute inset-0 h-full w-full object-cover object-[center_68%]"
+                  loading="lazy"
+                  decoding="async"
+                />
+              </picture>
               <div className="pointer-events-none absolute inset-0 bg-brand-ink/10" />
             </motion.div>
           </div>

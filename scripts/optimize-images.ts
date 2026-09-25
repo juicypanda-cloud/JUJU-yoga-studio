@@ -4,18 +4,36 @@ import path from 'node:path';
 import sharp from 'sharp';
 
 const ROOT = process.cwd();
-const TARGET_DIRS = ['public', 'src/assets'];
+// Scoped to /images (not all of /public): favicons and the OG preview image
+// are referenced directly by exact filename from index.html, not through the
+// manifest/SmartImage pipeline, so they don't need multi-format variants.
+const TARGET_DIRS = ['public/images', 'src/assets'];
 const IMAGE_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg']);
-const MAX_WIDTH = 1200;
+const BASE_WIDTH = 1200;
+// Only widths smaller than BASE_WIDTH, so the base (<=1200px) variant is
+// always the largest generated file — simple, predictable, no upscaling.
+const EXTRA_WIDTHS = [480, 800];
 const WEBP_QUALITY = 75;
+const AVIF_QUALITY = 60;
+
+type Variant = {
+  width: number;
+  webpAbsolute: string;
+  avifAbsolute: string;
+  webpPublicPath: string;
+  avifPublicPath: string;
+};
 
 type OptimizationEntry = {
   sourceAbsolute: string;
-  webpAbsolute: string;
   sourcePublicPath: string;
-  webpPublicPath: string;
   sourceBytes: number;
-  webpBytes: number;
+  /** The unsuffixed, <=1200px-wide variant: kept as the plain single-image fallback. */
+  base: Variant;
+  baseBytes: number;
+  /** All generated widths, smallest to largest, including `base`. */
+  variants: Variant[];
+  optimizedBytes: number;
 };
 
 const formatBytes = (bytes: number) => {
@@ -59,49 +77,108 @@ const isOptimizableImage = (absolutePath: string) => {
   return true;
 };
 
-const optimizeImage = async (sourceAbsolute: string): Promise<OptimizationEntry | null> => {
+/**
+ * Generates one WebP + one AVIF file per target width, so the app can serve a
+ * real `srcset` instead of a single full-resolution image to every viewport.
+ * The unsuffixed width (<=1200px, matching the previous single-size output)
+ * stays the plain fallback so any code holding just that path keeps working.
+ */
+const generateVariants = async (sourceAbsolute: string): Promise<Variant[]> => {
   const parsed = path.parse(sourceAbsolute);
-  const webpAbsolute = path.join(parsed.dir, `${parsed.name}.webp`);
+  const metadata = await sharp(sourceAbsolute).metadata();
+  const originalWidth = metadata.width ?? BASE_WIDTH;
+  const baseWidth = Math.min(BASE_WIDTH, originalWidth);
+  const widths = Array.from(new Set([baseWidth, ...EXTRA_WIDTHS.filter((w) => w < baseWidth)])).sort(
+    (a, b) => a - b
+  );
 
-  try {
-    await fs.access(webpAbsolute);
-    console.log(`⏭️  Skipped (already optimized): ${toPosixPath(path.relative(ROOT, sourceAbsolute))}`);
-    return null;
-  } catch {
-    // Continue when WebP file does not exist.
+  const variants: Variant[] = [];
+  for (const width of widths) {
+    const suffix = width === baseWidth ? '' : `-${width}w`;
+    const webpAbsolute = path.join(parsed.dir, `${parsed.name}${suffix}.webp`);
+    const avifAbsolute = path.join(parsed.dir, `${parsed.name}${suffix}.avif`);
+
+    await sharp(sourceAbsolute)
+      .rotate()
+      .resize({ width, withoutEnlargement: true })
+      .webp({ quality: WEBP_QUALITY })
+      .toFile(webpAbsolute);
+
+    // AVIF gets comparable visual quality at a lower quality setting than WebP.
+    await sharp(sourceAbsolute)
+      .rotate()
+      .resize({ width, withoutEnlargement: true })
+      .avif({ quality: AVIF_QUALITY })
+      .toFile(avifAbsolute);
+
+    variants.push({
+      width,
+      webpAbsolute,
+      avifAbsolute,
+      webpPublicPath: toPublicPath(webpAbsolute),
+      avifPublicPath: toPublicPath(avifAbsolute),
+    });
   }
 
+  return variants;
+};
+
+const optimizeImage = async (sourceAbsolute: string): Promise<OptimizationEntry> => {
   const sourceStat = await fs.stat(sourceAbsolute);
+  const variants = await generateVariants(sourceAbsolute);
+  // The base variant is always the largest generated width (<=1200px), since
+  // EXTRA_WIDTHS only ever contributes widths smaller than BASE_WIDTH.
+  const base = variants[variants.length - 1];
 
-  /**
-   * WebP keeps strong quality at lower file sizes for photos and UI images.
-   * A 1200px max width + quality 75 is a practical balance for web delivery:
-   * visually crisp on common screens while substantially reducing transfer bytes.
-   */
-  await sharp(sourceAbsolute)
-    .rotate()
-    .resize({ width: MAX_WIDTH, withoutEnlargement: true })
-    .webp({ quality: WEBP_QUALITY })
-    .toFile(webpAbsolute);
+  const variantStats = await Promise.all(
+    variants.flatMap((v) => [fs.stat(v.webpAbsolute), fs.stat(v.avifAbsolute)])
+  );
+  const optimizedBytes = variantStats.reduce((sum, stat) => sum + stat.size, 0);
+  const baseBytes = (await fs.stat(base.webpAbsolute)).size;
 
-  const webpStat = await fs.stat(webpAbsolute);
   return {
     sourceAbsolute,
-    webpAbsolute,
     sourcePublicPath: toPublicPath(sourceAbsolute),
-    webpPublicPath: toPublicPath(webpAbsolute),
     sourceBytes: sourceStat.size,
-    webpBytes: webpStat.size,
+    base,
+    baseBytes,
+    variants,
+    optimizedBytes,
   };
 };
 
 const writeManifest = async (entries: OptimizationEntry[]) => {
   const manifestPath = path.join(ROOT, 'src/generated/image-manifest.ts');
+
   const mapping = Object.fromEntries(
-    entries.map((entry) => [entry.sourcePublicPath, entry.webpPublicPath]).sort(([a], [b]) => a.localeCompare(b))
+    entries.map((entry) => [entry.sourcePublicPath, entry.base.webpPublicPath]).sort(([a], [b]) => a.localeCompare(b))
   );
 
-  const fileContent = `// Auto-generated by scripts/optimize-images.ts\n// Do not edit manually.\n\nexport const imageOptimizationManifest: Record<string, string> = ${JSON.stringify(mapping, null, 2)};\n`;
+  const responsiveSources = Object.fromEntries(
+    entries
+      .map((entry) => [
+        entry.base.webpPublicPath,
+        {
+          avifSrcSet: entry.variants.map((v) => `${v.avifPublicPath} ${v.width}w`).join(', '),
+          webpSrcSet: entry.variants.map((v) => `${v.webpPublicPath} ${v.width}w`).join(', '),
+        },
+      ])
+      .sort(([a], [b]) => (a as string).localeCompare(b as string))
+  );
+
+  const fileContent = `// Auto-generated by scripts/optimize-images.ts
+// Do not edit manually.
+
+/** Original path -> best single-size WebP fallback (<=1200px wide). */
+export const imageOptimizationManifest: Record<string, string> = ${JSON.stringify(mapping, null, 2)};
+
+/** Fallback WebP path -> responsive AVIF/WebP srcset across all generated widths. */
+export const imageResponsiveSources: Record<string, { avifSrcSet: string; webpSrcSet: string }> = ${JSON.stringify(
+    responsiveSources,
+    null,
+    2
+  )};
+`;
 
   await fs.mkdir(path.dirname(manifestPath), { recursive: true });
   await fs.writeFile(manifestPath, fileContent, 'utf8');
@@ -118,60 +195,32 @@ const run = async () => {
     return;
   }
 
-  const optimizedEntries: OptimizationEntry[] = [];
-
+  const entries: OptimizationEntry[] = [];
   for (const sourceAbsolute of sourceImages) {
     const entry = await optimizeImage(sourceAbsolute);
-    if (!entry) continue;
+    entries.push(entry);
 
-    optimizedEntries.push(entry);
-    const savedBytes = entry.sourceBytes - entry.webpBytes;
+    const savedBytes = entry.sourceBytes - entry.baseBytes;
     const savedPercent = entry.sourceBytes > 0 ? (savedBytes / entry.sourceBytes) * 100 : 0;
 
     console.log(
       `✅ ${toPosixPath(path.relative(ROOT, sourceAbsolute))} | ` +
-        `${formatBytes(entry.sourceBytes)} -> ${formatBytes(entry.webpBytes)} ` +
-        `(${savedPercent.toFixed(1)}% saved)`
+        `${formatBytes(entry.sourceBytes)} -> ${entry.variants.length} widths x2 formats, ` +
+        `base ${formatBytes(entry.baseBytes)} ` +
+        `(${savedPercent.toFixed(1)}% saved vs. original)`
     );
   }
 
-  const existingWebpFiles = allFiles.filter((file) => path.extname(file).toLowerCase() === '.webp');
-  const refreshedEntries: OptimizationEntry[] = [];
+  await writeManifest(entries);
 
-  for (const sourceAbsolute of sourceImages) {
-    const parsed = path.parse(sourceAbsolute);
-    const webpAbsolute = path.join(parsed.dir, `${parsed.name}.webp`);
-    if (!existingWebpFiles.includes(webpAbsolute) && !optimizedEntries.find((entry) => entry.webpAbsolute === webpAbsolute)) {
-      continue;
-    }
-
-    const sourceStat = await fs.stat(sourceAbsolute);
-    const webpStat = await fs.stat(webpAbsolute);
-
-    refreshedEntries.push({
-      sourceAbsolute,
-      webpAbsolute,
-      sourcePublicPath: toPublicPath(sourceAbsolute),
-      webpPublicPath: toPublicPath(webpAbsolute),
-      sourceBytes: sourceStat.size,
-      webpBytes: webpStat.size,
-    });
-  }
-
-  await writeManifest(refreshedEntries);
-
-  const totalSourceBytes = refreshedEntries.reduce((sum, entry) => sum + entry.sourceBytes, 0);
-  const totalWebpBytes = refreshedEntries.reduce((sum, entry) => sum + entry.webpBytes, 0);
-  const totalSaved = totalSourceBytes - totalWebpBytes;
-  const totalSavedPercent = totalSourceBytes > 0 ? (totalSaved / totalSourceBytes) * 100 : 0;
+  const totalSourceBytes = entries.reduce((sum, entry) => sum + entry.sourceBytes, 0);
+  const totalOptimizedBytes = entries.reduce((sum, entry) => sum + entry.optimizedBytes, 0);
 
   console.log('\nImage optimization summary');
   console.log(`- scanned images: ${sourceImages.length}`);
-  console.log(`- newly optimized: ${optimizedEntries.length}`);
-  console.log(`- total optimized images: ${refreshedEntries.length}`);
+  console.log(`- generated variants: ${entries.reduce((sum, e) => sum + e.variants.length * 2, 0)} files (webp+avif)`);
   console.log(`- original total: ${formatBytes(totalSourceBytes)}`);
-  console.log(`- optimized total: ${formatBytes(totalWebpBytes)}`);
-  console.log(`- total savings: ${formatBytes(totalSaved)} (${totalSavedPercent.toFixed(1)}%)`);
+  console.log(`- all generated variants total: ${formatBytes(totalOptimizedBytes)}`);
 };
 
 run().catch((error) => {

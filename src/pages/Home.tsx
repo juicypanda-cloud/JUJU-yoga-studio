@@ -28,7 +28,7 @@ import {
 } from '../lib/online-video-thumb';
 import type { ClassItem } from '../types/class';
 import { SmartImage } from '../components/SmartImage';
-import { resolveLocalImage } from '../lib/local-image';
+import { resolveLocalImage, getLocalImageSrcSet } from '../lib/local-image';
 
 /** Masonry aspect rhythm (reused for Firestore gallery + fallback) */
 const GALLERY_ASPECT_CYCLE = [
@@ -848,20 +848,31 @@ export const Home: React.FC = () => {
           </div>
 
           <div className="relative w-full h-[600px] overflow-hidden rounded-3xl bg-brand-ink group">
-            {HOME_SHOP_SLIDES.map((slide, i) => (
-              <motion.img
-                key={slide.src}
-                src={slide.src}
-                alt={slide.alt}
-                aria-hidden={i !== shopSlideIndex}
-                initial={false}
-                animate={{ opacity: i === shopSlideIndex ? 1 : 0 }}
-                transition={{ duration: 0.55, ease: [0.4, 0, 0.2, 1] }}
-                className="pointer-events-none absolute inset-0 h-full w-full object-cover"
-                loading={i === 0 ? 'eager' : 'lazy'}
-                decoding="async"
-              />
-            ))}
+            {HOME_SHOP_SLIDES.map((slide, i) => {
+              const sources = getLocalImageSrcSet(slide.src);
+              const img = (
+                <motion.img
+                  key={slide.src}
+                  src={slide.src}
+                  alt={slide.alt}
+                  aria-hidden={i !== shopSlideIndex}
+                  initial={false}
+                  animate={{ opacity: i === shopSlideIndex ? 1 : 0 }}
+                  transition={{ duration: 0.55, ease: [0.4, 0, 0.2, 1] }}
+                  className="pointer-events-none absolute inset-0 h-full w-full object-cover"
+                  loading={i === 0 ? 'eager' : 'lazy'}
+                  decoding="async"
+                />
+              );
+              if (!sources) return img;
+              return (
+                <picture key={slide.src}>
+                  <source type="image/avif" srcSet={sources.avifSrcSet} sizes="(max-width: 768px) 100vw, 50vw" />
+                  <source type="image/webp" srcSet={sources.webpSrcSet} sizes="(max-width: 768px) 100vw, 50vw" />
+                  {img}
+                </picture>
+              );
+            })}
             <button
               type="button"
               aria-label="Өмнөх зураг"

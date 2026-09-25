@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { cn } from '@/lib/utils';
+import { getLocalImageSrcSet } from '@/lib/local-image';
 
 type SmartImageProps = React.ImgHTMLAttributes<HTMLImageElement> & {
   wrapperClassName?: string;
@@ -92,6 +93,10 @@ export const SmartImage: React.FC<SmartImageProps> = ({
 
   const computedSrcSet = !hasFailed ? (srcSet || buildResponsiveSrcSet(activeSrc)) : undefined;
   const computedSizes = sizes || '(max-width: 768px) 100vw, 50vw';
+  // Locally generated images have their own AVIF/WebP srcset (see
+  // scripts/optimize-images.ts); prefer it over a plain <img> so the browser
+  // can pick a format/size instead of always downloading the full-res WebP.
+  const localSources = !hasFailed && !srcSet ? getLocalImageSrcSet(activeSrc) : undefined;
 
   const handleError = (event: React.SyntheticEvent<HTMLImageElement, Event>) => {
     setLoaded(true);
@@ -118,26 +123,51 @@ export const SmartImage: React.FC<SmartImageProps> = ({
         <div className="h-full w-full animate-pulse bg-gray-200" />
       </div>
 
-      <img
-        ref={imgRef}
-        src={activeSrc}
-        alt={alt ?? ''}
-        srcSet={computedSrcSet || undefined}
-        sizes={computedSrcSet ? computedSizes : undefined}
-        className={cn(
-          'relative z-[2] h-full w-full object-cover transition-opacity duration-500',
-          loaded ? 'opacity-100' : 'opacity-0'
-        )}
-        loading={loading}
-        decoding={decoding}
-        fetchPriority={fetchPriority}
-        onLoad={(event) => {
-          setLoaded(true);
-          onLoad?.(event);
-        }}
-        onError={handleError}
-        {...rest}
-      />
+      {localSources ? (
+        <picture>
+          <source type="image/avif" srcSet={localSources.avifSrcSet} sizes={computedSizes} />
+          <source type="image/webp" srcSet={localSources.webpSrcSet} sizes={computedSizes} />
+          <img
+            ref={imgRef}
+            src={activeSrc}
+            alt={alt ?? ''}
+            className={cn(
+              'relative z-[2] h-full w-full object-cover transition-opacity duration-500',
+              loaded ? 'opacity-100' : 'opacity-0'
+            )}
+            loading={loading}
+            decoding={decoding}
+            fetchPriority={fetchPriority}
+            onLoad={(event) => {
+              setLoaded(true);
+              onLoad?.(event);
+            }}
+            onError={handleError}
+            {...rest}
+          />
+        </picture>
+      ) : (
+        <img
+          ref={imgRef}
+          src={activeSrc}
+          alt={alt ?? ''}
+          srcSet={computedSrcSet || undefined}
+          sizes={computedSrcSet ? computedSizes : undefined}
+          className={cn(
+            'relative z-[2] h-full w-full object-cover transition-opacity duration-500',
+            loaded ? 'opacity-100' : 'opacity-0'
+          )}
+          loading={loading}
+          decoding={decoding}
+          fetchPriority={fetchPriority}
+          onLoad={(event) => {
+            setLoaded(true);
+            onLoad?.(event);
+          }}
+          onError={handleError}
+          {...rest}
+        />
+      )}
     </div>
   );
 };

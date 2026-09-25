@@ -84,41 +84,55 @@ function slideFromSnapshot(snapshot: DocumentSnapshot): HeroSlide {
   };
 }
 
+function readCachedSlide(): HeroSlide {
+  try {
+    const cached = sessionStorage.getItem(HERO_SESSION_KEY) || localStorage.getItem(HERO_LOCAL_KEY);
+    if (cached) {
+      const parsed = JSON.parse(cached) as Partial<HeroSlide>;
+      if (parsed && typeof parsed.image === 'string' && parsed.image) {
+        return { ...defaultSlide, ...parsed };
+      }
+    }
+  } catch {
+    /* ignore storage access issues */
+  }
+  return defaultSlide;
+}
+
+function persistSlideCache(slide: HeroSlide) {
+  try {
+    const serialized = JSON.stringify(slide);
+    sessionStorage.setItem(HERO_SESSION_KEY, serialized);
+    localStorage.setItem(HERO_LOCAL_KEY, serialized);
+  } catch {
+    /* ignore storage access issues */
+  }
+}
+
 export const Hero: React.FC = () => {
-  const initialSlide = defaultSlide;
-  const [slide, setSlide] = useState<HeroSlide>(initialSlide);
+  // Render with the last-known slide immediately so the hero <img> (and its
+  // preload) exist on first paint, instead of waiting on a Firestore round
+  // trip before the browser even knows the image URL to fetch.
+  const [slide, setSlide] = useState<HeroSlide>(readCachedSlide);
   const [imageFailed, setImageFailed] = useState(false);
 
   useEffect(() => {
-    clearPersistedSlideCache();
-
-    if (initialSlide.image) {
-      try {
-        const preload = document.createElement('link');
-        preload.rel = 'preload';
-        preload.as = 'image';
-        preload.href = initialSlide.image;
-        preload.setAttribute('fetchpriority', 'high');
-        document.head.appendChild(preload);
-      } catch {
-        /* ignore */
-      }
-    }
-
     const heroDocRef = doc(db, 'siteContent', 'homeHero');
 
     const apply = (snapshot: DocumentSnapshot) => {
       const next = slideFromSnapshot(snapshot);
       setSlide(next);
-      clearPersistedSlideCache();
+      persistSlideCache(next);
     };
 
     void getDoc(heroDocRef).then(apply).catch(() => {
       setSlide(defaultSlide);
+      clearPersistedSlideCache();
     });
 
     const unsubscribe = onSnapshot(heroDocRef, apply, () => {
       setSlide(defaultSlide);
+      clearPersistedSlideCache();
     });
 
     return () => unsubscribe();
@@ -128,6 +142,19 @@ export const Hero: React.FC = () => {
   const activeHeroUrl = !imageFailed && heroUrl ? heroUrl : '';
   const cta1Href = normalizeHeroLink(slide.cta1.link, '/online');
   const cta2Href = normalizeHeroLink(slide.cta2.link, '/classes');
+
+  useEffect(() => {
+    if (!heroUrl) return;
+    const preload = document.createElement('link');
+    preload.rel = 'preload';
+    preload.as = 'image';
+    preload.href = heroUrl;
+    preload.setAttribute('fetchpriority', 'high');
+    document.head.appendChild(preload);
+    return () => {
+      document.head.removeChild(preload);
+    };
+  }, [heroUrl]);
 
   useEffect(() => {
     // Never keep old/fallback hero image when source changes.

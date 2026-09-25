@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "tsx server.ts",
     "dev:client": "vite",
+    "prebuild": "tsx scripts/optimize-images.ts",
     "build": "vite build && esbuild server.ts --bundle --platform=node --format=esm --packages=external --sourcemap --outfile=dist/server.js",
     "start": "node dist/server.js",
     "preview": "vite preview",
@@ -13,7 +14,7 @@
     "lint": "tsc --noEmit",
     "test": "tsx tests/security.test.ts",
     "check": "npm run lint && npm run test && npm run build",
-    "optimize:images": "ts-node scripts/optimize-images.ts"
+    "optimize:images": "tsx scripts/optimize-images.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.3.0",
