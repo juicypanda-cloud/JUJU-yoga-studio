@@ -8,6 +8,9 @@ import { db } from '../firebase';
 type HeroSlide = {
   image: string;
   imageVersion: string;
+  /** Responsive AVIF/WebP srcset for `image`, generated server-side (see api/admin/process-hero-image.ts). */
+  imageAvifSrcSet?: string;
+  imageWebpSrcSet?: string;
   title: string;
   subtitle: string;
   cta1: { text: string; link: string };
@@ -71,6 +74,8 @@ function slideFromSnapshot(snapshot: DocumentSnapshot): HeroSlide {
   return {
     image: (typeof data.image === 'string' ? data.image.trim() : '') || defaultSlide.image,
     imageVersion: toVersionString(updatedAt),
+    imageAvifSrcSet: typeof data.imageAvifSrcSet === 'string' ? data.imageAvifSrcSet : undefined,
+    imageWebpSrcSet: typeof data.imageWebpSrcSet === 'string' ? data.imageWebpSrcSet : undefined,
     title: (typeof data.title === 'string' && data.title) || defaultSlide.title,
     subtitle: (typeof data.subtitle === 'string' && data.subtitle) || defaultSlide.subtitle,
     cta1: {
@@ -148,13 +153,24 @@ export const Hero: React.FC = () => {
     const preload = document.createElement('link');
     preload.rel = 'preload';
     preload.as = 'image';
-    preload.href = heroUrl;
     preload.setAttribute('fetchpriority', 'high');
+    if (slide.imageAvifSrcSet) {
+      // Preload the same responsive AVIF set the <picture> below will pick
+      // from, instead of the much larger plain-JPEG fallback — the largest
+      // entry still serves as the `href` for browsers that ignore imagesrcset.
+      const largest = slide.imageAvifSrcSet.split(', ').pop()?.split(' ')[0];
+      preload.href = largest || heroUrl;
+      preload.setAttribute('imagesrcset', slide.imageAvifSrcSet);
+      preload.setAttribute('imagesizes', '100vw');
+      preload.type = 'image/avif';
+    } else {
+      preload.href = heroUrl;
+    }
     document.head.appendChild(preload);
     return () => {
       document.head.removeChild(preload);
     };
-  }, [heroUrl]);
+  }, [heroUrl, slide.imageAvifSrcSet]);
 
   useEffect(() => {
     // Never keep old/fallback hero image when source changes.
@@ -162,26 +178,33 @@ export const Hero: React.FC = () => {
   }, [heroUrl]);
 
   return (
-    <div className="relative min-h-screen w-full overflow-hidden bg-brand-ink">
+    // `dvh` (not `vh`) so this doesn't overshoot the real visible viewport on
+    // iOS Safari, where `100vh` is sized for the chrome-collapsed state —
+    // the mismatch left extra scrollable space right under the fixed navbar.
+    <div className="relative min-h-dvh w-full overflow-hidden bg-brand-ink">
       <div className="pointer-events-none absolute inset-0 overflow-hidden">
         {activeHeroUrl ? (
-          <img
-            key={activeHeroUrl}
-            src={activeHeroUrl}
-            alt={slide.title}
-            className="absolute inset-0 h-full w-full object-cover contrast-105 brightness-105"
-            loading="eager"
-            fetchPriority="high"
-            decoding="async"
-            onError={() => {
-              setImageFailed(true);
-            }}
-          />
+          <picture>
+            {slide.imageAvifSrcSet && <source type="image/avif" srcSet={slide.imageAvifSrcSet} sizes="100vw" />}
+            {slide.imageWebpSrcSet && <source type="image/webp" srcSet={slide.imageWebpSrcSet} sizes="100vw" />}
+            <img
+              key={activeHeroUrl}
+              src={activeHeroUrl}
+              alt={slide.title}
+              className="absolute inset-0 h-full w-full object-cover contrast-105 brightness-105"
+              loading="eager"
+              fetchPriority="high"
+              decoding="async"
+              onError={() => {
+                setImageFailed(true);
+              }}
+            />
+          </picture>
         ) : null}
       </div>
       <div className="absolute inset-0 z-[1] bg-black/20" />
 
-      <div className="relative z-[2] container mx-auto px-6 min-h-screen flex flex-col justify-end pb-24 md:pb-32 text-left text-white">
+      <div className="relative z-[2] container mx-auto px-6 min-h-dvh flex flex-col justify-end pb-24 md:pb-32 text-left text-white">
         {slide.title ? (
           <motion.h1
             initial={{ x: -20, opacity: 0 }}

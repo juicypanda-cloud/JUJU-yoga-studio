@@ -1,6 +1,6 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { doc, onSnapshot, setDoc, serverTimestamp } from 'firebase/firestore';
-import { db } from '../firebase';
+import { auth, db } from '../firebase';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Textarea } from '../components/ui/textarea';
@@ -55,6 +55,9 @@ export const HomeHeroAdmin: React.FC = () => {
   const [formData, setFormData] = useState<HeroFormData>(defaultFormData);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  // The image at the moment data last loaded, so handleSave only triggers
+  // responsive-variant generation when the image actually changed.
+  const originalImageRef = useRef<string>('');
 
   useEffect(() => {
     const heroDocRef = doc(db, 'siteContent', 'homeHero');
@@ -66,8 +69,9 @@ export const HomeHeroAdmin: React.FC = () => {
       }
 
       const data = snapshot.data() as any;
+      const image = data?.image || defaultFormData.image;
       setFormData({
-        image: data?.image || defaultFormData.image,
+        image,
         title: data?.title || defaultFormData.title,
         subtitle: data?.subtitle || defaultFormData.subtitle,
         cta1Text: data?.cta1Text || defaultFormData.cta1Text,
@@ -75,6 +79,7 @@ export const HomeHeroAdmin: React.FC = () => {
         cta2Text: data?.cta2Text || defaultFormData.cta2Text,
         cta2Link: data?.cta2Link || defaultFormData.cta2Link,
       });
+      originalImageRef.current = image;
       setLoading(false);
     }, (error) => {
       console.error('Failed to load hero settings:', error);
@@ -84,6 +89,24 @@ export const HomeHeroAdmin: React.FC = () => {
 
     return () => unsubscribe();
   }, []);
+
+  // Fire-and-forget: regenerates the responsive AVIF/WebP srcset for the hero
+  // image server-side (see api/admin/process-hero-image.ts). Doesn't block
+  // the save UX — Hero.tsx picks up the new fields via its own live listener.
+  const triggerImageProcessing = async () => {
+    try {
+      const authUser = auth.currentUser;
+      if (!authUser) return;
+      const idToken = await authUser.getIdToken();
+      await fetch('/api/admin/process-hero-image', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ idToken }),
+      });
+    } catch (error) {
+      console.error('Error processing hero image:', error);
+    }
+  };
 
   const handleSave = async () => {
     if (saving) return;
@@ -105,6 +128,10 @@ export const HomeHeroAdmin: React.FC = () => {
         updatedAt: serverTimestamp(),
       }, { merge: true });
       toast.success('Hero хэсэг амжилттай хадгалагдлаа');
+      if (image && image !== originalImageRef.current && image.includes('firebasestorage.googleapis.com')) {
+        void triggerImageProcessing();
+      }
+      originalImageRef.current = image;
     } catch (error) {
       console.error('Failed to save hero settings:', error);
       toast.error('Hero хэсэг хадгалахад алдаа гарлаа');

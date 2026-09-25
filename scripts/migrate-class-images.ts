@@ -43,7 +43,7 @@ const run = async () => {
       }
       const buffer = Buffer.from(await response.arrayBuffer());
 
-      const variants = await generateResponsiveVariants(buffer, `images/classes/${docSnap.id}/cover`);
+      const variants = await generateResponsiveVariants(buffer, `images/classes/${docSnap.id}/cover-${Date.now()}`);
       await docSnap.ref.update({
         imageAvifSrcSet: variants.avifSrcSet,
         imageWebpSrcSet: variants.webpSrcSet,
